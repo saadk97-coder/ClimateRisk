@@ -44,7 +44,9 @@ def calc_ead(
     dmg_sorted = damages[order]
 
     # Trapezoidal integration (damages vs AEP)
-    ead = float(np.trapz(dmg_sorted, aep_sorted))
+    # np.trapz renamed to np.trapezoid in NumPy 2.0
+    _trapz = getattr(np, "trapezoid", None) or getattr(np, "trapz")
+    ead = float(_trapz(dmg_sorted, aep_sorted))
     return max(ead, 0.0)
 
 
