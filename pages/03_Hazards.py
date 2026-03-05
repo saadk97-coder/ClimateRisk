@@ -22,7 +22,8 @@ with st.sidebar:
 
 st.title("Hazard Data")
 
-assets = st.session_state.get("assets", [])
+from engine.asset_model import Asset as _Asset
+assets = [_Asset.from_dict(a) if isinstance(a, dict) else a for a in st.session_state.get("assets", [])]
 if not assets:
     st.warning("No assets defined. Go to the Portfolio page first.")
     st.stop()

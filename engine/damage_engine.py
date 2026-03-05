@@ -156,6 +156,9 @@ def run_portfolio(
     done = 0
 
     for asset in assets:
+        # Streamlit Cloud serialises dataclasses to dicts in session_state
+        if isinstance(asset, dict):
+            asset = Asset.from_dict(asset)
         for scenario_id in scenario_ids:
             for year in years:
                 overrides = None

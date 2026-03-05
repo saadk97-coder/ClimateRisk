@@ -20,7 +20,8 @@ with st.sidebar:
 
 st.title("Risk Map")
 
-assets = st.session_state.get("assets", [])
+from engine.asset_model import Asset as _Asset
+assets = [_Asset.from_dict(a) if isinstance(a, dict) else a for a in st.session_state.get("assets", [])]
 results = st.session_state.get("results", [])
 
 if not assets:

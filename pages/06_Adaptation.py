@@ -26,7 +26,8 @@ st.markdown(
     "Evaluate the cost-effectiveness of adaptation measures at asset and portfolio level."
 )
 
-assets = st.session_state.get("assets", [])
+from engine.asset_model import Asset as _Asset
+assets = [_Asset.from_dict(a) if isinstance(a, dict) else a for a in st.session_state.get("assets", [])]
 results = st.session_state.get("results", [])
 discount_rate = st.session_state.get("discount_rate", 0.035)
 
