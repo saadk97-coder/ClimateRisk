@@ -1,0 +1,83 @@
+{
+  "residential_masonry": {
+    "label": "Residential – Masonry",
+    "default_material": "masonry",
+    "default_stories": 2,
+    "default_roof": "gable",
+    "default_floor_area_m2": 120,
+    "hazards": ["flood", "wind", "wildfire", "heat"],
+    "description": "Brick or block residential building"
+  },
+  "residential_wood": {
+    "label": "Residential – Wood Frame",
+    "default_material": "wood_frame",
+    "default_stories": 2,
+    "default_roof": "gable",
+    "default_floor_area_m2": 150,
+    "hazards": ["flood", "wind", "wildfire", "heat"],
+    "description": "Light wood-frame single-family home"
+  },
+  "residential_concrete": {
+    "label": "Residential – Concrete",
+    "default_material": "concrete",
+    "default_stories": 1,
+    "default_roof": "flat",
+    "default_floor_area_m2": 90,
+    "hazards": ["flood", "wind", "heat"],
+    "description": "Concrete block / reinforced concrete home"
+  },
+  "commercial_steel": {
+    "label": "Commercial – Steel Frame",
+    "default_material": "steel",
+    "default_stories": 5,
+    "default_roof": "flat",
+    "default_floor_area_m2": 2000,
+    "hazards": ["flood", "wind", "heat"],
+    "description": "Steel-frame office or retail building"
+  },
+  "commercial_concrete": {
+    "label": "Commercial – Concrete",
+    "default_material": "concrete",
+    "default_stories": 8,
+    "default_roof": "flat",
+    "default_floor_area_m2": 5000,
+    "hazards": ["flood", "wind", "heat"],
+    "description": "Reinforced concrete commercial or mixed-use"
+  },
+  "industrial_steel": {
+    "label": "Industrial – Steel",
+    "default_material": "steel",
+    "default_stories": 1,
+    "default_roof": "flat",
+    "default_floor_area_m2": 10000,
+    "hazards": ["flood", "wind", "wildfire"],
+    "description": "Light steel industrial / warehouse"
+  },
+  "agricultural": {
+    "label": "Agricultural Building",
+    "default_material": "wood_frame",
+    "default_stories": 1,
+    "default_roof": "gable",
+    "default_floor_area_m2": 500,
+    "hazards": ["flood", "wind", "wildfire", "heat"],
+    "description": "Farm buildings, barns, storage"
+  },
+  "infrastructure_road": {
+    "label": "Road Infrastructure",
+    "default_material": "mixed",
+    "default_stories": 1,
+    "default_roof": "flat",
+    "default_floor_area_m2": 0,
+    "hazards": ["flood", "wildfire"],
+    "description": "Roads, bridges, paved surfaces"
+  },
+  "infrastructure_utility": {
+    "label": "Utility Infrastructure",
+    "default_material": "steel",
+    "default_stories": 1,
+    "default_roof": "flat",
+    "default_floor_area_m2": 200,
+    "hazards": ["flood", "wind", "wildfire", "heat"],
+    "description": "Substations, pumping stations, telecoms"
+  }
+}

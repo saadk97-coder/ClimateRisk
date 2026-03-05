@@ -1,0 +1,16 @@
+id,name,lat,lon,asset_type,replacement_value,construction_material,year_built,stories,basement,roof_type,elevation_m,floor_area_m2,region
+ASSET001,Thames Gateway Office Complex,51.5074,-0.1278,commercial_steel,12500000,steel,2008,12,True,flat,0.0,8000,GBR
+ASSET002,Canary Wharf Tower,51.5055,-0.0250,commercial_concrete,45000000,concrete,1999,50,True,flat,0.0,35000,GBR
+ASSET003,Residential Block – Southwark,51.4995,-0.0934,residential_masonry,2800000,masonry,1972,4,False,flat,0.5,1200,GBR
+ASSET004,Surrey Family Home,51.2362,-0.5704,residential_masonry,485000,masonry,1955,2,False,gable,0.3,130,GBR
+ASSET005,Kent Wood-Frame Cottage,51.2788,0.5217,residential_wood,320000,wood_frame,1930,2,False,gable,0.0,95,GBR
+ASSET006,Bristol Logistics Hub,51.4545,-2.5879,industrial_steel,8200000,steel,2015,1,False,flat,0.0,12000,GBR
+ASSET007,Birmingham Manufacturing Plant,52.4862,-1.8904,industrial_steel,15000000,steel,1988,2,False,flat,0.0,18000,GBR
+ASSET008,Cambridge Tech Park,52.2053,0.1218,commercial_concrete,6500000,concrete,2010,4,False,flat,0.2,4500,GBR
+ASSET009,Edinburgh City Centre Hotel,55.9533,-3.1883,commercial_masonry,9800000,masonry,1910,7,True,flat,0.0,6000,GBR
+ASSET010,Glasgow Industrial Estate,55.8642,-4.2518,industrial_steel,4200000,steel,1975,1,False,flat,0.0,8500,GBR
+ASSET011,Paris Commercial Tower,48.8566,2.3522,commercial_concrete,28000000,concrete,2005,30,True,flat,0.0,22000,FRA
+ASSET012,Lyon Warehouse Facility,45.7640,4.8357,industrial_steel,5500000,steel,2001,1,False,flat,0.5,9000,FRA
+ASSET013,Amsterdam Canal Office,52.3676,4.9041,commercial_steel,7200000,steel,1990,6,True,flat,-0.5,4000,NLD
+ASSET014,Rotterdam Port Facility,51.9244,4.4777,infrastructure_utility,18000000,steel,2000,1,False,flat,-1.0,5000,NLD
+ASSET015,Hamburg Residential Block,53.5511,9.9937,residential_masonry,3200000,masonry,1965,5,True,flat,0.0,2000,DEU

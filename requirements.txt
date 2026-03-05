@@ -1,0 +1,10 @@
+streamlit>=1.35
+pandas>=2.0
+numpy>=1.26
+scipy>=1.12
+plotly>=5.20
+folium>=0.16
+streamlit-folium>=0.20
+requests>=2.31
+pydeck>=0.9
+openpyxl>=3.1

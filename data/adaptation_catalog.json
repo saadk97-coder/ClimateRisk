@@ -1,0 +1,214 @@
+{
+  "_comment": "Adaptation measures catalog. capex_pct = capex as % of asset replacement value. opex_annual_pct = annual opex as % of capex. damage_reduction_pct = effectiveness against target hazard (0-100%). design_life_years = expected lifespan of measure.",
+  "measures": [
+    {
+      "id": "flood_barrier_temporary",
+      "label": "Temporary Flood Barriers",
+      "hazard": "flood",
+      "description": "Deployable flood barriers (sandbags, aqua dams) to exclude floodwater.",
+      "applicable_asset_types": ["residential_masonry", "residential_wood", "residential_concrete", "commercial_steel", "commercial_concrete", "industrial_steel"],
+      "capex_pct": 0.5,
+      "opex_annual_pct": 10.0,
+      "damage_reduction_pct": 40,
+      "design_life_years": 15
+    },
+    {
+      "id": "flood_barrier_permanent",
+      "label": "Permanent Flood Barrier / Bund",
+      "hazard": "flood",
+      "description": "Permanent earthen or concrete bund / perimeter wall around asset.",
+      "applicable_asset_types": ["commercial_steel", "commercial_concrete", "industrial_steel", "infrastructure_utility"],
+      "capex_pct": 2.0,
+      "opex_annual_pct": 5.0,
+      "damage_reduction_pct": 65,
+      "design_life_years": 30
+    },
+    {
+      "id": "flood_elevated_foundation",
+      "label": "Elevated Foundation (Raise Floor Level)",
+      "hazard": "flood",
+      "description": "Raise floor level by 0.5–1.5m above flood plain. Most effective for new builds or major renovations.",
+      "applicable_asset_types": ["residential_masonry", "residential_wood", "residential_concrete"],
+      "capex_pct": 3.5,
+      "opex_annual_pct": 1.0,
+      "damage_reduction_pct": 70,
+      "design_life_years": 50
+    },
+    {
+      "id": "flood_waterproofing",
+      "label": "Structural Waterproofing",
+      "hazard": "flood",
+      "description": "Tanking, flood-proof doors/windows, water-resistant coatings to limit ingress.",
+      "applicable_asset_types": ["residential_masonry", "residential_concrete", "commercial_steel", "commercial_concrete"],
+      "capex_pct": 1.5,
+      "opex_annual_pct": 8.0,
+      "damage_reduction_pct": 35,
+      "design_life_years": 20
+    },
+    {
+      "id": "flood_sump_pump",
+      "label": "Sump Pump System",
+      "hazard": "flood",
+      "description": "Automatic sump pump with battery backup to remove groundwater infiltration.",
+      "applicable_asset_types": ["residential_masonry", "residential_wood", "residential_concrete", "commercial_steel"],
+      "capex_pct": 0.3,
+      "opex_annual_pct": 15.0,
+      "damage_reduction_pct": 20,
+      "design_life_years": 10
+    },
+    {
+      "id": "flood_permeable_paving",
+      "label": "Permeable Paving & SuDS",
+      "hazard": "flood",
+      "description": "Permeable surfaces and sustainable drainage reduce surface water runoff.",
+      "applicable_asset_types": ["commercial_steel", "commercial_concrete", "industrial_steel", "infrastructure_road"],
+      "capex_pct": 0.8,
+      "opex_annual_pct": 5.0,
+      "damage_reduction_pct": 15,
+      "design_life_years": 25
+    },
+    {
+      "id": "wind_roof_reinforcement",
+      "label": "Roof Reinforcement",
+      "hazard": "wind",
+      "description": "Hurricane straps, additional fixings and reinforced roof-to-wall connections.",
+      "applicable_asset_types": ["residential_masonry", "residential_wood", "agricultural"],
+      "capex_pct": 1.0,
+      "opex_annual_pct": 2.0,
+      "damage_reduction_pct": 30,
+      "design_life_years": 25
+    },
+    {
+      "id": "wind_storm_shutters",
+      "label": "Storm Shutters / Impact Glazing",
+      "hazard": "wind",
+      "description": "Impact-resistant shutters or glazing protects openings from wind-borne debris.",
+      "applicable_asset_types": ["residential_masonry", "residential_wood", "residential_concrete", "commercial_steel"],
+      "capex_pct": 1.2,
+      "opex_annual_pct": 3.0,
+      "damage_reduction_pct": 25,
+      "design_life_years": 20
+    },
+    {
+      "id": "wind_anchor_bolts",
+      "label": "Foundation Anchor Bolts",
+      "hazard": "wind",
+      "description": "Structural anchor bolts securing frame to foundation reduce uplift risk.",
+      "applicable_asset_types": ["residential_wood", "industrial_steel", "agricultural"],
+      "capex_pct": 0.5,
+      "opex_annual_pct": 1.0,
+      "damage_reduction_pct": 20,
+      "design_life_years": 40
+    },
+    {
+      "id": "wind_rated_glazing",
+      "label": "Wind-Rated Glazing System",
+      "hazard": "wind",
+      "description": "High-performance curtain walling / glazing rated to design wind speeds.",
+      "applicable_asset_types": ["commercial_steel", "commercial_concrete", "infrastructure_utility"],
+      "capex_pct": 2.0,
+      "opex_annual_pct": 2.0,
+      "damage_reduction_pct": 35,
+      "design_life_years": 30
+    },
+    {
+      "id": "wildfire_ember_vents",
+      "label": "Ember-Resistant Vents",
+      "hazard": "wildfire",
+      "description": "Replace standard vents with 1/16\" mesh ember-resistant vents to prevent interior ignition.",
+      "applicable_asset_types": ["residential_masonry", "residential_wood", "residential_concrete"],
+      "capex_pct": 0.3,
+      "opex_annual_pct": 2.0,
+      "damage_reduction_pct": 20,
+      "design_life_years": 20
+    },
+    {
+      "id": "wildfire_noncombustible_cladding",
+      "label": "Non-Combustible Cladding",
+      "hazard": "wildfire",
+      "description": "Replace combustible exterior materials with fire-resistant cladding (fibre cement, brick, stucco).",
+      "applicable_asset_types": ["residential_wood", "commercial_steel", "industrial_steel", "agricultural"],
+      "capex_pct": 2.5,
+      "opex_annual_pct": 1.0,
+      "damage_reduction_pct": 45,
+      "design_life_years": 30
+    },
+    {
+      "id": "wildfire_vegetation_clearance",
+      "label": "Vegetation Clearance Zone",
+      "hazard": "wildfire",
+      "description": "Maintain 30m non-combustible buffer zone around structure; annual maintenance required.",
+      "applicable_asset_types": ["residential_masonry", "residential_wood", "residential_concrete", "agricultural", "industrial_steel"],
+      "capex_pct": 0.5,
+      "opex_annual_pct": 20.0,
+      "damage_reduction_pct": 35,
+      "design_life_years": 99
+    },
+    {
+      "id": "wildfire_sprinkler_system",
+      "label": "Exterior Sprinkler System",
+      "hazard": "wildfire",
+      "description": "Rooftop and perimeter sprinkler systems activated during wildfire events.",
+      "applicable_asset_types": ["residential_masonry", "residential_wood", "commercial_steel"],
+      "capex_pct": 1.0,
+      "opex_annual_pct": 5.0,
+      "damage_reduction_pct": 30,
+      "design_life_years": 15
+    },
+    {
+      "id": "heat_insulation_upgrade",
+      "label": "Building Insulation Upgrade",
+      "hazard": "heat",
+      "description": "Improved wall, roof and floor insulation reduces cooling loads and thermal stress.",
+      "applicable_asset_types": ["residential_masonry", "residential_wood", "residential_concrete", "commercial_steel", "commercial_concrete"],
+      "capex_pct": 1.5,
+      "opex_annual_pct": 1.0,
+      "damage_reduction_pct": 25,
+      "design_life_years": 30
+    },
+    {
+      "id": "heat_cool_roof",
+      "label": "Cool Roof Coating",
+      "hazard": "heat",
+      "description": "High-albedo roof coating or membrane reduces solar heat gain by 30–50%.",
+      "applicable_asset_types": ["residential_masonry", "residential_concrete", "commercial_steel", "commercial_concrete", "industrial_steel"],
+      "capex_pct": 0.4,
+      "opex_annual_pct": 5.0,
+      "damage_reduction_pct": 20,
+      "design_life_years": 15
+    },
+    {
+      "id": "heat_hvac_upgrade",
+      "label": "High-Efficiency HVAC Upgrade",
+      "hazard": "heat",
+      "description": "Replace aging HVAC with high-COP heat pump system sized for future peak temperatures.",
+      "applicable_asset_types": ["commercial_steel", "commercial_concrete", "industrial_steel", "infrastructure_utility"],
+      "capex_pct": 2.0,
+      "opex_annual_pct": 3.0,
+      "damage_reduction_pct": 40,
+      "design_life_years": 20
+    },
+    {
+      "id": "heat_green_roof",
+      "label": "Green Roof / Living Roof",
+      "hazard": "heat",
+      "description": "Vegetated roof reduces surface temperature by 2–8°C through evapotranspiration.",
+      "applicable_asset_types": ["commercial_steel", "commercial_concrete", "residential_concrete"],
+      "capex_pct": 1.8,
+      "opex_annual_pct": 8.0,
+      "damage_reduction_pct": 22,
+      "design_life_years": 40
+    },
+    {
+      "id": "heat_shading_systems",
+      "label": "External Shading Systems",
+      "hazard": "heat",
+      "description": "Brise soleil, external blinds or louvres reduce solar gain in glazed facades.",
+      "applicable_asset_types": ["commercial_steel", "commercial_concrete", "residential_masonry"],
+      "capex_pct": 0.8,
+      "opex_annual_pct": 4.0,
+      "damage_reduction_pct": 15,
+      "design_life_years": 20
+    }
+  ]
+}
