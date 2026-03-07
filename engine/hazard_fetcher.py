@@ -51,6 +51,81 @@ def _get_region_key(iso3: str) -> str:
     return mapping.get(iso3.upper(), "global")
 
 
+def get_region_zone(region_iso3: str) -> str:
+    """Return the zone key used by the baseline for this ISO3 country code."""
+    return _get_region_key(region_iso3)
+
+
+def get_fallback_detail(hazard: str, region_iso3: str) -> dict:
+    """
+    Return full provenance detail for the fallback baseline at a given region.
+    Used by the Hazards page to display transparent source information.
+    """
+    bl = _load_baseline()
+    zone = _get_region_key(region_iso3)
+    rps = bl.get("return_periods", [10, 50, 100, 250, 500, 1000])
+    hazard_data = bl.get(hazard, {})
+    values = {}
+    for rp in rps:
+        key = f"rp{rp}"
+        entry = hazard_data.get(key, {})
+        val = entry.get(zone, entry.get("global", 0.0))
+        values[rp] = float(val)
+
+    HAZARD_SOURCES = {
+        "flood": {
+            "source": "ISIMIP3b global flood medians",
+            "citation": "Sauer et al. (2021) Earth's Future 9(2)",
+            "doi": "https://doi.org/10.1029/2020EF001901",
+            "description": "Median inundation depth (m) at each return period, derived from ensemble of ISIMIP3b global hydrological models (CaMa-Flood, ORCHIDEE, PCR-GLOBWB). Calibrated to observed flood records.",
+        },
+        "wind": {
+            "source": "FEMA HAZUS regional wind speed data",
+            "citation": "FEMA (2022) HAZUS 6.0 Technical Manual",
+            "doi": "https://www.fema.gov/flood-maps/products-tools/hazus",
+            "description": "3-second gust wind speed (m/s) at return periods, derived from HAZUS MH regional wind climatology and ASCE 7 wind speed maps, adapted to global zones.",
+        },
+        "wildfire": {
+            "source": "EFFIS fire danger climatology",
+            "citation": "JRC (2021) EFFIS Annual Report; San-Miguel-Ayanz et al.",
+            "doi": "https://effis.jrc.ec.europa.eu/",
+            "description": "Flame length (m) proxied from EFFIS fire weather index (FWI) percentiles. FWI converted to flame length using Byram (1959) fireline intensity relationships.",
+        },
+        "heat": {
+            "source": "ERA5-Land temperature percentiles",
+            "citation": "Copernicus C3S ERA5-Land (2023); Muñoz-Sabater et al. (2021) ESSD",
+            "doi": "https://cds.climate.copernicus.eu/",
+            "description": "Maximum daily temperature (°C) at return periods from ERA5-Land reanalysis 1981–2010 climatology. ERA5-Land is a reanalysis at 9 km resolution; regional medians compiled per zone.",
+        },
+    }
+    src = HAZARD_SOURCES.get(hazard, {})
+
+    ZONE_DESCRIPTIONS = {
+        "EUR": "Europe (GBR, FRA, DEU, ITA, ESP, NLD, BEL, POL, SWE, NOR and other EU/EEA)",
+        "USA": "North America (USA, CAN, MEX)",
+        "CHN": "East Asia (CHN, JPN, KOR, TWN)",
+        "IND": "South Asia (IND, PAK, BGD, LKA)",
+        "AUS": "Oceania (AUS, NZL)",
+        "BRA": "South America (BRA, ARG, COL, PER)",
+        "global": "Global median (fallback for unmapped countries)",
+    }
+
+    return {
+        "zone": zone,
+        "zone_description": ZONE_DESCRIPTIONS.get(zone, zone),
+        "iso3": region_iso3.upper(),
+        "return_periods": rps,
+        "values": values,
+        "hazard_source": src.get("source", ""),
+        "citation": src.get("citation", ""),
+        "doi": src.get("doi", ""),
+        "description": src.get("description", ""),
+        "resolution": "Regional (7 global zones; ~continental scale)",
+        "temporal_basis": "1981–2010 historical climatology (pre-industrial to present)",
+        "climate_adjustment": "Hazard multipliers applied per scenario/year via IPCC AR6 scaling (see Scenarios page)",
+    }
+
+
 def _fallback_intensities(hazard: str, region_iso3: str) -> Tuple[np.ndarray, np.ndarray]:
     """
     Return (return_periods, intensities) from built-in regional baseline.
