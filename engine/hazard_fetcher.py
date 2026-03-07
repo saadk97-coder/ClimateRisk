@@ -151,31 +151,6 @@ def _fallback_intensities(hazard: str, region_iso3: str) -> Tuple[np.ndarray, np
     return np.array(rps_list, dtype=float), np.array(intensities, dtype=float)
 
 
-def _try_isimip_flood(lat: float, lon: float, scenario_ssp: str, time_period: str) -> Optional[Tuple[np.ndarray, np.ndarray]]:
-    """
-    Query ISIMIP3b flood inundation API.
-    Source: https://www.isimip.org/
-    Citation: Frieler et al. (2017) https://doi.org/10.5194/gmd-10-4321-2017
-    """
-    ssp_map = {
-        "SSP1-1.9": "ssp119", "SSP1-2.6": "ssp126",
-        "SSP2-4.5": "ssp245", "SSP3-7.0": "ssp370", "SSP5-8.5": "ssp585",
-    }
-    protocol = ssp_map.get(scenario_ssp, "ssp245")
-    try:
-        params = {
-            "path": f"ISIMIP3b/SecondaryOutputs/flood/{protocol}/{time_period}",
-            "bbox": f"{lon-0.5},{lat-0.5},{lon+0.5},{lat+0.5}",
-            "format": "json",
-        }
-        r = requests.get(f"{BASE_URL}/datasets", params=params, timeout=REQUEST_TIMEOUT)
-        if r.status_code != 200 or not r.json().get("results"):
-            return None
-        return None  # Full NetCDF parsing would go here
-    except Exception:
-        return None
-
-
 def fetch_hazard_intensities(
     lat: float,
     lon: float,
@@ -187,21 +162,54 @@ def fetch_hazard_intensities(
     """
     Fetch hazard return-period intensity profile for a location.
 
+    Priority cascade (highest resolution first):
+      1. ISIMIP3b — point extraction via isimip-client (flood, heat, wind) [0.25–0.5°]
+      2. NASA NEX-GDDP-CMIP6 — S3 NetCDF point extraction (heat, wind) [0.25°]
+      3. CHELSA CMIP6 — GeoTIFF point extraction (heat) [30 arc-sec]
+      4. Regional baseline — compiled medians from IPCC AR6 / ISIMIP [continental]
+
     Returns
     -------
     (return_periods, intensities, source_key)
     source_key maps to DATA_SOURCE_REGISTRY for full citation.
     """
-    # 1. ISIMIP3b API
-    if hazard == "flood":
-        api_result = _try_isimip_flood(lat, lon, scenario_ssp, time_period)
-        if api_result:
-            return api_result[0], api_result[1], "isimip3b"
+    from engine.isimip_fetcher import (
+        fetch_isimip3b_flood, fetch_isimip3b_heat, fetch_isimip3b_wind
+    )
 
-    # 2–5. Secondary sources (NASA NEX, CHELSA, LOCA2, ClimateNA)
-    src_key, _ = fetch_best_available(lat, lon, hazard, region_iso3, scenario_ssp)
+    # ── 1. ISIMIP3b (full extraction pipeline) ─────────────────────────────
+    try:
+        if hazard == "flood":
+            result = fetch_isimip3b_flood(lat, lon, ssp=scenario_ssp)
+            if result is not None:
+                return result[0], result[1], "isimip3b"
+        elif hazard == "heat":
+            result = fetch_isimip3b_heat(lat, lon, ssp=scenario_ssp)
+            if result is not None:
+                return result[0], result[1], "isimip3b"
+        elif hazard == "wind":
+            result = fetch_isimip3b_wind(lat, lon, ssp=scenario_ssp)
+            if result is not None:
+                return result[0], result[1], "isimip3b"
+    except Exception:
+        pass
 
-    # 6. Built-in regional baseline (always available)
+    # ── 2. NASA NEX-GDDP-CMIP6 (heat, wind) ───────────────────────────────
+    if hazard in ("heat", "wind"):
+        try:
+            from engine.data_sources import fetch_best_available
+            src_key, val = fetch_best_available(lat, lon, hazard, region_iso3, scenario_ssp)
+            if src_key not in ("fallback_baseline",) and val is not None:
+                # Build simple intensities from single value (scaled across return periods)
+                rp_base, base_intens = _fallback_intensities(hazard, region_iso3)
+                # Scale baseline to match the API value at RP100 (index 2)
+                rp100_idx = 2
+                scale_factor = val / base_intens[rp100_idx] if base_intens[rp100_idx] > 0 else 1.0
+                return rp_base, base_intens * scale_factor, src_key
+        except Exception:
+            pass
+
+    # ── 3. Built-in regional baseline (always available) ───────────────────
     rp, intensities = _fallback_intensities(hazard, region_iso3)
     return rp, intensities, "fallback_baseline"
 

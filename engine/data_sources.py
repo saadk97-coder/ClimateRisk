@@ -25,14 +25,24 @@ _TIMEOUT = 12  # seconds
 # ---------------------------------------------------------------------------
 DATA_SOURCE_REGISTRY = {
     "isimip3b": {
-        "name": "ISIMIP3b Flood Inundation",
-        "description": "Inter-Sectoral Impact Model Intercomparison Project. Global flood inundation at 0.5° resolution under CMIP6 SSPs.",
-        "citation": "Frieler et al. (2017) Geosci. Model Dev. 10, 4321–4345",
+        "name": "ISIMIP3b (Flood + Heat + Wind)",
+        "description": (
+            "Inter-Sectoral Impact Model Intercomparison Project Phase 3b. "
+            "Flood: flooded area fraction (fldfrc) from CaMa-Flood multi-GHM ensemble at 0.25°, "
+            "GEV-fitted to annual maxima to derive return period depths. "
+            "Heat/Wind: bias-adjusted tasmax and sfcWind at 0.5° from CMIP6 GCMs (GFDL-ESM4, "
+            "MPI-ESM1-2-HR, IPSL-CM6A-LR, MRI-ESM2-0), GEV-fitted annual maxima. "
+            "Point extraction via isimip-client (async, ~60 s per asset)."
+        ),
+        "citation": (
+            "Sauer et al. (2021) Earth's Future 9(2) [flood]; "
+            "Lange (2019) Earth Syst. Dynam. 10, 1321–1336 [bias-adjustment]"
+        ),
         "url": "https://www.isimip.org/",
-        "doi": "https://doi.org/10.5194/gmd-10-4321-2017",
-        "resolution": "0.5°",
-        "variables": ["flood_depth"],
-        "hazards": ["flood"],
+        "doi": "https://doi.org/10.1029/2020EF001901",
+        "resolution": "0.25–0.5° (~28–55 km)",
+        "variables": ["fldfrc", "tasmax", "sfcWind"],
+        "hazards": ["flood", "heat", "wind"],
     },
     "nasa_nex_gddp_cmip6": {
         "name": "NASA NEX-GDDP-CMIP6",

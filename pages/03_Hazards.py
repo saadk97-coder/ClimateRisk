@@ -59,9 +59,9 @@ _has_rasterio = _has_dep("rasterio")
 
 SOURCE_STATUS = {
     "isimip3b": {
-        "status": "partial",
-        "badge": "🟡 Partial — flood only (NetCDF extraction in progress)",
-        "note": "API reachable; xarray installed ✅; full point-extraction integration pending",
+        "status": "active",
+        "badge": "🟢 Active — Flood, Heat, Wind",
+        "note": "isimip-client installed ✅; async point-extraction at 0.25–0.5°; ~60s per asset",
     },
     "nasa_nex_gddp_cmip6": {
         "status": "active" if _has_xarray else "deps",
