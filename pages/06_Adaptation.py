@@ -11,6 +11,7 @@ from dataclasses import asdict
 
 from engine.adaptation_engine import list_measures, calc_adaptation, portfolio_adaptation_frontier, AdaptationResult
 from engine.scenario_model import SCENARIOS
+from engine.export_engine import export_adaptation_xlsx
 
 st.set_page_config(page_title="Adaptation", page_icon="🛡️", layout="wide")
 
@@ -234,7 +235,19 @@ if st.button("📊 Compute Portfolio Frontier", type="primary"):
             "cbr": r.cbr,
             "payback_years": r.payback_years,
         } for r in all_adap_results])
-        csv_bytes = export_df.to_csv(index=False).encode()
-        st.download_button("⬇️ Export Full Adaptation Analysis (CSV)", csv_bytes, "adaptation_results.csv", "text/csv")
+        col_a, col_b = st.columns(2)
+        with col_a:
+            try:
+                xlsx_bytes = export_adaptation_xlsx(export_df, frontier_df)
+                st.download_button(
+                    "⬇️ Export Full Adaptation Analysis (.xlsx)", data=xlsx_bytes,
+                    file_name="adaptation_results.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+            except Exception as e:
+                st.warning(f"XLSX export unavailable: {e}")
+        with col_b:
+            csv_bytes = export_df.to_csv(index=False).encode()
+            st.download_button("⬇️ Export Full Adaptation Analysis (.csv)", csv_bytes, "adaptation_results.csv", "text/csv")
     else:
         st.info("No adaptation results generated (no assets with EAD > 0).")
