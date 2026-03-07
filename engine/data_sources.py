@@ -25,24 +25,30 @@ _TIMEOUT = 12  # seconds
 # ---------------------------------------------------------------------------
 DATA_SOURCE_REGISTRY = {
     "isimip3b": {
-        "name": "ISIMIP3b (Flood + Heat + Wind)",
+        "name": "ISIMIP3b (Flood + Heat + Wind + Wildfire)",
         "description": (
             "Inter-Sectoral Impact Model Intercomparison Project Phase 3b. "
             "Flood: flooded area fraction (fldfrc) from CaMa-Flood multi-GHM ensemble at 0.25°, "
             "GEV-fitted to annual maxima to derive return period depths. "
             "Heat/Wind: bias-adjusted tasmax and sfcWind at 0.5° from CMIP6 GCMs (GFDL-ESM4, "
             "MPI-ESM1-2-HR, IPSL-CM6A-LR, MRI-ESM2-0), GEV-fitted annual maxima. "
-            "Point extraction via isimip-client (async, ~60 s per asset)."
+            "Wildfire: multi-variable extraction (tasmax + pr + hurs + sfcWind) combined with "
+            "the complete Canadian Forest Fire Weather Index system (Van Wagner 1987) to compute "
+            "daily FWI; annual maxima fitted with GEV; converted to flame length via Simard (1970) "
+            "and Byram (1959). "
+            "Point extraction via isimip-client (async, ~90 s per asset for wildfire)."
         ),
         "citation": (
             "Sauer et al. (2021) Earth's Future 9(2) [flood]; "
-            "Lange (2019) Earth Syst. Dynam. 10, 1321–1336 [bias-adjustment]"
+            "Lange (2019) Earth Syst. Dynam. 10, 1321–1336 [bias-adjustment]; "
+            "Van Wagner (1987) CFS Forestry Technical Report 35 [FWI]; "
+            "Byram (1959) [flame length]"
         ),
         "url": "https://www.isimip.org/",
         "doi": "https://doi.org/10.1029/2020EF001901",
         "resolution": "0.25–0.5° (~28–55 km)",
-        "variables": ["fldfrc", "tasmax", "sfcWind"],
-        "hazards": ["flood", "heat", "wind"],
+        "variables": ["fldfrc", "tasmax", "sfcWind", "pr", "hurs"],
+        "hazards": ["flood", "heat", "wind", "wildfire"],
     },
     "nasa_nex_gddp_cmip6": {
         "name": "NASA NEX-GDDP-CMIP6",

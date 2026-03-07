@@ -45,9 +45,9 @@ asset_types_catalog = load_asset_types()
 st.divider()
 st.subheader("Available Data Sources")
 st.caption(
-    "Sources are tried in priority order. Currently all assets use the **Built-in Regional Baseline** "
-    "(see status below). Higher-resolution sources require optional Python dependencies "
-    "(xarray, rasterio) or are region-specific."
+    "Sources are tried in priority order: ISIMIP3b → NASA NEX-GDDP → CHELSA → Regional Baseline. "
+    "ISIMIP3b is active for **all four hazards** (Flood, Heat, Wind, Wildfire). "
+    "Wildfire uses the full Canadian FWI system (Van Wagner 1987) from multi-variable extraction."
 )
 
 def _has_dep(mod):
@@ -60,8 +60,12 @@ _has_rasterio = _has_dep("rasterio")
 SOURCE_STATUS = {
     "isimip3b": {
         "status": "active",
-        "badge": "🟢 Active — Flood, Heat, Wind",
-        "note": "isimip-client installed ✅; async point-extraction at 0.25–0.5°; ~60s per asset",
+        "badge": "🟢 Active — Flood, Heat, Wind, Wildfire",
+        "note": (
+            "isimip-client installed ✅; async point-extraction at 0.25–0.5°. "
+            "Wildfire: multi-variable FWI pipeline (tasmax + pr + hurs + sfcWind → "
+            "Canadian FWI system Van Wagner 1987 → GEV → flame length). ~90s per asset for wildfire."
+        ),
     },
     "nasa_nex_gddp_cmip6": {
         "status": "active" if _has_xarray else "deps",

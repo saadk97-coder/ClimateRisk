@@ -67,6 +67,88 @@ def _fit_gev(annual_maxima: np.ndarray, return_periods: np.ndarray) -> Optional[
         return None
 
 
+def _open_isimip_nc_wildfire(data: bytes) -> Optional[tuple]:
+    """
+    Parse a multi-variable ISIMIP3b extracted NetCDF for wildfire FWI computation.
+
+    Returns (T_arr, H_arr, W_arr, R_arr, years, months) in FWI input units:
+      T  : daily max temperature (°C)
+      H  : relative humidity (%)
+      W  : wind speed (km/h)
+      R  : precipitation (mm/day)
+    Returns None on failure.
+    """
+    try:
+        import xarray as xr
+        import pandas as pd
+
+        ds = xr.open_dataset(io.BytesIO(data), engine="scipy")
+        ds = ds.squeeze()  # remove singleton lat/lon dims
+
+        VAR_ALIASES = {
+            "tasmax":   ["tasmax", "tmax", "temperature_max"],
+            "pr":       ["pr", "prcp", "precipitation", "rainfall"],
+            "hurs":     ["hurs", "rh", "relhum", "relative_humidity"],
+            "sfcWind":  ["sfcWind", "wind", "ws", "wind_speed"],
+        }
+
+        def _get_var(ds, candidates):
+            for name in candidates:
+                if name in ds.data_vars:
+                    return ds[name].values.flatten().astype(float)
+            return None
+
+        T = _get_var(ds, VAR_ALIASES["tasmax"])
+        R = _get_var(ds, VAR_ALIASES["pr"])
+        H = _get_var(ds, VAR_ALIASES["hurs"])
+        W = _get_var(ds, VAR_ALIASES["sfcWind"])
+
+        if T is None:
+            return None  # temperature is essential for FWI
+
+        n = len(T)
+        if H is None:
+            H = np.full(n, 50.0)    # conservative 50% RH default
+        if W is None:
+            W = np.full(n, 10.0)    # 10 km/h default
+        if R is None:
+            R = np.zeros(n)         # dry default (conservative — raises FWI)
+
+        # Unit conversions ──────────────────────────────────────────────────
+        # tasmax: Kelvin → °C (ISIMIP3b stores in K)
+        if T.mean() > 200:
+            T = T - 273.15
+
+        # pr: kg m⁻² s⁻¹ → mm day⁻¹  (1 kg/m²/s = 86400 mm/day)
+        # Detect by magnitude: raw ISIMIP values are ~0–5×10⁻⁴ kg/m²/s
+        if R.mean() < 1.0:
+            R = R * 86400.0
+
+        # sfcWind: m s⁻¹ → km h⁻¹  (FWI inputs require km/h)
+        if W.mean() < 30:           # m/s values are typically 0–20
+            W = W * 3.6
+
+        H = np.clip(H, 0.0, 100.0)
+
+        # Time axis ─────────────────────────────────────────────────────────
+        if "time" in ds.coords:
+            times = pd.DatetimeIndex(ds["time"].values)
+            years  = times.year.values.astype(int)
+            months = times.month.values.astype(int)
+        else:
+            # Synthesise time from position
+            years  = np.repeat(np.arange(2021, 2021 + n // 365 + 2), 365)[:n]
+            base_months = np.repeat(np.arange(1, 13), [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31])
+            months = np.tile(base_months, n // 365 + 2)[:n]
+
+        n = min(len(T), len(H), len(W), len(R), len(years), len(months))
+        return T[:n], H[:n], W[:n], R[:n], years[:n], months[:n]
+
+    except Exception as e:
+        logger.debug(f"Wildfire NetCDF parse failed: {e}")
+        return None
+
+
 def _open_isimip_nc(data: bytes, variable: str) -> Optional[np.ndarray]:
     """
     Open an isimip-client extracted NetCDF and return annual maximum time series.
@@ -326,25 +408,95 @@ def fetch_isimip3b_wildfire(
     lon: float,
     ssp: str = "SSP2-4.5",
     return_periods: Optional[np.ndarray] = None,
+    vegetation: str = "forest",
 ) -> Optional[Tuple[np.ndarray, np.ndarray]]:
     """
-    Derive wildfire flame length return periods from ISIMIP3b climate data.
+    Derive wildfire flame length return periods from ISIMIP3b multi-variable extraction.
 
-    ISIMIP3b does not provide a direct wildfire flame length output.
-    Flame length is derived from the McArthur Fire Danger Index (FDI) proxy
-    using tasmax + sfcWind + pr from ISIMIP3b bias-adjusted data:
-        FDI ∝ exp(0.05 × tasmax_c) × (1 + wind_ms)^0.8 / (1 + 0.1 × pr_mm)
-        flame_length_m ≈ 0.0775 × FDI^0.46  (Noble et al. 1980)
+    ISIMIP3b does not publish a direct wildfire output, so flame length is
+    derived via the complete Canadian Forest Fire Weather Index (FWI) system
+    (Van Wagner 1987), the global standard used by EFFIS, GWIS, and FAO:
 
-    This is an approximation — for high-accuracy wildfire risk, use
-    CHELSA CMIP6 fire weather index (FWI) directly.
+      Step 1 — Extract 4 daily climate variables via isimip-client in one job:
+                tasmax (°C), pr (mm/day), hurs (%), sfcWind (km/h)
+      Step 2 — Compute daily FWI series using Van Wagner (1987) FFMC/DMC/DC
+                sequential algorithm with latitude-dependent day-length factors
+      Step 3 — Fit GEV (MLE) to annual maximum FWI series
+      Step 4 — Convert FWI quantiles → flame length (m):
+                  Fireline intensity  I = A × FWI^1.5     (Simard 1970)
+                  Flame length        L = 0.0775 × I^0.46  (Byram 1959)
+                with A = 300 (forest), 450 (Mediterranean shrubland), 200 (grassland)
+
+    Resolution:  0.5° (~55 km) — ISIMIP3b grid
+    Climate data: Lange (2019) https://doi.org/10.5194/esd-10-1321-2019
+    FWI system:   Van Wagner (1987) CFS Forestry Technical Report 35
 
     Returns (return_periods, flame_lengths_m) or None.
     """
     if return_periods is None:
         return_periods = STANDARD_RETURN_PERIODS
     ssp_key = _SSP_MAP.get(ssp, "ssp245")
-    # Wildfire requires multi-variable extraction; currently returns None to
-    # fall back to regional baseline (which uses EFFIS FWI data directly)
-    # TODO: implement multi-variable extraction when isimip-client supports batch
+
+    try:
+        from engine.fire_weather import annual_max_fwi, fwi_to_flame_length
+    except ImportError:
+        logger.debug("fire_weather module not available")
+        return None
+
+    WILDFIRE_VARS = ["tasmax", "pr", "hurs", "sfcWind"]
+
+    for gcm in _GCM_PRIORITY:
+        # Collect file paths for all 4 variables — submitted as ONE extraction job
+        all_paths: List[str] = []
+        for var in WILDFIRE_VARS:
+            paths = _query_isimip_paths("ISIMIP3b", "SecondaryInputData", ssp_key, var, gcm)
+            if not paths:
+                # Direct path construction from known ISIMIP3b file naming convention
+                for yr_range in ["2021_2030", "2031_2040", "2041_2050"]:
+                    all_paths.append(
+                        f"ISIMIP3b/SecondaryInputData/climate/atmosphere/bias-adjusted/global/daily"
+                        f"/{ssp_key}/{gcm.upper()}"
+                        f"/{gcm}_r1i1p1f1_w5e5_{ssp_key}_{var}_global_daily_{yr_range}.nc"
+                    )
+            else:
+                all_paths.extend(paths[:3])  # up to 3 time chunks per variable
+
+        if not all_paths:
+            continue
+
+        # Single extraction job covering all 4 variables × 3 time chunks = up to 12 paths.
+        # isimip-client merges them into a single NetCDF with all variables on the same
+        # time axis, reducing API round-trips from 4 × ~60 s to a single ~90 s job.
+        data = _isimip_select_point(all_paths, lat, lon)
+        if data is None:
+            continue
+
+        climate_arrays = _open_isimip_nc_wildfire(data)
+        if climate_arrays is None:
+            continue
+
+        T_arr, H_arr, W_arr, R_arr, years, months = climate_arrays
+
+        if len(T_arr) < 365 * 10:      # need at least 10 years for GEV fit
+            continue
+
+        ann_fwi = annual_max_fwi(T_arr, H_arr, W_arr, R_arr, years, months, lat)
+        if len(ann_fwi) < 10:
+            continue
+
+        fwi_quantiles = _fit_gev(ann_fwi, return_periods)
+        if fwi_quantiles is None:
+            continue
+
+        # Convert each return-period FWI quantile to flame length
+        flame_lengths = np.array([fwi_to_flame_length(float(q), vegetation)
+                                   for q in fwi_quantiles])
+
+        logger.info(
+            f"ISIMIP3b wildfire (FWI/Canadian): {gcm} {ssp_key} lat={lat:.2f} "
+            f"→ {len(ann_fwi)} yr, median annual-max FWI={np.median(ann_fwi):.1f}, "
+            f"RP100 flame={flame_lengths[2]:.2f} m"
+        )
+        return return_periods, flame_lengths
+
     return None

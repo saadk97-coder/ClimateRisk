@@ -86,10 +86,17 @@ def get_fallback_detail(hazard: str, region_iso3: str) -> dict:
             "description": "3-second gust wind speed (m/s) at return periods, derived from HAZUS MH regional wind climatology and ASCE 7 wind speed maps, adapted to global zones.",
         },
         "wildfire": {
-            "source": "EFFIS fire danger climatology",
-            "citation": "JRC (2021) EFFIS Annual Report; San-Miguel-Ayanz et al.",
+            "source": "EFFIS fire danger climatology (regional baseline fallback)",
+            "citation": "JRC (2021) EFFIS Annual Report; San-Miguel-Ayanz et al.; Van Wagner (1987) [FWI]",
             "doi": "https://effis.jrc.ec.europa.eu/",
-            "description": "Flame length (m) proxied from EFFIS fire weather index (FWI) percentiles. FWI converted to flame length using Byram (1959) fireline intensity relationships.",
+            "description": (
+                "Regional baseline: flame length (m) proxied from EFFIS fire weather index (FWI) "
+                "percentiles, converted to flame length using Byram (1959) fireline intensity relationships. "
+                "When ISIMIP3b data is available, the full Canadian FWI system (Van Wagner 1987) is used "
+                "instead: daily tasmax + pr + hurs + sfcWind → FFMC/DMC/DC/ISI/BUI/FWI sequential algorithm "
+                "→ GEV-fitted annual maxima → Simard (1970) + Byram (1959) flame length. "
+                "This is the same FWI algorithm used by EFFIS, GWIS, and the Canadian CWFIS."
+            ),
         },
         "heat": {
             "source": "ERA5-Land temperature percentiles",
@@ -174,7 +181,8 @@ def fetch_hazard_intensities(
     source_key maps to DATA_SOURCE_REGISTRY for full citation.
     """
     from engine.isimip_fetcher import (
-        fetch_isimip3b_flood, fetch_isimip3b_heat, fetch_isimip3b_wind
+        fetch_isimip3b_flood, fetch_isimip3b_heat,
+        fetch_isimip3b_wind, fetch_isimip3b_wildfire,
     )
 
     # ── 1. ISIMIP3b (full extraction pipeline) ─────────────────────────────
@@ -189,6 +197,11 @@ def fetch_hazard_intensities(
                 return result[0], result[1], "isimip3b"
         elif hazard == "wind":
             result = fetch_isimip3b_wind(lat, lon, ssp=scenario_ssp)
+            if result is not None:
+                return result[0], result[1], "isimip3b"
+        elif hazard == "wildfire":
+            # Multi-variable FWI pipeline: tasmax + pr + hurs + sfcWind → FWI → flame length
+            result = fetch_isimip3b_wildfire(lat, lon, ssp=scenario_ssp)
             if result is not None:
                 return result[0], result[1], "isimip3b"
     except Exception:
