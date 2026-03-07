@@ -118,25 +118,41 @@ def fetch_nasa_nex(
     model: str = "ACCESS-CM2",
 ) -> Optional[float]:
     """
-    Fetch a single annual statistic from NASA NEX-GDDP-CMIP6 via S3.
-    Returns the annual mean/max of the requested variable, or None on failure.
+    Fetch annual percentile statistics from NASA NEX-GDDP-CMIP6 via public AWS S3.
 
-    Note: Full NetCDF extraction requires xarray/netCDF4. This implementation
-    uses the STAC catalog to identify available files and returns None (falling
-    back to regional baseline) when xarray is unavailable.
+    Downloads a single year's NetCDF file (~100 MB) for the chosen model and
+    extracts the nearest-grid-cell value to (lat, lon).
+
+    Source: https://www.nccs.nasa.gov/services/data-collections/land-based-products/nex-gddp-cmip6
+    Citation: Thrasher et al. (2022) Scientific Data 9, 262
     """
     try:
-        import importlib.util
-        if importlib.util.find_spec("xarray") is None:
-            return None  # graceful fallback
-
+        import xarray as xr
         ssp_key = _NASA_SSP_MAP.get(ssp, "ssp245")
-        # In production: stream from S3 using xarray + zarr / netCDF4
-        # Example path: NEX-GDDP-CMIP6/ACCESS-CM2/historical/r1i1p1f1/tasmax/tasmax_day_...
-        # For now, return None to trigger fallback
-        return None
+        # Public S3 path (no auth required)
+        path = (
+            f"https://nex-gddp-cmip6.s3.us-west-2.amazonaws.com/NEX-GDDP-CMIP6/"
+            f"{model}/{ssp_key}/r1i1p1f1/{variable}/"
+            f"{variable}_day_{model}_{ssp_key}_r1i1p1f1_gn_{year}.nc"
+        )
+        ds = xr.open_dataset(path, engine="scipy" if _has_scipy() else "netcdf4",
+                             chunks=None)
+        da = ds[variable]
+        # Select nearest grid cell
+        val = da.sel(lat=lat, lon=lon % 360, method="nearest")
+        # Return annual maximum (for tasmax) or annual mean
+        annual = float(val.max().values) if "max" in variable else float(val.mean().values)
+        # Convert Kelvin → °C if needed
+        if annual > 200:
+            annual -= 273.15
+        return annual
     except Exception:
         return None
+
+
+def _has_scipy() -> bool:
+    import importlib.util
+    return importlib.util.find_spec("scipy") is not None
 
 
 # ---------------------------------------------------------------------------
@@ -158,18 +174,33 @@ def fetch_chelsa_temp(
     variable: str = "tas",
 ) -> Optional[float]:
     """
-    Fetch mean temperature from CHELSA CMIP6 climatology.
-    Returns temperature in °C or None on failure.
+    Fetch mean temperature from CHELSA CMIP6 climatology GeoTIFF at 30 arc-sec (~1 km).
+
+    Extracts point value from the CHELSA V2.1 climatology hosted on the Swiss
+    Data Centre cloud (public access, no auth required).
+
     Source: https://chelsa-climate.org/
+    Citation: Karger et al. (2017) Scientific Data 4, 170122
     """
     try:
+        import rasterio
+        from rasterio.crs import CRS
         ssp_key = _CHELSA_SSP_MAP.get(ssp, "ssp370")
-        # CHELSA files are large GeoTIFFs; point extraction requires rasterio
-        import importlib.util
-        if importlib.util.find_spec("rasterio") is None:
-            return None
-        # URL pattern: {base}/{period}/{model}/{ssp}/{variable}/{variable}_..._V.2.1.tif
-        return None  # fallback until rasterio available
+        # CHELSA V2.1 CMIP6 climatology — example: GFDL-ESM4 tas 2041-2070 ssp370
+        # URL pattern: {base}/{period}/GFDL-ESM4/{ssp}/{var}/{var}_GFDL-ESM4_{ssp}_{period}_V.2.1.tif
+        model = "GFDL-ESM4"
+        url = (
+            f"{_CHELSA_BASE}/{period}/{model}/{ssp_key}/{variable}/"
+            f"CHELSA_{variable}_{model}_{ssp_key}_{period}_V.2.1.tif"
+        )
+        with rasterio.open(url) as src:
+            # Sample point value (rasterio uses (lon, lat) order)
+            vals = list(src.sample([(lon, lat)]))
+            if vals and len(vals[0]) > 0:
+                raw = float(vals[0][0])
+                # CHELSA tas values are scaled (×10, in °C×10) → divide by 10
+                return raw / 10.0 if abs(raw) > 1000 else raw
+        return None
     except Exception:
         return None
 

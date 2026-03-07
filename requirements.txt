@@ -8,3 +8,5 @@ streamlit-folium>=0.20
 requests>=2.31
 pydeck>=0.9
 openpyxl>=3.1
+xarray>=2024.1
+rasterio>=1.3

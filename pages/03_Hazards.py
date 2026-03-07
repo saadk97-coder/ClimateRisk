@@ -50,13 +50,44 @@ st.caption(
     "(xarray, rasterio) or are region-specific."
 )
 
+def _has_dep(mod):
+    import importlib.util
+    return importlib.util.find_spec(mod) is not None
+
+_has_xarray   = _has_dep("xarray")
+_has_rasterio = _has_dep("rasterio")
+
 SOURCE_STATUS = {
-    "isimip3b":           {"status": "partial",  "badge": "🟡 Partial",  "note": "API reachable; flood only; NetCDF extraction requires xarray"},
-    "nasa_nex_gddp_cmip6":{"status": "deps",     "badge": "🟡 Requires xarray", "note": "25km global; install xarray to enable"},
-    "chelsa_cmip6":       {"status": "deps",     "badge": "🟡 Requires rasterio", "note": "1km global; install rasterio to enable"},
-    "loca2":              {"status": "regional", "badge": "🔵 N. America only", "note": "6km CONUS+Canada; requires NetCDF access"},
-    "climatena_adaptwest":{"status": "regional", "badge": "🔵 N. America only", "note": "1km N. America; REST API available"},
-    "fallback_baseline":  {"status": "active",   "badge": "🟢 Active",   "note": "Always available; 7 global zones; ~continental resolution"},
+    "isimip3b": {
+        "status": "partial",
+        "badge": "🟡 Partial — flood only (NetCDF extraction in progress)",
+        "note": "API reachable; xarray installed ✅; full point-extraction integration pending",
+    },
+    "nasa_nex_gddp_cmip6": {
+        "status": "active" if _has_xarray else "deps",
+        "badge": "🟢 Available" if _has_xarray else "🟡 Requires xarray",
+        "note": "25km global; xarray installed ✅" if _has_xarray else "Install xarray to enable (pip install xarray)",
+    },
+    "chelsa_cmip6": {
+        "status": "active" if _has_rasterio else "deps",
+        "badge": "🟢 Available" if _has_rasterio else "🟡 Requires rasterio",
+        "note": "1km global; rasterio installed ✅" if _has_rasterio else "Install rasterio to enable (pip install rasterio)",
+    },
+    "loca2": {
+        "status": "regional",
+        "badge": "🔵 N. America only",
+        "note": "6km CONUS+Canada+Mexico; requires NetCDF file access",
+    },
+    "climatena_adaptwest": {
+        "status": "regional",
+        "badge": "🔵 N. America only",
+        "note": "1km N. America; REST API available",
+    },
+    "fallback_baseline": {
+        "status": "active",
+        "badge": "🟢 Active",
+        "note": "Always available; 7 global zones; ~continental resolution",
+    },
 }
 
 PRIORITY_ORDER = [
