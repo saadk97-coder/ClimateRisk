@@ -18,6 +18,14 @@ from engine.portfolio_aggregator import results_to_dataframe, aggregate_portfoli
 from engine.scenario_model import SCENARIOS
 from engine.hazard_fetcher import fetch_all_hazards
 from engine.export_engine import export_results_xlsx, df_to_xlsx
+from engine.risk_scorer import (
+    score_portfolio,
+    portfolio_climate_var,
+    stranded_asset_analysis,
+    score_color,
+    score_label,
+    climate_exposure_score,
+)
 
 st.set_page_config(page_title="Results", page_icon="📊", layout="wide")
 
@@ -527,3 +535,383 @@ with col_e3:
         csv2 = df_c.to_csv(index=False).encode()
         st.download_button("⬇️ Asset Results (.csv)", data=csv2,
                            file_name="asset_results.csv", mime="text/csv")
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SECTION 5 — Climate Exposure Scores
+# ══════════════════════════════════════════════════════════════════════════════
+st.divider()
+st.subheader("Climate Exposure Scores")
+
+# BSR colour palette
+_BSR = dict(
+    primary="#F4721A",
+    navy="#1A3A5C",
+    teal="#2A9D8F",
+    amber="#E9C46A",
+    danger="#C94040",
+    purple="#7B2D8B",
+)
+_HAZARD_COLORS_BSR = dict(
+    flood="#1A3A5C",
+    wind="#2A9D8F",
+    wildfire="#F4721A",
+    heat="#C94040",
+    water_stress="#E9C46A",
+)
+
+# ── Portfolio-level Physical Climate VaR metric ────────────────────────────
+_pf_var = portfolio_climate_var(annual_df, assets, year=2050, scenario_id=view_scenario)
+_port_var_pct  = _pf_var["portfolio_var_pct"]
+_port_ead_total = _pf_var["portfolio_ead"]
+
+_var_col, _info_col = st.columns([2, 5])
+with _var_col:
+    st.metric(
+        label="Portfolio Physical Climate VaR (2050)",
+        value=f"{_port_var_pct:.3f}%",
+        help=(
+            "Expected Annual Damage as a percentage of total portfolio replacement value "
+            "under the selected scenario at 2050. Follows TCFD / MSCI Climate VaR framing."
+        ),
+    )
+    st.caption(
+        f"Portfolio EAD 2050: £{_port_ead_total:,.0f} "
+        f"| Scenario: {SCENARIOS.get(view_scenario, {}).get('label', view_scenario)}"
+    )
+with _info_col:
+    with st.popover("ℹ️ How scores are calculated"):
+        st.markdown("""
+**Climate Exposure Score — Methodology**
+
+Each asset × hazard cell is scored on a **1–10 scale** derived from the asset's
+Physical Climate VaR (EAD ÷ replacement value × 100%).
+
+A log-normalised transformation is applied so that the full score range is used
+even when a few assets dominate portfolio EAD:
+
+```
+raw_pct = EAD / replacement_value × 100
+score   = 1 + 9 × log(1 + raw_pct / midpoint) / log(1 + max_pct / midpoint)
+```
+
+**Hazard-specific calibration thresholds** (score 5.5 midpoint / score 10 ceiling):
+
+| Hazard | Midpoint EAD% | Max EAD% |
+|---|---|---|
+| Flood | 0.5% | 5.0% |
+| Wind | 0.3% | 3.0% |
+| Wildfire | 0.4% | 4.0% |
+| Heat | 0.2% | 2.0% |
+| Water Stress | 0.15% | 1.5% |
+
+Thresholds are calibrated to the platform's HAZUS/JRC/Syphard vulnerability curve library.
+
+**Score bands:** Very Low (<2.5) · Low (<4.0) · Moderate (<5.5) · Elevated (<7.0) · High (<8.5) · Very High (≤10)
+        """)
+
+# ── Heatmap-style table: assets × hazards ─────────────────────────────────
+_score_df = score_portfolio(annual_df, assets, year=2050, scenario_id=view_scenario)
+
+if not _score_df.empty:
+    _HAZARDS_ORDER = ["flood", "wind", "wildfire", "heat", "water_stress"]
+
+    # Pivot: rows = asset names, columns = hazards, values = score
+    _pivot_scores = (
+        _score_df
+        .pivot_table(index="name", columns="hazard", values="score", aggfunc="mean")
+        .reindex(columns=[h for h in _HAZARDS_ORDER if h in _score_df["hazard"].unique()])
+    )
+
+    # Rename columns for display
+    _col_labels = {
+        "flood": "Flood",
+        "wind": "Wind",
+        "wildfire": "Wildfire",
+        "heat": "Heat",
+        "water_stress": "Water Stress",
+    }
+    _pivot_display = _pivot_scores.copy()
+    _pivot_display.columns = [_col_labels.get(c, c) for c in _pivot_display.columns]
+    _pivot_display.index.name = "Asset"
+
+    def _colour_score_cell(val):
+        """Return CSS background-color style string for a score value."""
+        if pd.isna(val):
+            return ""
+        color = score_color(float(val))
+        # Choose white or dark text based on background luminance
+        dark_bgs = {"#1A3A5C", "#C94040", "#7B2D8B"}
+        text_color = "#FFFFFF" if color in dark_bgs else "#1A1A1A"
+        return f"background-color: {color}; color: {text_color}; font-weight: 600; text-align: center;"
+
+    def _fmt_score(val):
+        return f"{val:.1f}" if pd.notna(val) else "—"
+
+    _styled = (
+        _pivot_display
+        .style
+        .applymap(_colour_score_cell)
+        .format(_fmt_score)
+    )
+
+    st.caption(
+        f"Scores 1–10 per asset × hazard at 2050 under "
+        f"{SCENARIOS.get(view_scenario, {}).get('label', view_scenario)}. "
+        "Colour: teal=Very Low · green=Low · amber=Moderate · orange=Elevated · red=High · purple=Very High"
+    )
+    st.dataframe(_styled, use_container_width=True)
+else:
+    st.info("Run the damage calculation to generate exposure scores.")
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SECTION 6 — Physical Climate VaR Waterfall
+# ══════════════════════════════════════════════════════════════════════════════
+st.subheader("Physical Climate VaR — Asset Contribution")
+
+_var_by_asset = _pf_var.get("var_by_asset", {})
+
+if _var_by_asset:
+    # Build sorted dataframe for waterfall (horizontal bar)
+    _asset_name_map = {a.id: a.name for a in assets}
+    _var_rows = []
+    for _aid, _vdata in _var_by_asset.items():
+        _a_ead  = _vdata["ead"]
+        _a_var  = _vdata["var_pct"]
+        # Use composite score (total EAD across hazards) for colour
+        _asset_obj = next((a for a in assets if a.id == _aid), None)
+        _a_val = _asset_obj.replacement_value if _asset_obj else 1.0
+        _a_score = climate_exposure_score(_a_ead, _a_val, "default")
+        _var_rows.append({
+            "asset_id":   _aid,
+            "asset_name": _asset_name_map.get(_aid, _aid),
+            "ead":        _a_ead,
+            "var_pct":    _a_var,
+            "score":      _a_score,
+            "bar_color":  score_color(_a_score),
+        })
+
+    _var_asset_df = (
+        pd.DataFrame(_var_rows)
+        .sort_values("var_pct", ascending=True)   # ascending so largest bar is at top
+    )
+
+    _fig_waterfall = go.Figure(go.Bar(
+        x=_var_asset_df["var_pct"],
+        y=_var_asset_df["asset_name"],
+        orientation="h",
+        marker_color=_var_asset_df["bar_color"].tolist(),
+        text=[f"{v:.3f}%" for v in _var_asset_df["var_pct"]],
+        textposition="outside",
+        hovertemplate=(
+            "<b>%{y}</b><br>"
+            "Climate VaR: %{x:.3f}%<br>"
+            "EAD 2050: £%{customdata:,.0f}"
+            "<extra></extra>"
+        ),
+        customdata=_var_asset_df["ead"],
+    ))
+    _fig_waterfall.update_layout(
+        title=f"Physical Climate VaR by Asset (2050) — "
+              f"{SCENARIOS.get(view_scenario, {}).get('label', view_scenario)}",
+        xaxis_title="Physical Climate VaR (%)",
+        yaxis_title="",
+        height=max(320, 40 * len(_var_rows) + 100),
+        margin=dict(l=20, r=90, t=50, b=30),
+        xaxis=dict(ticksuffix="%"),
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+    )
+    # Reference line at portfolio mean
+    _mean_var = float(np.mean([r["var_pct"] for r in _var_rows]))
+    _fig_waterfall.add_vline(
+        x=_mean_var,
+        line_dash="dot",
+        line_color=_BSR["navy"],
+        annotation_text=f"Portfolio avg {_mean_var:.3f}%",
+        annotation_position="top right",
+        annotation_font_color=_BSR["navy"],
+    )
+    st.plotly_chart(_fig_waterfall, use_container_width=True)
+    st.caption(
+        "Physical Climate VaR = asset EAD as % of its own replacement value. "
+        "Colour follows the same exposure score bands as the heatmap above. "
+        "Dashed line = portfolio mean."
+    )
+else:
+    st.info("Run the damage calculation to see the VaR waterfall.")
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SECTION 7 — Stranded Asset Analysis
+# ══════════════════════════════════════════════════════════════════════════════
+st.subheader("Stranded Asset Analysis")
+
+_sa_col1, _sa_col2 = st.columns([3, 1])
+with _sa_col1:
+    _stranded_threshold = st.slider(
+        "Cumulative PV damage threshold (% of asset value)",
+        min_value=10,
+        max_value=30,
+        value=15,
+        step=1,
+        help=(
+            "An asset is flagged as 'stranded' when its total discounted physical climate "
+            "costs over 2025–2050 exceed this percentage of its replacement value."
+        ),
+    )
+with _sa_col2:
+    with st.popover("ℹ️ What is a stranded asset?"):
+        st.markdown("""
+**Stranded Asset — Definition & Methodology**
+
+An asset is flagged as **stranded** when cumulative discounted physical climate
+costs over the analysis period (2025–2050) exceed the selected threshold percentage
+of its replacement value.
+
+**Example:** A warehouse worth £10M with a threshold of 15% is flagged if the
+present value of all projected climate damage over 26 years exceeds £1.5M.
+
+This signals that the asset may be **financially impaired by climate damage before
+the end of its economic life** — analogous to an early write-down driven by
+physical climate risk rather than technological or policy obsolescence.
+
+**Methodology draws on:**
+- TCFD Physical Risk framing (2017 Final Report, pp. 10–12)
+- IPCC AR6 Working Group II — Chapter 16 (Loss & Damage)
+- Insurance industry total-loss thresholds (typically 10–20% of insured value
+  triggers partial or total write-off in commercial property underwriting)
+
+The **acute breach year** column shows the earliest year in which a single year's
+EAD exceeds 5% of asset value — a signal of acute (event-driven) impairment risk.
+        """)
+
+_stranded_df = stranded_asset_analysis(
+    annual_df, assets,
+    scenario_id=view_scenario,
+    threshold_pct=float(_stranded_threshold),
+)
+
+if not _stranded_df.empty:
+    _n_flagged = int(_stranded_df["stranded_flag"].sum())
+
+    _flag_col, _total_col = st.columns(2)
+    _flag_col.metric("Assets Flagged as Stranded", f"{_n_flagged} / {len(_stranded_df)}")
+    _total_col.metric(
+        "Combined PV Exposure (flagged)",
+        f"£{_stranded_df[_stranded_df['stranded_flag']]['cumulative_pv'].sum():,.0f}"
+        if _n_flagged > 0 else "£0",
+    )
+
+    # Display columns
+    _sa_display = _stranded_df[[
+        "name", "asset_type", "region", "value",
+        "cumulative_pv", "pv_as_pct_of_value",
+        "stranded_flag", "acute_breach_year",
+    ]].copy()
+
+    _sa_display = _sa_display.rename(columns={
+        "name":               "Asset",
+        "asset_type":         "Type",
+        "region":             "Region",
+        "value":              "Replacement Value (£)",
+        "cumulative_pv":      "Cumulative PV Damages (£)",
+        "pv_as_pct_of_value": "PV as % of Value",
+        "stranded_flag":      "Stranded?",
+        "acute_breach_year":  "Acute Breach Year",
+    })
+
+    def _style_stranded_rows(row):
+        """Apply red background to stranded rows."""
+        if row["Stranded?"]:
+            return [f"background-color: {_BSR['danger']}22; color: #7a0000; font-weight: 600;"] * len(row)
+        return [""] * len(row)
+
+    _sa_styled = (
+        _sa_display
+        .style
+        .apply(_style_stranded_rows, axis=1)
+        .format({
+            "Replacement Value (£)":   "£{:,.0f}",
+            "Cumulative PV Damages (£)": "£{:,.0f}",
+            "PV as % of Value":        "{:.2f}%",
+            "Acute Breach Year":       lambda v: str(int(v)) if pd.notna(v) else "—",
+        })
+    )
+
+    st.dataframe(_sa_styled, use_container_width=True)
+    st.caption(
+        f"Threshold: cumulative PV damages ≥ {_stranded_threshold}% of replacement value. "
+        f"Scenario: {SCENARIOS.get(view_scenario, {}).get('label', view_scenario)}. "
+        "Red rows indicate assets at risk of financial impairment by climate damage."
+    )
+else:
+    st.info("Run the damage calculation to perform stranded asset analysis.")
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SECTION 8 — Historical Reference Panel
+# ══════════════════════════════════════════════════════════════════════════════
+st.divider()
+st.subheader("Historical Context")
+
+HISTORICAL_NAT_CAT = [
+    {"region": "EUR", "period": "2000–2023", "events": "Flood, Windstorm",          "insured_bn_usd": 23,  "total_bn_usd": 58,  "source": "Munich Re NatCatSERVICE 2024"},
+    {"region": "USA", "period": "2000–2023", "events": "Hurricane, Flood, Wildfire", "insured_bn_usd": 120, "total_bn_usd": 210, "source": "Munich Re NatCatSERVICE 2024"},
+    {"region": "CHN", "period": "2000–2023", "events": "Flood, Typhoon",             "insured_bn_usd": 8,   "total_bn_usd": 65,  "source": "Munich Re NatCatSERVICE 2024"},
+    {"region": "IND", "period": "2000–2023", "events": "Flood, Cyclone",             "insured_bn_usd": 3,   "total_bn_usd": 38,  "source": "Munich Re NatCatSERVICE 2024"},
+    {"region": "AUS", "period": "2000–2023", "events": "Flood, Wildfire, Cyclone",   "insured_bn_usd": 12,  "total_bn_usd": 20,  "source": "Munich Re NatCatSERVICE 2024"},
+    {"region": "BRA", "period": "2000–2023", "events": "Flood, Drought",             "insured_bn_usd": 2,   "total_bn_usd": 22,  "source": "Munich Re NatCatSERVICE 2024"},
+    {"region": "MEA", "period": "2000–2023", "events": "Drought, Flood",             "insured_bn_usd": 1,   "total_bn_usd": 18,  "source": "Munich Re NatCatSERVICE 2024"},
+]
+
+# Map asset regions to historical reference region codes
+_REGION_MAP = {
+    "GBR": "EUR", "FRA": "EUR", "NLD": "EUR", "DEU": "EUR",
+    "ITA": "EUR", "ESP": "EUR", "CHE": "EUR", "SWE": "EUR",
+    "NOR": "EUR", "DNK": "EUR", "POL": "EUR", "AUT": "EUR",
+    "BEL": "EUR", "PRT": "EUR", "FIN": "EUR", "IRL": "EUR",
+    "USA": "USA", "CAN": "USA",
+    "CHN": "CHN",
+    "IND": "IND", "PAK": "IND", "BGD": "IND",
+    "AUS": "AUS", "NZL": "AUS",
+    "BRA": "BRA", "ARG": "BRA", "CHL": "BRA", "COL": "BRA",
+    "SAU": "MEA", "ARE": "MEA", "QAT": "MEA", "KWT": "MEA",
+    "EGY": "MEA", "IRN": "MEA", "IRQ": "MEA", "ZAF": "MEA",
+}
+
+# Detect which reference regions the user's portfolio touches
+_portfolio_regions = {a.region for a in assets}
+_reference_regions = {_REGION_MAP.get(r, None) for r in _portfolio_regions} - {None}
+
+_hist_df = pd.DataFrame(HISTORICAL_NAT_CAT).rename(columns={
+    "region":         "Region",
+    "period":         "Period",
+    "events":         "Event Types",
+    "insured_bn_usd": "Avg Annual Insured Losses (USD bn)",
+    "total_bn_usd":   "Avg Annual Total Losses (USD bn)",
+    "source":         "Source",
+})
+
+def _highlight_portfolio_regions(row):
+    """Highlight rows whose region matches the user's portfolio."""
+    if row["Region"] in _reference_regions:
+        return [f"background-color: {_BSR['teal']}33; font-weight: 600;"] * len(row)
+    return [""] * len(row)
+
+_hist_styled = (
+    _hist_df
+    .style
+    .apply(_highlight_portfolio_regions, axis=1)
+    .format({
+        "Avg Annual Insured Losses (USD bn)": "${:,.0f}bn",
+        "Avg Annual Total Losses (USD bn)":   "${:,.0f}bn",
+    })
+)
+
+st.dataframe(_hist_styled, use_container_width=True)
+
+_matched_label = ", ".join(sorted(_reference_regions)) if _reference_regions else "None matched"
+st.caption(
+    f"Highlighted rows correspond to your portfolio's regions ({_matched_label}). "
+    "Historical loss data from Munich Re NatCatSERVICE public summaries and EM-DAT "
+    "(Centre for Research on the Epidemiology of Disasters). "
+    "These are observed losses 1990–2023 for context against forward-looking projections."
+)

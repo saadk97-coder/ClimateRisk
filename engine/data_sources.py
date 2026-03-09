@@ -96,6 +96,22 @@ DATA_SOURCE_REGISTRY = {
         "hazards": ["heat", "flood"],
         "coverage": "North America",
     },
+    "aqueduct": {
+        "name": "WRI Aqueduct 4.0",
+        "description": (
+            "World Resources Institute Aqueduct 4.0 (2023). Sub-catchment water risk at "
+            "HydroBASINS Level 6 (~50,000 watersheds globally). Baseline Water Stress (BWS) = "
+            "total annual withdrawals / available renewable blue water supply. Future projections "
+            "to 2080 under three SSP-aligned scenarios (Optimistic/SSP1, BAU/SSP2, Pessimistic/SSP3). "
+            "Public API + downloadable GDB/GeoTIFF, CC BY 4.0 licence."
+        ),
+        "citation": "Kuzma S. et al. (2023) Aqueduct 4.0 WRI Technical Note",
+        "url": "https://www.wri.org/data/aqueduct-water-risk-atlas",
+        "doi": "https://doi.org/10.46830/writn.23.00061",
+        "resolution": "Sub-catchment (HydroBASINS Level 6)",
+        "variables": ["bws", "bwd"],
+        "hazards": ["water_stress"],
+    },
     "fallback_baseline": {
         "name": "Built-in Regional Baseline",
         "description": "Compiled regional median hazard intensities from IPCC AR6 / ISIMIP medians. Used when all API sources are unavailable.",

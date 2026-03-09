@@ -131,24 +131,77 @@ if sel_asset:
                         st.error(f"Error calculating {mid}: {e}")
 
             if adap_results:
+                # ── Headline ROI metrics ─────────────────────────────────────────
+                total_capex   = sum(ar.capex for ar in adap_results)
+                total_opex_pv = sum(ar.npv_opex for ar in adap_results)
+                total_cost    = sum(ar.total_cost for ar in adap_results)
+                total_benefits_pv = sum(ar.npv_benefits for ar in adap_results)
+                total_avoided = sum(ar.avoided_ead_annual for ar in adap_results)
+                avg_cbr       = total_benefits_pv / total_cost if total_cost > 0 else 0.0
+                roi_pct       = (total_benefits_pv - total_cost) / total_cost * 100 if total_cost > 0 else 0.0
+
+                roi_col, cbr_col, payback_col, info_col = st.columns([2, 2, 2, 1])
+                with roi_col:
+                    st.metric(
+                        "Adaptation ROI",
+                        f"{roi_pct:.0f}%",
+                        help=(
+                            "Adaptation Return on Investment: (NPV Benefits − Total Cost) / Total Cost × 100. "
+                            "Positive = benefits exceed costs over the design life at the chosen discount rate."
+                        ),
+                    )
+                with cbr_col:
+                    st.metric(
+                        "Cost-Benefit Ratio",
+                        f"{avg_cbr:.2f}×",
+                        help=(
+                            "NPV Benefits ÷ Total Cost. CBR > 1.0 means the measure pays back. "
+                            "Preferred threshold: ≥ 1.5× for robust investment decisions under uncertainty."
+                        ),
+                    )
+                with payback_col:
+                    avg_payback = total_capex / total_avoided if total_avoided > 0 else 999
+                    st.metric(
+                        "Simple Payback",
+                        f"{avg_payback:.1f} yrs" if avg_payback < 99 else ">50 yrs",
+                        help="Upfront capex ÷ avoided EAD per year. A simple non-discounted breakeven metric.",
+                    )
+                with info_col:
+                    with st.popover("ℹ️ ROI methodology"):
+                        st.markdown(
+                            "**Adaptation Return on Investment (ROI)**\n\n"
+                            "Calculated as: `(NPV Benefits − Total Cost) / Total Cost × 100`\n\n"
+                            "**NPV Benefits** = Σ (avoided_EAD_annual × discount_factor) over design life\n\n"
+                            "**Total Cost** = Capex + NPV of annual opex (maintenance)\n\n"
+                            "**Discount factor** = 1 / (1 + r)^t at the chosen discount rate r\n\n"
+                            "**Cost-Benefit Ratio (CBR)** = NPV Benefits / Total Cost\n"
+                            "- CBR > 1.0: Benefits exceed costs — measure is economically justified\n"
+                            "- CBR > 2.0: Strongly positive case for investment\n\n"
+                            "**Payback period** = Capex / avoided_EAD_annual\n"
+                            "(simple, undiscounted — use as a quick screen only)\n\n"
+                            "Source framework: FEMA BCA Toolkit (2021); EA Appraisal of Flood "
+                            "Risk Management Measures (2019); HM Treasury Green Book."
+                        )
+
+                # ── Cost-benefit table ───────────────────────────────────────────
                 cb_rows = []
                 for ar in adap_results:
+                    ar_roi = (ar.npv_benefits - ar.total_cost) / ar.total_cost * 100 if ar.total_cost > 0 else 0.0
                     cb_rows.append({
-                        "Measure": ar.measure_label,
-                        "Hazard": ar.hazard.capitalize(),
-                        "Capex (£)": f"£{ar.capex:,.0f}",
-                        "NPV Opex (£)": f"£{ar.npv_opex:,.0f}",
-                        "Total Cost (£)": f"£{ar.total_cost:,.0f}",
-                        "Avoided EAD/yr (£)": f"£{ar.avoided_ead_annual:,.0f}",
-                        "NPV Benefits (£)": f"£{ar.npv_benefits:,.0f}",
-                        "CBR": f"{ar.cbr:.2f}x",
-                        "Payback (yrs)": f"{ar.payback_years:.1f}" if ar.payback_years < 999 else ">50",
-                        "Reduction (%)": f"{ar.damage_reduction_pct:.0f}%",
+                        "Measure":             ar.measure_label,
+                        "Hazard":              ar.hazard.capitalize(),
+                        "Capex (£)":           f"£{ar.capex:,.0f}",
+                        "NPV Opex (£)":        f"£{ar.npv_opex:,.0f}",
+                        "Avoided EAD/yr (£)":  f"£{ar.avoided_ead_annual:,.0f}",
+                        "NPV Benefits (£)":    f"£{ar.npv_benefits:,.0f}",
+                        "ROI (%)":             f"{ar_roi:.0f}%",
+                        "CBR":                 f"{ar.cbr:.2f}×",
+                        "Payback (yrs)":       f"{ar.payback_years:.1f}" if ar.payback_years < 999 else ">50",
+                        "Reduction (%)":       f"{ar.damage_reduction_pct:.0f}%",
                     })
 
-                st.dataframe(pd.DataFrame(cb_rows), use_container_width=True)
+                st.dataframe(pd.DataFrame(cb_rows), use_container_width=True, hide_index=True)
 
-                total_avoided = sum(ar.avoided_ead_annual for ar in adap_results)
                 adapted_ead = max(0, baseline_ead_total - total_avoided)
                 st.metric(
                     "Adapted Total EAD",

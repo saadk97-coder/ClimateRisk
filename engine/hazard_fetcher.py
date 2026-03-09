@@ -185,6 +185,23 @@ def fetch_hazard_intensities(
         fetch_isimip3b_wind, fetch_isimip3b_wildfire,
     )
 
+    # ── 0. Water stress — WRI Aqueduct 4.0 (dedicated pipeline) ───────────
+    if hazard == "water_stress":
+        try:
+            from engine.water_stress import fetch_water_stress_profile
+            rp, damages, ws_source = fetch_water_stress_profile(
+                lat, lon, region_iso3,
+                ngfs_scenario=scenario_ssp,
+            )
+            # Map source key to DATA_SOURCE_REGISTRY key
+            src_key = "aqueduct" if ws_source == "aqueduct" else "fallback_baseline"
+            return rp, damages, src_key
+        except Exception:
+            pass
+        # Minimal fallback for water stress if everything fails
+        rps = np.array([10, 50, 100, 250, 500, 1000], dtype=float)
+        return rps, np.zeros(len(rps)), "fallback_baseline"
+
     # ── 1. ISIMIP3b (full extraction pipeline) ─────────────────────────────
     try:
         if hazard == "flood":

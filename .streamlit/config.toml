@@ -1,0 +1,9 @@
+[theme]
+# BSR (Business for Social Responsibility) brand palette
+# Primary: BSR Orange #F4721A — used in logo wordmark and all primary CTAs
+# Reference: https://www.bsr.org / Brandfetch verified
+primaryColor     = "#F4721A"
+backgroundColor  = "#FFFFFF"
+secondaryBackgroundColor = "#FFF3EB"   # warm off-white: tinted toward BSR orange
+textColor        = "#333333"           # Mine Shaft dark gray — BSR body text
+font             = "sans serif"

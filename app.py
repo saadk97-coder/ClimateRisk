@@ -1,6 +1,6 @@
 """
-Climate Risk Financial Quantification Platform
-Insurance-quality, non-coder-friendly climate risk tool.
+BSR Climate Risk Intelligence Platform
+Physical climate risk quantification aligned with BSR Climate Scenarios 2025.
 
 Run with: streamlit run app.py
 """
@@ -8,7 +8,7 @@ Run with: streamlit run app.py
 import streamlit as st
 
 st.set_page_config(
-    page_title="Climate Risk Platform",
+    page_title="BSR Climate Risk Platform",
     page_icon="🌍",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -32,10 +32,15 @@ if "results" not in st.session_state:
 # Sidebar
 # ---------------------------------------------------------------------------
 with st.sidebar:
-    st.image(
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e9/Notna_Mapa_Sveta.svg/320px-Notna_Mapa_Sveta.svg.png",
-        use_container_width=True,
+    # BSR wordmark header
+    st.markdown(
+        "<div style='padding:12px 0 4px 0;'>"
+        "<span style='font-size:22px;font-weight:800;color:#F4721A;letter-spacing:1px;'>BSR</span>"
+        "<span style='font-size:13px;color:#666;margin-left:8px;'>Climate Risk Intelligence</span>"
+        "</div>",
+        unsafe_allow_html=True,
     )
+    st.divider()
     st.header("📊 Portfolio Summary")
     n = len(st.session_state.assets)
     total_val = sum(a.replacement_value for a in st.session_state.assets)
@@ -56,62 +61,103 @@ with st.sidebar:
 
     st.divider()
     st.caption(
-        "Climate Risk Financial Quantification Platform\n\n"
-        "Hazard sources: ISIMIP3b / NASA NEX / CHELSA / LOCA2\n"
-        "Vulnerability: HAZUS 6.0, JRC DDFs, Syphard et al.\n"
-        "Scenarios: NGFS Phase V / IEA WEO 2023 / IPCC AR6"
+        "**Hazard data:** ISIMIP3b · NASA NEX-GDDP · CHELSA · WRI Aqueduct\n\n"
+        "**Vulnerability:** HAZUS 6.0 · JRC DDFs · Syphard et al.\n\n"
+        "**Scenarios:** BSR 2025 · NGFS Phase V · IEA WEO 2023 · IPCC AR6\n\n"
+        "[BSR Climate Scenarios 2025 ↗](https://www.bsr.org/en/reports/bsr-climate-scenarios-2025)"
     )
 
 # ---------------------------------------------------------------------------
 # Home page
 # ---------------------------------------------------------------------------
-st.title("🌍 Climate Risk Financial Quantification Platform")
+st.markdown(
+    "<h1 style='color:#333333;'>"
+    "<span style='color:#F4721A;font-weight:900;'>BSR</span> Climate Risk Intelligence Platform"
+    "</h1>",
+    unsafe_allow_html=True,
+)
 
+st.markdown(
+    "Physical climate risk quantification aligned with **BSR Climate Scenarios 2025** (NGFS Phase V). "
+    "Translates hazard exposure into asset-level financial damages with full source transparency, "
+    "audit trails, and TCFD/CSRD-ready outputs."
+)
+
+# ── Headline metrics strip ───────────────────────────────────────────────────
+total_val = sum(a.replacement_value for a in st.session_state.assets)
+n_assets  = len(st.session_state.assets)
+col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+col_m1.metric("Assets", n_assets)
+col_m2.metric("Portfolio Value", f"£{total_val:,.0f}" if total_val > 0 else "—")
+col_m3.metric("Scenarios Available", "14", help="6 NGFS Phase V · 3 IEA WEO 2023 · 5 IPCC AR6")
+col_m4.metric("Hazards Covered", "5", help="Flood · Wind · Wildfire · Heat · Water Stress")
+
+st.divider()
+
+# ── Workflow table ────────────────────────────────────────────────────────────
+st.subheader("Platform Workflow")
 st.markdown("""
-Welcome to the **Climate Risk Financial Quantification Platform** — a professional-grade tool
-that translates physical climate hazard exposure into asset-level financial damages with full
-source transparency, audit trails, and TCFD-aligned financial outputs.
-
-### Workflow
-
 | Step | Page | Description |
 |------|------|-------------|
 | 1 | **Portfolio** | Upload assets via CSV or add them manually |
-| 2 | **Scenarios** | Select scenarios — NGFS Phase V, IEA WEO 2023, or IPCC AR6 |
-| 3 | **Hazards** | Fetch hazard data (ISIMIP3b, NASA NEX, CHELSA, LOCA2, fallback) |
-| 4 | **Results** | Annual 2025–2050 EAD, EP curves, tail risk, scenario comparison |
-| 5 | **Map** | Interactive risk map with satellite imagery & building footprints |
-| 6 | **Adaptation** | Cost-benefit analysis for 20+ adaptation measures with citations |
-| 7 | **DCF** | Climate-adjusted NPV valuation (BSR framework) |
+| 2 | **Scenarios** | Select scenarios — BSR 2025, NGFS Phase V, IEA WEO or IPCC AR6, with regional narrative insights |
+| 3 | **Hazards** | Fetch hazard data (ISIMIP3b, NASA NEX-GDDP, CHELSA, WRI Aqueduct, fallback) |
+| 4 | **Results** | Climate Exposure Scores, Physical Climate VaR, annual EAD 2025–2050, stranded asset flags |
+| 5 | **Map** | Interactive risk map with water stress overlay, satellite imagery & building footprints |
+| 6 | **Adaptation** | Adaptation Return on Investment (ROI) and cost-benefit for 20+ measures |
+| 7 | **DCF** | Climate-adjusted NPV valuation with stranded asset analysis |
 | 8 | **Audit** | Step-by-step calculation trace for any asset/scenario/year |
-| 9 | **Vulnerability** | View, edit, and audit all damage functions with source citations |
-
-### Key Features
-- 🌊 **Multi-hazard**: Flood, Wind, Wildfire, Heat stress
-- 🌡️ **Multi-provider scenarios**: NGFS Phase V (6) · IEA WEO 2023 (3) · IPCC AR6 (5)
-- 📅 **Annual 2025–2050 timeline**: per-year EAD discounted to present value
-- 📐 **Insurance-grade EAD**: Trapezoidal integration over exceedance probability curves
-- 💹 **Climate-adjusted DCF**: BSR framework — scenario-weighted NPV impairment
-- 🔍 **Full audit trail**: hazard source → warming → multiplier → curve → EAD → PV
-- 📐 **Vulnerability editor**: HAZUS/JRC/ILO curves — view, edit, compare, export
-- 🛡️ **Adaptation CBR**: 20+ measures with FEMA/EA/IBHS source citations
-- 🛰️ **Satellite imagery**: ESRI WorldImagery + OSM building footprints
-- 📤 **XLSX export**: Formatted multi-sheet workbooks for all outputs
-
-### Vulnerability Curve Sources
-- **Flood**: HAZUS 6.0 (FEMA 2022) · JRC Global DDFs (Huizinga et al. 2017)
-- **Wind**: HAZUS MH Hurricane Technical Manual (FEMA 2012) · IBHS FORTIFIED
-- **Wildfire**: Syphard et al. (2012) Ecosphere · HAZUS Wildfire
-- **Heat**: IEA Future of Cooling (2018) · ILO (2019) · Zhao et al. (2021) Nature
-
----
-Navigate using the **sidebar pages** to get started.
+| 9 | **Vulnerability** | Damage functions with structural failure pathways and component-level analysis |
 """)
 
+st.divider()
+
+# ── Feature highlights ────────────────────────────────────────────────────────
 col1, col2, col3 = st.columns(3)
 with col1:
-    st.info("**Quick Start**: Portfolio → Scenarios → Hazards → Results → DCF")
+    st.markdown("### 📊 Risk Analytics")
+    st.markdown("""
+- **Climate Exposure Score** (1–10) per hazard per asset — normalised, comparable across portfolio
+- **Physical Climate VaR (%)** — expected damage as % of asset value
+- **Stranded asset flags** — where cumulative climate costs exceed value thresholds
+- **30-year forward risk projection** per scenario
+    """)
 with col2:
-    st.success("**Data**: ISIMIP3b · NASA NEX · CHELSA · LOCA2 · Built-in regional baselines")
+    st.markdown("### 🌍 Data & Scenarios")
+    st.markdown("""
+- **BSR Climate Scenarios 2025** with regional qualitative narratives (incl. *Fragmented World*)
+- **5 hazards**: Flood, Wind, Wildfire, Heat, Water Stress
+- **ISIMIP3b** — full FWI wildfire pipeline (Canadian FWI, Van Wagner 1987)
+- **WRI Aqueduct 4.0** — water stress projections to 2050
+    """)
 with col3:
-    st.warning("**Note**: Results are indicative estimates. Consult licensed climate risk specialists for regulatory filings.")
+    st.markdown("### 📐 Financial Outputs")
+    st.markdown("""
+- Insurance-grade EAD via trapezoidal EP curve integration
+- Annual 2025–2050 timeline, discounted to PV
+- Adaptation Return on Investment (ROI %) with NPV benefits
+- Climate-adjusted DCF — scenario-weighted NPV impairment
+- Multi-sheet XLSX export for all outputs
+    """)
+
+st.divider()
+
+col_info, col_warn = st.columns(2)
+with col_info:
+    st.info(
+        "**Quick Start**: Portfolio → Scenarios → Hazards → Results → Map → DCF\n\n"
+        "All ℹ️ icons throughout the platform provide source citations and methodology notes."
+    )
+with col_warn:
+    st.warning(
+        "**Disclaimer**: Results are quantitative estimates based on published climate science and "
+        "open-source vulnerability functions. Consult licensed climate risk specialists for "
+        "regulatory disclosures (TCFD, CSRD, ISSB S2)."
+    )
+
+st.caption(
+    "**Scenario source:** [BSR Climate Scenarios 2025](https://www.bsr.org/en/reports/bsr-climate-scenarios-2025) · "
+    "[NGFS Phase V (Nov 2023)](https://www.ngfs.net/ngfs-scenarios-portal/) · "
+    "[IPCC AR6 (2021)](https://www.ipcc.ch/report/ar6/wg1/) · "
+    "[IEA WEO 2023](https://www.iea.org/reports/world-energy-outlook-2023)"
+)

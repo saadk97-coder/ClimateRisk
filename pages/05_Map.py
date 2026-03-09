@@ -43,7 +43,8 @@ with col2:
     map_year = st.selectbox("Year", [2025, 2030, 2040, 2050], index=2)
 with col3:
     colour_by = st.selectbox("Colour by",
-                             ["EAD %", "Total EAD (£)", "Flood EAD", "Wind EAD", "Wildfire EAD", "Heat EAD"])
+                             ["EAD %", "Total EAD (£)", "Flood EAD", "Wind EAD",
+                              "Wildfire EAD", "Heat EAD", "Water Stress"])
 with col4:
     tile_layer = st.selectbox("Map layer",
                               ["Street Map", "Satellite", "Satellite + Labels", "Terrain"])
@@ -55,13 +56,26 @@ TILE_URLS = {
     "Terrain": "https://stamen-tiles-{s}.a.ssl.fastly.net/terrain/{z}/{x}/{y}.jpg",
 }
 
-show_buildings = st.checkbox("Show OSM building footprints (per-asset, within 150m)", value=False)
+col_bld, col_ws = st.columns(2)
+with col_bld:
+    show_buildings = st.checkbox("Show OSM building footprints (per-asset, within 150m)", value=False)
+with col_ws:
+    show_water_stress = st.checkbox(
+        "Show water stress indicators (WRI Aqueduct)",
+        value=False,
+        help=(
+            "Fetches Baseline Water Stress (BWS) scores from WRI Aqueduct 4.0 for each asset location. "
+            "BWS = total annual withdrawals / available renewable water supply (0–5 scale). "
+            "Source: Kuzma et al. (2023) https://doi.org/10.46830/writn.23.00061"
+        ),
+    )
 
 # ── Build map dataframe ────────────────────────────────────────────────────
 colour_map = {
     "EAD %": "ead_pct", "Total EAD (£)": "total_ead",
     "Flood EAD": "ead_flood", "Wind EAD": "ead_wind",
     "Wildfire EAD": "ead_wildfire", "Heat EAD": "ead_heat",
+    "Water Stress": "water_stress_score",
 }
 colour_col = colour_map.get(colour_by, "ead_pct")
 
@@ -80,6 +94,24 @@ else:
     ead_by_asset_haz = pd.DataFrame()
     ead_totals = pd.DataFrame()
 
+# ── Water stress fetch ─────────────────────────────────────────────────────
+water_stress_scores: dict = {}
+if show_water_stress or colour_by == "Water Stress":
+    from engine.water_stress import fetch_aqueduct_bws, get_water_stress_rating
+    ws_status = st.empty()
+    with ws_status.container():
+        with st.spinner("Fetching water stress scores (WRI Aqueduct 4.0)…"):
+            for asset in assets:
+                bws = fetch_aqueduct_bws(asset.lat, asset.lon)
+                if bws is None:
+                    # Regional fallback
+                    from engine.water_stress import _REGIONAL_BWS_BASELINE
+                    from engine.hazard_fetcher import _get_region_key
+                    zone = _get_region_key(asset.region)
+                    bws = _REGIONAL_BWS_BASELINE.get(zone, 2.0)
+                water_stress_scores[asset.id] = float(bws)
+    ws_status.empty()
+
 rows = []
 for asset in assets:
     row = {"asset_id": asset.id, "name": asset.name, "lat": asset.lat, "lon": asset.lon,
@@ -88,6 +120,7 @@ for asset in assets:
            "region": asset.region}
     row["total_ead"] = 0.0
     row["ead_pct"] = 0.0
+    row["water_stress_score"] = water_stress_scores.get(asset.id, 0.0)
     for haz in ["flood", "wind", "wildfire", "heat"]:
         row[f"ead_{haz}"] = 0.0
 
@@ -178,11 +211,31 @@ try:
     max_val = map_df[colour_col].max() if colour_col in map_df.columns else 1.0
     max_val = max_val if max_val > 0 else 1.0
 
+    # BSR palette gradient: teal (low) → BSR orange (mid) → danger red (high)
+    BSR_GRADIENT = [
+        (0.00, (42,  157, 143)),   # teal  #2A9D8F
+        (0.40, (87,  204, 153)),   # green #57CC99
+        (0.60, (233, 196, 106)),   # amber #E9C46A
+        (0.80, (244, 114,  26)),   # BSR orange #F4721A
+        (1.00, (201,  64,  64)),   # danger red #C94040
+    ]
+
+    def _lerp_colour(frac):
+        frac = max(0.0, min(1.0, frac))
+        for i in range(len(BSR_GRADIENT) - 1):
+            t0, c0 = BSR_GRADIENT[i]
+            t1, c1 = BSR_GRADIENT[i + 1]
+            if t0 <= frac <= t1:
+                alpha = (frac - t0) / (t1 - t0)
+                r = int(c0[0] + alpha * (c1[0] - c0[0]))
+                g = int(c0[1] + alpha * (c1[1] - c0[1]))
+                b = int(c0[2] + alpha * (c1[2] - c0[2]))
+                return f"#{r:02x}{g:02x}{b:02x}"
+        return "#2A9D8F"
+
     def risk_colour(val):
         frac = min(val / max_val, 1.0)
-        r = int(255 * frac)
-        g = int(255 * (1 - frac))
-        return f"#{r:02x}{g:02x}00"
+        return _lerp_colour(frac)
 
     selected_asset_for_buildings = None
 
@@ -191,9 +244,23 @@ try:
         color = risk_colour(val)
         radius = max(8, min(28, 8 + val / max_val * 20))
 
+        bws_val = row.get("water_stress_score", 0.0)
+        bws_cat = ""
+        if show_water_stress and bws_val > 0:
+            try:
+                from engine.water_stress import get_water_stress_rating
+                ws_info = get_water_stress_rating(bws_val)
+                bws_cat = f" ({ws_info['category']})"
+            except Exception:
+                pass
+        ws_row = (
+            f"<b>Water Stress (BWS):</b> {bws_val:.1f}/5{bws_cat}<br>"
+            if show_water_stress else ""
+        )
+
         popup_html = f"""
-        <div style="font-family:sans-serif;font-size:13px;min-width:220px">
-          <b>{row['name']}</b><br>
+        <div style="font-family:sans-serif;font-size:13px;min-width:240px">
+          <b style="font-size:14px;">{row['name']}</b><br>
           <hr style="margin:4px 0">
           <b>Type:</b> {row['asset_type']}<br>
           <b>Material:</b> {row.get('material','')}<br>
@@ -201,12 +268,13 @@ try:
           <b>Region:</b> {row.get('region','')}<br>
           <b>Value:</b> £{row['value']:,.0f}<br>
           <hr style="margin:4px 0">
-          <b>EAD ({map_year}):</b> £{row.get('total_ead',0):,.0f}<br>
-          <b>EAD %:</b> {row.get('ead_pct',0):.3f}%<br>
+          <b>Physical Climate VaR:</b> {row.get('ead_pct',0):.3f}% of value/yr<br>
+          <b>Total EAD ({map_year}):</b> £{row.get('total_ead',0):,.0f}<br>
           <b>Flood EAD:</b> £{row.get('ead_flood',0):,.0f}<br>
           <b>Wind EAD:</b> £{row.get('ead_wind',0):,.0f}<br>
           <b>Wildfire EAD:</b> £{row.get('ead_wildfire',0):,.0f}<br>
-          <b>Heat EAD:</b> £{row.get('ead_heat',0):,.0f}
+          <b>Heat EAD:</b> £{row.get('ead_heat',0):,.0f}<br>
+          {ws_row}
         </div>
         """
         folium.CircleMarker(
@@ -238,14 +306,18 @@ try:
 
     st_folium(m, use_container_width=True, height=620)
 
+    caption_parts = ["Satellite imagery: © Esri and contributors."]
     if show_buildings:
-        st.caption(
-            "Building footprints: © [OpenStreetMap](https://www.openstreetmap.org/) contributors (ODbL). "
-            "Data via [Overpass API](https://overpass-api.de/). "
-            "Satellite imagery: © [Esri](https://www.esri.com/en-us/home) and contributors."
+        caption_parts.append(
+            "Building footprints: © [OpenStreetMap](https://www.openstreetmap.org/) contributors (ODbL) "
+            "via [Overpass API](https://overpass-api.de/)."
         )
-    else:
-        st.caption("Satellite imagery: © Esri and contributors.")
+    if show_water_stress or colour_by == "Water Stress":
+        caption_parts.append(
+            "Water stress: [WRI Aqueduct 4.0](https://www.wri.org/data/aqueduct-water-risk-atlas) "
+            "— Kuzma et al. (2023) https://doi.org/10.46830/writn.23.00061 (CC BY 4.0)."
+        )
+    st.caption("  ".join(caption_parts))
 
 except ImportError:
     st.warning("folium / streamlit-folium not installed.")
@@ -256,10 +328,23 @@ except ImportError:
 st.divider()
 st.subheader("Asset Risk Ranking")
 if not map_df.empty and "ead_pct" in map_df.columns:
-    rank_df = map_df[["name", "asset_type", "value", "total_ead", "ead_pct"]].sort_values("ead_pct", ascending=False).reset_index(drop=True)
+    rank_cols = ["name", "asset_type", "region", "value", "total_ead", "ead_pct"]
+    if show_water_stress and "water_stress_score" in map_df.columns:
+        rank_cols.append("water_stress_score")
+    rank_df = map_df[rank_cols].sort_values("ead_pct", ascending=False).reset_index(drop=True)
     rank_df.index += 1
-    rank_df.columns = ["Asset", "Type", "Value (£)", "EAD (£)", "EAD (%)"]
+    col_names = ["Asset", "Type", "Region", "Value (£)", "Climate VaR EAD (£)", "Physical VaR (%)"]
+    if show_water_stress and "water_stress_score" in map_df.columns:
+        col_names.append("Water Stress (BWS 0–5)")
+    rank_df.columns = col_names
     rank_df["Value (£)"] = rank_df["Value (£)"].apply(lambda x: f"£{x:,.0f}")
-    rank_df["EAD (£)"] = rank_df["EAD (£)"].apply(lambda x: f"£{x:,.0f}")
-    rank_df["EAD (%)"] = rank_df["EAD (%)"].apply(lambda x: f"{x:.3f}%")
-    st.dataframe(rank_df, use_container_width=True)
+    rank_df["Climate VaR EAD (£)"] = rank_df["Climate VaR EAD (£)"].apply(lambda x: f"£{x:,.0f}")
+    rank_df["Physical VaR (%)"] = rank_df["Physical VaR (%)"].apply(lambda x: f"{x:.3f}%")
+    if "Water Stress (BWS 0–5)" in rank_df.columns:
+        rank_df["Water Stress (BWS 0–5)"] = rank_df["Water Stress (BWS 0–5)"].apply(lambda x: f"{x:.1f}")
+    st.dataframe(rank_df, use_container_width=True, hide_index=False)
+    st.caption(
+        "**Physical VaR (%)** = Expected Annual Damage as % of replacement value. "
+        "**Water Stress (BWS)**: 0–1 Low · 1–2 Low-Medium · 2–3 Medium-High · 3–4 High · 4–5 Extremely High. "
+        "Source: [WRI Aqueduct 4.0](https://doi.org/10.46830/writn.23.00061)"
+    )
