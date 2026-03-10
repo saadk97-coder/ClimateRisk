@@ -6,6 +6,7 @@ Run with: streamlit run app.py
 """
 
 import streamlit as st
+from engine.fmt import fmt as _fmt, CURRENCIES
 
 st.set_page_config(
     page_title="BSR Climate Risk Platform",
@@ -27,6 +28,8 @@ if "discount_rate" not in st.session_state:
     st.session_state.discount_rate = 0.035
 if "results" not in st.session_state:
     st.session_state.results = []
+if "currency_code" not in st.session_state:
+    st.session_state.currency_code = "GBP"
 
 # ---------------------------------------------------------------------------
 # Sidebar
@@ -41,11 +44,26 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
     st.divider()
+    # Currency selector
+    _cur_options = list(CURRENCIES.keys())
+    _cur_idx = _cur_options.index(st.session_state.currency_code) if st.session_state.currency_code in _cur_options else 0
+    _new_cur = st.selectbox(
+        "Currency",
+        _cur_options,
+        index=_cur_idx,
+        format_func=lambda c: CURRENCIES[c]["label"],
+        help="Display currency for all monetary values. Values are not converted — enter asset values in your chosen currency.",
+        key="currency_selector",
+    )
+    st.session_state.currency_code = _new_cur
+    _cur = st.session_state.currency_code
+
+    st.divider()
     st.header("📊 Portfolio Summary")
     n = len(st.session_state.assets)
     total_val = sum(a.replacement_value for a in st.session_state.assets)
     st.metric("Assets", n)
-    st.metric("Total Value", f"£{total_val:,.0f}")
+    st.metric("Total Value", _fmt(total_val, _cur))
 
     if st.session_state.results:
         from engine.portfolio_aggregator import aggregate_portfolio
@@ -53,7 +71,7 @@ with st.sidebar:
         yr = st.session_state.selected_horizons[0] if st.session_state.selected_horizons else None
         if sc and yr:
             agg = aggregate_portfolio(st.session_state.results, sc, yr)
-            st.metric("Portfolio EAD", f"£{agg.get('portfolio_ead', 0):,.0f}")
+            st.metric("Portfolio EAD", _fmt(agg.get("portfolio_ead", 0), _cur))
             st.metric("EAD % of Value", f"{agg.get('ead_pct', 0):.2f}%")
 
     if "last_run" in st.session_state:
@@ -88,7 +106,7 @@ total_val = sum(a.replacement_value for a in st.session_state.assets)
 n_assets  = len(st.session_state.assets)
 col_m1, col_m2, col_m3, col_m4 = st.columns(4)
 col_m1.metric("Assets", n_assets)
-col_m2.metric("Portfolio Value", f"£{total_val:,.0f}" if total_val > 0 else "—")
+col_m2.metric("Portfolio Value", _fmt(total_val, _cur) if total_val > 0 else "—")
 col_m3.metric("Scenarios Available", "14", help="6 NGFS Phase V · 3 IEA WEO 2023 · 5 IPCC AR6")
 col_m4.metric("Hazards Covered", "5", help="Flood · Wind · Wildfire · Heat · Water Stress")
 

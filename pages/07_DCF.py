@@ -14,6 +14,7 @@ from engine.asset_model import Asset as _Asset
 from engine.scenario_model import SCENARIOS
 from engine.dcf_engine import DCFInputs, compute_climate_dcf, compute_base_dcf, scenario_weighted_npv, DCFResult
 from engine.export_engine import export_dcf_xlsx
+from engine.fmt import fmt as _fmt_cur, currency_symbol as _currency_symbol
 
 st.set_page_config(page_title="Climate DCF", page_icon="💹", layout="wide")
 
@@ -22,7 +23,8 @@ with st.sidebar:
     n = len(st.session_state.get("assets", []))
     total_val = sum(a.replacement_value for a in st.session_state.get("assets", []))
     st.metric("Assets", n)
-    st.metric("Total Value", f"£{total_val:,.0f}")
+    _cur = st.session_state.get("currency_code", "GBP")
+    st.metric("Total Value", _fmt_cur(total_val, _cur))
 
 st.title("Climate-Adjusted DCF Valuation")
 st.markdown("""
@@ -152,17 +154,19 @@ if st.button("▶ Compute Climate-Adjusted NPV", type="primary"):
     st.subheader("Results")
 
     base_npv = dcf_results[0].npv_base
+    _cur_dcf = st.session_state.get("currency_code", "GBP")
+    _sym_dcf = _currency_symbol(_cur_dcf)
 
     # Summary table
     sc_rows = []
     for r in dcf_results:
         sc_rows.append({
             "Scenario": r.label,
-            "Base NPV (£)": f"£{r.npv_base:,.0f}",
-            "Climate-Adjusted NPV (£)": f"£{r.npv_climate:,.0f}",
-            "NPV Impairment (£)": f"£{r.npv_delta:,.0f}",
+            f"Base NPV ({_sym_dcf})": _fmt_cur(r.npv_base, _cur_dcf),
+            f"Climate-Adjusted NPV ({_sym_dcf})": _fmt_cur(r.npv_climate, _cur_dcf),
+            f"NPV Impairment ({_sym_dcf})": _fmt_cur(r.npv_delta, _cur_dcf),
             "Impairment (%)": f"{r.npv_delta_pct:.2f}%",
-            "PV Damages (£)": f"£{r.total_pv_damages:,.0f}",
+            f"PV Damages ({_sym_dcf})": _fmt_cur(r.total_pv_damages, _cur_dcf),
         })
     st.dataframe(pd.DataFrame(sc_rows), use_container_width=True)
 
@@ -170,8 +174,8 @@ if st.button("▶ Compute Climate-Adjusted NPV", type="primary"):
     w_npv_climate, w_npv_adapted = scenario_weighted_npv(dcf_results, weights)
     st.metric(
         "Probability-Weighted Climate-Adjusted NPV",
-        f"£{w_npv_climate:,.0f}",
-        delta=f"£{w_npv_climate - base_npv:,.0f} vs base",
+        _fmt_cur(w_npv_climate, _cur_dcf),
+        delta=f"{_fmt_cur(w_npv_climate - base_npv, _cur_dcf)} vs base",
         delta_color="inverse",
     )
 
@@ -181,7 +185,7 @@ if st.button("▶ Compute Climate-Adjusted NPV", type="primary"):
         x=["Base NPV"] + [r.label for r in dcf_results] + ["Probability-Weighted"],
         y=[base_npv] + [r.npv_delta for r in dcf_results] + [w_npv_climate - base_npv],
         measure=["absolute"] + ["relative"] * len(dcf_results) + ["total"],
-        text=[f"£{base_npv:,.0f}"] + [f"£{r.npv_delta:,.0f}" for r in dcf_results] + [f"£{w_npv_climate:,.0f}"],
+        text=[_fmt_cur(base_npv, _cur_dcf)] + [_fmt_cur(r.npv_delta, _cur_dcf) for r in dcf_results] + [_fmt_cur(w_npv_climate, _cur_dcf)],
         connector={"line": {"color": "#888"}},
         decreasing={"marker": {"color": "#e74c3c"}},
         increasing={"marker": {"color": "#27ae60"}},

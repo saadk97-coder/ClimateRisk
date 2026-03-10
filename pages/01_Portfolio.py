@@ -10,6 +10,64 @@ import uuid
 import json
 
 from engine.asset_model import Asset, load_asset_types
+from engine.fmt import fmt as _fmt, CURRENCIES
+
+ISO3_COUNTRIES = {
+    "GBR": "United Kingdom",
+    "USA": "United States",
+    "FRA": "France",
+    "DEU": "Germany",
+    "NLD": "Netherlands",
+    "BEL": "Belgium",
+    "CHE": "Switzerland",
+    "AUT": "Austria",
+    "ESP": "Spain",
+    "ITA": "Italy",
+    "PRT": "Portugal",
+    "SWE": "Sweden",
+    "NOR": "Norway",
+    "DNK": "Denmark",
+    "FIN": "Finland",
+    "IRL": "Ireland",
+    "POL": "Poland",
+    "CZE": "Czech Republic",
+    "HUN": "Hungary",
+    "ROU": "Romania",
+    "GRC": "Greece",
+    "TUR": "Turkey",
+    "CAN": "Canada",
+    "MEX": "Mexico",
+    "BRA": "Brazil",
+    "ARG": "Argentina",
+    "CHL": "Chile",
+    "COL": "Colombia",
+    "PER": "Peru",
+    "CHN": "China",
+    "JPN": "Japan",
+    "KOR": "South Korea",
+    "IND": "India",
+    "IDN": "Indonesia",
+    "MYS": "Malaysia",
+    "SGP": "Singapore",
+    "THA": "Thailand",
+    "VNM": "Vietnam",
+    "BGD": "Bangladesh",
+    "PAK": "Pakistan",
+    "AUS": "Australia",
+    "NZL": "New Zealand",
+    "ZAF": "South Africa",
+    "NGA": "Nigeria",
+    "EGY": "Egypt",
+    "KEN": "Kenya",
+    "MAR": "Morocco",
+    "SAU": "Saudi Arabia",
+    "ARE": "United Arab Emirates",
+    "QAT": "Qatar",
+    "KWT": "Kuwait",
+    "ISR": "Israel",
+    "RUS": "Russia",
+    "UKR": "Ukraine",
+}
 
 st.set_page_config(page_title="Portfolio", page_icon="🏗️", layout="wide")
 
@@ -40,7 +98,8 @@ with st.sidebar:
     n = len(st.session_state.assets)
     total_val = sum(a.replacement_value for a in st.session_state.assets)
     st.metric("Assets", n)
-    st.metric("Total Value", f"£{total_val:,.0f}")
+    _cur = st.session_state.get("currency_code", "GBP")
+    st.metric("Total Value", _fmt(total_val, _cur))
     if "last_run" in st.session_state:
         st.caption(f"Last run: {st.session_state.last_run}")
 
@@ -121,10 +180,18 @@ with tab_manual:
                 options=list(asset_types.keys()),
                 format_func=lambda k: asset_types[k]["label"],
             )
+            _cur = st.session_state.get("currency_code", "GBP")
+            _sym = CURRENCIES.get(_cur, CURRENCIES["GBP"])["symbol"]
             replacement_value = st.number_input(
-                "Replacement Value (£)", min_value=1000, value=1_000_000, step=10_000
+                f"Replacement Value ({_sym})", min_value=1000, value=1_000_000, step=10_000
             )
-            region = st.text_input("Region (ISO3)", value="GBR", max_chars=3).upper()
+            region = st.selectbox(
+                "Country (ISO3)",
+                list(ISO3_COUNTRIES.keys()),
+                index=0,
+                format_func=lambda k: f"{k} — {ISO3_COUNTRIES[k]}",
+                help="Select the country where this asset is located (ISO 3166-1 alpha-3 code).",
+            )
         with col2:
             lat = st.number_input("Latitude", value=51.5074, format="%.6f")
             lon = st.number_input("Longitude", value=-0.1278, format="%.6f")
@@ -177,11 +244,13 @@ with tab_view:
         st.subheader(f"Portfolio ({len(st.session_state.assets)} assets)")
         df = assets_to_df(st.session_state.assets)
 
+        _cur = st.session_state.get("currency_code", "GBP")
+        _sym = CURRENCIES.get(_cur, CURRENCIES["GBP"])["symbol"]
         st.dataframe(
             df[["id", "name", "asset_type", "replacement_value", "lat", "lon", "region"]].rename(
                 columns={
                     "id": "ID", "name": "Name", "asset_type": "Type",
-                    "replacement_value": "Value (£)", "lat": "Lat", "lon": "Lon",
+                    "replacement_value": f"Value ({_sym})", "lat": "Lat", "lon": "Lon",
                     "region": "Region",
                 }
             ),

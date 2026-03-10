@@ -12,6 +12,7 @@ import io
 from datetime import datetime
 
 from engine.asset_model import Asset as _Asset, load_asset_types
+from engine.fmt import currency_symbol as _currency_symbol, fmt as _fmt_cur
 from engine.damage_engine import run_portfolio
 from engine.annual_risk import compute_portfolio_annual_damages, summarise_annual, DEFAULT_YEARS
 from engine.portfolio_aggregator import results_to_dataframe, aggregate_portfolio, scenario_comparison_table
@@ -34,7 +35,8 @@ with st.sidebar:
     n = len(st.session_state.get("assets", []))
     total_val = sum(a.replacement_value for a in st.session_state.get("assets", []))
     st.metric("Assets", n)
-    st.metric("Total Value", f"£{total_val:,.0f}")
+    _cur = st.session_state.get("currency_code", "GBP")
+    st.metric("Total Value", _fmt_cur(total_val, _cur))
     if "last_run" in st.session_state:
         st.caption(f"Last run: {st.session_state.last_run}")
 
@@ -45,6 +47,9 @@ assets: list = [_Asset.from_dict(a) if isinstance(a, dict) else a
 if not assets:
     st.warning("No assets defined. Go to the Portfolio page first.")
     st.stop()
+
+_cur = st.session_state.get("currency_code", "GBP")
+_sym = _currency_symbol(_cur)
 
 selected_scenarios = st.session_state.get("selected_scenarios", [])
 discount_rate = st.session_state.get("discount_rate", 0.035)
@@ -138,11 +143,11 @@ mean_annual_ead = sc_annual.groupby("year")["ead"].sum().mean()
 
 st.subheader("Portfolio Summary")
 m1, m2, m3, m4, m5 = st.columns(5)
-m1.metric("Total Portfolio Value",    f"£{total_value:,.0f}")
-m2.metric("EAD (2025 baseline)",      f"£{total_ead_2025:,.0f}")
-m3.metric("EAD (2050 projected)",     f"£{total_ead_2050:,.0f}",
+m1.metric("Total Portfolio Value",    _fmt_cur(total_value, _cur))
+m2.metric("EAD (2025 baseline)",      _fmt_cur(total_ead_2025, _cur))
+m3.metric("EAD (2050 projected)",     _fmt_cur(total_ead_2050, _cur),
           delta=f"+{(total_ead_2050-total_ead_2025)/max(total_ead_2025,1)*100:.1f}%" if total_ead_2025 > 0 else None)
-m4.metric("Total PV Damages 2025–50", f"£{total_pv:,.0f}")
+m4.metric("Total PV Damages 2025–50", _fmt_cur(total_pv, _cur))
 m5.metric("EAD as % of Value (2050)", f"{total_ead_2050/total_value*100:.3f}%")
 
 # ── Annual EAD Visualizations ──────────────────────────────────────────────
@@ -168,7 +173,7 @@ with tab1:
             x=sc_sub["year"], y=sc_sub["total_ead"],
             mode="lines", name=sc_label,
             line=dict(color=sc_color, width=2.5),
-            hovertemplate=f"<b>{sc_label}</b><br>Year: %{{x}}<br>EAD: £%{{y:,.0f}}<extra></extra>",
+            hovertemplate=f"<b>{sc_label}</b><br>Year: %{{x}}<br>EAD: {_sym}%{{y:,.0f}}<extra></extra>",
         ))
     # Shaded uncertainty band between min/max scenarios
     if len(selected_scenarios) > 1:
@@ -181,7 +186,7 @@ with tab1:
             hoverinfo="skip", name="Scenario range",
         ))
     fig_ann.update_layout(
-        xaxis_title="Year", yaxis_title="Portfolio EAD (£)",
+        xaxis_title="Year", yaxis_title=f"Portfolio EAD ({_sym})",
         hovermode="x unified", height=380,
         legend=dict(orientation="h", yanchor="bottom", y=1.02),
         margin=dict(l=20, r=20, t=10, b=20),
@@ -212,11 +217,11 @@ with tab2:
             stackgroup="one",
             fillcolor=HAZARD_COLORS.get(haz, "#888") + "cc",
             line=dict(color=HAZARD_COLORS.get(haz, "#888"), width=0.5),
-            hovertemplate=f"<b>{haz.capitalize()}</b><br>Year: %{{x}}<br>EAD: £%{{y:,.0f}}<extra></extra>",
+            hovertemplate=f"<b>{haz.capitalize()}</b><br>Year: %{{x}}<br>EAD: {_sym}%{{y:,.0f}}<extra></extra>",
         ))
     fig_stack.update_layout(
         title=f"EAD by Hazard — {SCENARIOS.get(view_scenario, {}).get('label', view_scenario)}",
-        xaxis_title="Year", yaxis_title="Portfolio EAD (£)",
+        xaxis_title="Year", yaxis_title=f"Portfolio EAD ({_sym})",
         hovermode="x unified", height=380,
         legend=dict(orientation="h", yanchor="bottom", y=1.02),
         margin=dict(l=20, r=20, t=40, b=20),
@@ -228,7 +233,7 @@ with tab2:
         annual_df[annual_df["scenario_id"] == view_scenario]
         .groupby("hazard")["pv"].sum().reset_index()
     )
-    sc_haz_pv.columns = ["Hazard", "PV (£)"]
+    sc_haz_pv.columns = ["Hazard", f"PV ({_sym})"]
     sc_haz_pv["Hazard"] = sc_haz_pv["Hazard"].str.capitalize()
     sc_haz_pv = sc_haz_pv.sort_values("PV (£)", ascending=False)
     sc_haz_pv["color"] = sc_haz_pv["Hazard"].str.lower().map(HAZARD_COLORS)
@@ -237,7 +242,7 @@ with tab2:
     with col_pie:
         st.caption("Total PV of Damages 2025–2050 by Hazard")
         fig_pie = px.pie(
-            sc_haz_pv, names="Hazard", values="PV (£)", hole=0.42,
+            sc_haz_pv, names="Hazard", values=f"PV ({_sym})", hole=0.42,
             color="Hazard",
             color_discrete_map={h.capitalize(): c for h, c in HAZARD_COLORS.items()},
         )
@@ -245,14 +250,14 @@ with tab2:
         fig_pie.update_layout(height=300, margin=dict(l=0, r=0, t=10, b=0), showlegend=False)
         st.plotly_chart(fig_pie, use_container_width=True)
     with col_bar:
-        st.caption("Total PV by Hazard (£)")
+        st.caption(f"Total PV by Hazard ({_sym})")
         fig_hbar = px.bar(
-            sc_haz_pv, y="Hazard", x="PV (£)", orientation="h",
+            sc_haz_pv, y="Hazard", x=f"PV ({_sym})", orientation="h",
             color="Hazard",
             color_discrete_map={h.capitalize(): c for h, c in HAZARD_COLORS.items()},
             text="PV (£)",
         )
-        fig_hbar.update_traces(texttemplate="£%{x:,.0f}", textposition="outside")
+        fig_hbar.update_traces(texttemplate=f"{_sym}%{{x:,.0f}}", textposition="outside")
         fig_hbar.update_layout(height=300, showlegend=False,
                                margin=dict(l=0, r=60, t=10, b=20),
                                xaxis_title="", yaxis_title="")
@@ -278,11 +283,11 @@ with tab3:
             mode="lines+markers" if len(assets) <= 8 else "lines",
             line=dict(color=ASSET_COLORS[i % len(ASSET_COLORS)], width=2),
             marker=dict(size=5),
-            hovertemplate=f"<b>{aname}</b><br>Year: %{{x}}<br>EAD: £%{{y:,.0f}}<extra></extra>",
+            hovertemplate=f"<b>{aname}</b><br>Year: %{{x}}<br>EAD: {_sym}%{{y:,.0f}}<extra></extra>",
         ))
     fig_assets.update_layout(
         title=f"EAD per Asset — {SCENARIOS.get(view_scenario, {}).get('label', view_scenario)}",
-        xaxis_title="Year", yaxis_title="Asset EAD (£)",
+        xaxis_title="Year", yaxis_title=f"Asset EAD ({_sym})",
         hovermode="x unified", height=400,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, font=dict(size=11)),
         margin=dict(l=20, r=20, t=40, b=20),
@@ -330,15 +335,15 @@ with tab4:
             snap_data, y="asset_name", x="total_ead", orientation="h",
             color="ead_pct",
             color_continuous_scale="OrRd",
-            labels={"asset_name": "Asset", "total_ead": "EAD (£)", "ead_pct": "EAD %"},
+            labels={"asset_name": "Asset", "total_ead": f"EAD ({_sym})", "ead_pct": "EAD %"},
             text="total_ead",
         )
-        fig_snap.update_traces(texttemplate="£%{x:,.0f}", textposition="outside")
+        fig_snap.update_traces(texttemplate=f"{_sym}%{{x:,.0f}}", textposition="outside")
         fig_snap.update_layout(
             title=f"Asset EAD in {snap_year} — {SCENARIOS.get(view_scenario, {}).get('label', view_scenario)}",
             height=max(300, 40 * len(assets) + 100),
             margin=dict(l=20, r=80, t=40, b=20),
-            xaxis_title="EAD (£)", yaxis_title="",
+            xaxis_title=f"EAD ({_sym})", yaxis_title="",
             coloraxis_colorbar=dict(title="EAD %"),
         )
         st.plotly_chart(fig_snap, use_container_width=True)
@@ -353,7 +358,7 @@ with tab4:
         fig_haz_snap = px.bar(
             haz_snap, x="asset_name", y="ead", color="hazard",
             color_discrete_map={h: c for h, c in HAZARD_COLORS.items()},
-            labels={"asset_name": "Asset", "ead": "EAD (£)", "hazard": "Hazard"},
+            labels={"asset_name": "Asset", "ead": f"EAD ({_sym})", "hazard": "Hazard"},
             barmode="stack",
         )
         fig_haz_snap.update_layout(
@@ -384,19 +389,19 @@ if coarse_results:
     disp_df = asset_2050[disp_cols + haz_cols].copy()
 
     rename = {
-        "asset_name": "Asset", "asset_value": "Value (£)",
-        "total_ead": "EAD 2050 (£)", "total_ead_pct": "EAD %",
-        "total_pv_damages": "PV Damages 2025–50 (£)",
+        "asset_name": "Asset", "asset_value": f"Value ({_sym})",
+        "total_ead": f"EAD 2050 ({_sym})", "total_ead_pct": "EAD %",
+        "total_pv_damages": f"PV Damages 2025–50 ({_sym})",
     }
     for hc in haz_cols:
-        rename[hc] = hc.replace("ead_", "").capitalize() + " EAD (£)"
+        rename[hc] = hc.replace("ead_", "").capitalize() + f" EAD ({_sym})"
     disp_df = disp_df.rename(columns=rename)
 
-    fmt_currency = ["Value (£)", "EAD 2050 (£)", "PV Damages 2025–50 (£)"] + \
-                   [v for k, v in rename.items() if "EAD (£)" in v and "EAD 2050" not in v]
+    fmt_currency = [f"Value ({_sym})", f"EAD 2050 ({_sym})", f"PV Damages 2025–50 ({_sym})"] + \
+                   [v for k, v in rename.items() if f"EAD ({_sym})" in v and "EAD 2050" not in v]
     for col in fmt_currency:
         if col in disp_df.columns:
-            disp_df[col] = disp_df[col].apply(lambda x: f"£{x:,.0f}" if pd.notna(x) else "N/A")
+            disp_df[col] = disp_df[col].apply(lambda x: f"{_sym}{x:,.0f}" if pd.notna(x) else "N/A")
     if "EAD %" in disp_df.columns:
         disp_df["EAD %"] = disp_df["EAD %"].apply(lambda x: f"{x:.3f}%" if pd.notna(x) else "N/A")
 
@@ -411,21 +416,21 @@ for sc_id in selected_scenarios:
     sc_sub = annual_df[annual_df["scenario_id"] == sc_id]
     sc_pv_rows.append({
         "Scenario": SCENARIOS.get(sc_id, {}).get("label", sc_id),
-        "Total PV (£)": sc_sub["pv"].sum(),
-        "Mean Annual EAD (£)": sc_sub.groupby("year")["ead"].sum().mean() if not sc_sub.empty else 0,
-        "EAD 2050 (£)": sc_sub[sc_sub["year"] == 2050]["ead"].sum(),
+        f"Total PV ({_sym})": sc_sub["pv"].sum(),
+        f"Mean Annual EAD ({_sym})": sc_sub.groupby("year")["ead"].sum().mean() if not sc_sub.empty else 0,
+        f"EAD 2050 ({_sym})": sc_sub[sc_sub["year"] == 2050]["ead"].sum(),
         "color": SCENARIOS.get(sc_id, {}).get("color", "#888"),
     })
 sc_pv_df = pd.DataFrame(sc_pv_rows)
 
-fig_sc = px.bar(sc_pv_df, x="Scenario", y="Total PV (£)",
+fig_sc = px.bar(sc_pv_df, x="Scenario", y=f"Total PV ({_sym})",
                 color="Scenario",
                 color_discrete_map={r["Scenario"]: r["color"] for r in sc_pv_rows},
-                text="Total PV (£)")
-fig_sc.update_traces(texttemplate="£%{y:,.0f}", textposition="outside")
+                text=f"Total PV ({_sym})")
+fig_sc.update_traces(texttemplate=f"{_sym}%{{y:,.0f}}", textposition="outside")
 fig_sc.update_layout(height=340, showlegend=False,
                      margin=dict(l=20, r=20, t=20, b=100),
-                     xaxis_tickangle=-20, yaxis_title="Total PV of Damages (£)")
+                     xaxis_tickangle=-20, yaxis_title=f"Total PV of Damages ({_sym})")
 st.plotly_chart(fig_sc, use_container_width=True)
 
 # ── EP curve ──────────────────────────────────────────────────────────────
@@ -455,10 +460,10 @@ if coarse_results:
             mode="lines+markers",
             line=dict(color="#2980b9", width=2),
             fill="tozeroy", fillcolor="rgba(41,128,185,0.1)",
-            hovertemplate="Loss: £%{x:,.0f}<br>AEP: %{y:.4f}<extra></extra>",
+            hovertemplate=f"Loss: {_sym}%{{x:,.0f}}<br>AEP: %{{y:.4f}}<extra></extra>",
         ))
         fig_ep.update_layout(
-            xaxis_title="Loss (£)", yaxis_title="Annual Exceedance Probability",
+            xaxis_title=f"Loss ({_sym})", yaxis_title="Annual Exceedance Probability",
             yaxis_type="log", height=320, margin=dict(l=20, r=20, t=20, b=20),
         )
         st.plotly_chart(fig_ep, use_container_width=True)
@@ -507,7 +512,7 @@ with col_e1:
                 asset_results_df=df_coarse if coarse_results else pd.DataFrame(),
                 annual_damages_df=annual_df,
                 portfolio_summary={
-                    "Total Portfolio Value (£)": f"£{total_value:,.0f}",
+                    f"Total Portfolio Value ({_sym})": _fmt_cur(total_value, _cur),
                     "Scenarios analysed": ", ".join(selected_scenarios),
                     "Analysis period": "2025–2050 (annual)",
                     "Discount rate": f"{discount_rate*100:.1f}%",
@@ -575,7 +580,7 @@ with _var_col:
         ),
     )
     st.caption(
-        f"Portfolio EAD 2050: £{_port_ead_total:,.0f} "
+        f"Portfolio EAD 2050: {_fmt_cur(_port_ead_total, _cur)} "
         f"| Scenario: {SCENARIOS.get(view_scenario, {}).get('label', view_scenario)}"
     )
 with _info_col:
@@ -705,7 +710,7 @@ if _var_by_asset:
         hovertemplate=(
             "<b>%{y}</b><br>"
             "Climate VaR: %{x:.3f}%<br>"
-            "EAD 2050: £%{customdata:,.0f}"
+            f"EAD 2050: {_sym}%{{customdata:,.0f}}"
             "<extra></extra>"
         ),
         customdata=_var_asset_df["ead"],
@@ -797,8 +802,8 @@ if not _stranded_df.empty:
     _flag_col.metric("Assets Flagged as Stranded", f"{_n_flagged} / {len(_stranded_df)}")
     _total_col.metric(
         "Combined PV Exposure (flagged)",
-        f"£{_stranded_df[_stranded_df['stranded_flag']]['cumulative_pv'].sum():,.0f}"
-        if _n_flagged > 0 else "£0",
+        _fmt_cur(_stranded_df[_stranded_df["stranded_flag"]]["cumulative_pv"].sum(), _cur)
+        if _n_flagged > 0 else _fmt_cur(0, _cur),
     )
 
     # Display columns
@@ -812,8 +817,8 @@ if not _stranded_df.empty:
         "name":               "Asset",
         "asset_type":         "Type",
         "region":             "Region",
-        "value":              "Replacement Value (£)",
-        "cumulative_pv":      "Cumulative PV Damages (£)",
+        "value":              f"Replacement Value ({_sym})",
+        "cumulative_pv":      f"Cumulative PV Damages ({_sym})",
         "pv_as_pct_of_value": "PV as % of Value",
         "stranded_flag":      "Stranded?",
         "acute_breach_year":  "Acute Breach Year",
@@ -830,8 +835,8 @@ if not _stranded_df.empty:
         .style
         .apply(_style_stranded_rows, axis=1)
         .format({
-            "Replacement Value (£)":   "£{:,.0f}",
-            "Cumulative PV Damages (£)": "£{:,.0f}",
+            f"Replacement Value ({_sym})":   f"{_sym}{{:,.0f}}",
+            f"Cumulative PV Damages ({_sym})": f"{_sym}{{:,.0f}}",
             "PV as % of Value":        "{:.2f}%",
             "Acute Breach Year":       lambda v: str(int(v)) if pd.notna(v) else "—",
         })

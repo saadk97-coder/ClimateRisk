@@ -8,6 +8,7 @@ import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
 from dataclasses import asdict
+from engine.fmt import currency_symbol as _currency_symbol, fmt as _fmt_cur
 
 from engine.adaptation_engine import list_measures, calc_adaptation, portfolio_adaptation_frontier, AdaptationResult
 from engine.scenario_model import SCENARIOS
@@ -19,8 +20,9 @@ with st.sidebar:
     st.header("Portfolio Summary")
     n = len(st.session_state.get("assets", []))
     total_val = sum(a.replacement_value for a in st.session_state.get("assets", []))
+    _cur = st.session_state.get("currency_code", "GBP")
     st.metric("Assets", n)
-    st.metric("Total Value", f"£{total_val:,.0f}")
+    st.metric("Total Value", _fmt_cur(total_val, _cur))
 
 st.title("Adaptation Measures")
 st.markdown(
@@ -31,6 +33,8 @@ from engine.asset_model import Asset as _Asset
 assets = [_Asset.from_dict(a) if isinstance(a, dict) else a for a in st.session_state.get("assets", [])]
 results = st.session_state.get("results", [])
 discount_rate = st.session_state.get("discount_rate", 0.035)
+_cur = st.session_state.get("currency_code", "GBP")
+_sym = _currency_symbol(_cur)
 
 if not assets:
     st.warning("No assets defined.")
@@ -81,8 +85,8 @@ if asset_results_match:
         hazard_eads[haz] = hr.ead
 
 if sel_asset:
-    st.metric("Baseline Total EAD", f"£{baseline_ead_total:,.0f}", delta=None)
-    st.caption(f"Asset Value: £{sel_asset.replacement_value:,.0f} | Discount Rate: {discount_rate*100:.1f}%")
+    st.metric("Baseline Total EAD", _fmt_cur(baseline_ead_total, _cur), delta=None)
+    st.caption(f"Asset Value: {_fmt_cur(sel_asset.replacement_value, _cur)} | Discount Rate: {discount_rate*100:.1f}%")
 
     # Get applicable measures
     measures = list_measures(asset_type=sel_asset.asset_type)
@@ -101,12 +105,12 @@ if sel_asset:
 
         for haz, haz_measures in measures_by_hazard.items():
             baseline_haz_ead = hazard_eads.get(haz, 0.0)
-            with st.expander(f"🔧 {haz.capitalize()} Measures (Baseline EAD: £{baseline_haz_ead:,.0f})"):
+            with st.expander(f"🔧 {haz.capitalize()} Measures (Baseline EAD: {_fmt_cur(baseline_haz_ead, _cur)})"):
                 for m in haz_measures:
                     checked = m["id"] in selected_measure_ids
                     capex_est = sel_asset.replacement_value * m["capex_pct"] / 100
                     label = (
-                        f"**{m['label']}** — Capex: ~£{capex_est:,.0f} | "
+                        f"**{m['label']}** — Capex: ~{_fmt_cur(capex_est, _cur)} | "
                         f"Reduction: {m['damage_reduction_pct']}% | "
                         f"Life: {m['design_life_years']} yrs"
                     )
@@ -188,16 +192,16 @@ if sel_asset:
                 for ar in adap_results:
                     ar_roi = (ar.npv_benefits - ar.total_cost) / ar.total_cost * 100 if ar.total_cost > 0 else 0.0
                     cb_rows.append({
-                        "Measure":             ar.measure_label,
-                        "Hazard":              ar.hazard.capitalize(),
-                        "Capex (£)":           f"£{ar.capex:,.0f}",
-                        "NPV Opex (£)":        f"£{ar.npv_opex:,.0f}",
-                        "Avoided EAD/yr (£)":  f"£{ar.avoided_ead_annual:,.0f}",
-                        "NPV Benefits (£)":    f"£{ar.npv_benefits:,.0f}",
-                        "ROI (%)":             f"{ar_roi:.0f}%",
-                        "CBR":                 f"{ar.cbr:.2f}×",
-                        "Payback (yrs)":       f"{ar.payback_years:.1f}" if ar.payback_years < 999 else ">50",
-                        "Reduction (%)":       f"{ar.damage_reduction_pct:.0f}%",
+                        "Measure":                    ar.measure_label,
+                        "Hazard":                     ar.hazard.capitalize(),
+                        f"Capex ({_sym})":            _fmt_cur(ar.capex, _cur),
+                        f"NPV Opex ({_sym})":         _fmt_cur(ar.npv_opex, _cur),
+                        f"Avoided EAD/yr ({_sym})":   _fmt_cur(ar.avoided_ead_annual, _cur),
+                        f"NPV Benefits ({_sym})":     _fmt_cur(ar.npv_benefits, _cur),
+                        "ROI (%)":                    f"{ar_roi:.0f}%",
+                        "CBR":                        f"{ar.cbr:.2f}×",
+                        "Payback (yrs)":              f"{ar.payback_years:.1f}" if ar.payback_years < 999 else ">50",
+                        "Reduction (%)":              f"{ar.damage_reduction_pct:.0f}%",
                     })
 
                 st.dataframe(pd.DataFrame(cb_rows), use_container_width=True, hide_index=True)
@@ -205,8 +209,8 @@ if sel_asset:
                 adapted_ead = max(0, baseline_ead_total - total_avoided)
                 st.metric(
                     "Adapted Total EAD",
-                    f"£{adapted_ead:,.0f}",
-                    delta=f"-£{total_avoided:,.0f}/yr avoided",
+                    _fmt_cur(adapted_ead, _cur),
+                    delta=f"-{_fmt_cur(total_avoided, _cur)}/yr avoided",
                     delta_color="inverse",
                 )
 
@@ -252,11 +256,11 @@ if st.button("📊 Compute Portfolio Frontier", type="primary"):
             fill="tozeroy",
             fillcolor="rgba(39,174,96,0.1)",
             text=frontier_df["measure_label"] + " | " + frontier_df["asset_id"],
-            hovertemplate="<b>%{text}</b><br>Cumulative Capex: £%{x:,.0f}<br>Avoided EAD: £%{y:,.0f}/yr<extra></extra>",
+            hovertemplate=f"<b>%{{text}}</b><br>Cumulative Capex: {_sym}%{{x:,.0f}}<br>Avoided EAD: {_sym}%{{y:,.0f}}/yr<extra></extra>",
         ))
         fig.update_layout(
-            xaxis_title="Cumulative Capex (£)",
-            yaxis_title="Cumulative Avoided EAD (£/yr)",
+            xaxis_title=f"Cumulative Capex ({_sym})",
+            yaxis_title=f"Cumulative Avoided EAD ({_sym}/yr)",
             height=400,
             margin=dict(l=20, r=20, t=20, b=20),
         )
@@ -265,10 +269,10 @@ if st.button("📊 Compute Portfolio Frontier", type="primary"):
         # Top measures by CBR
         st.subheader("Top Adaptation Measures by Cost-Benefit Ratio")
         top_df = frontier_df[["measure_label", "asset_id", "capex", "cbr"]].copy()
-        top_df.columns = ["Measure", "Asset ID", "Capex (£)", "CBR"]
+        top_df.columns = ["Measure", "Asset ID", f"Capex ({_sym})", "CBR"]
         top_df = top_df.head(15).reset_index(drop=True)
         top_df.index += 1
-        top_df["Capex (£)"] = top_df["Capex (£)"].apply(lambda x: f"£{x:,.0f}")
+        top_df[f"Capex ({_sym})"] = top_df[f"Capex ({_sym})"].apply(lambda x: _fmt_cur(x, _cur))
         top_df["CBR"] = top_df["CBR"].apply(lambda x: f"{x:.2f}x")
         st.dataframe(top_df, use_container_width=True)
 

@@ -12,6 +12,7 @@ import json
 from engine.asset_model import Asset as _Asset
 from engine.scenario_model import SCENARIOS
 from engine.portfolio_aggregator import results_to_dataframe
+from engine.fmt import fmt as _fmt_cur, currency_symbol as _currency_symbol
 
 st.set_page_config(page_title="Map", page_icon="🗺️", layout="wide")
 
@@ -20,7 +21,8 @@ with st.sidebar:
     n = len(st.session_state.get("assets", []))
     total_val = sum(a.replacement_value for a in st.session_state.get("assets", []))
     st.metric("Assets", n)
-    st.metric("Total Value", f"£{total_val:,.0f}")
+    _cur = st.session_state.get("currency_code", "GBP")
+    st.metric("Total Value", _fmt_cur(total_val, _cur))
 
 st.title("Risk Map")
 
@@ -333,12 +335,14 @@ if not map_df.empty and "ead_pct" in map_df.columns:
         rank_cols.append("water_stress_score")
     rank_df = map_df[rank_cols].sort_values("ead_pct", ascending=False).reset_index(drop=True)
     rank_df.index += 1
-    col_names = ["Asset", "Type", "Region", "Value (£)", "Climate VaR EAD (£)", "Physical VaR (%)"]
+    _cur_map = st.session_state.get("currency_code", "GBP")
+    _sym_map = _currency_symbol(_cur_map)
+    col_names = ["Asset", "Type", "Region", f"Value ({_sym_map})", f"Climate VaR EAD ({_sym_map})", "Physical VaR (%)"]
     if show_water_stress and "water_stress_score" in map_df.columns:
         col_names.append("Water Stress (BWS 0–5)")
     rank_df.columns = col_names
-    rank_df["Value (£)"] = rank_df["Value (£)"].apply(lambda x: f"£{x:,.0f}")
-    rank_df["Climate VaR EAD (£)"] = rank_df["Climate VaR EAD (£)"].apply(lambda x: f"£{x:,.0f}")
+    rank_df[f"Value ({_sym_map})"] = rank_df[f"Value ({_sym_map})"].apply(lambda x: _fmt_cur(x, _cur_map))
+    rank_df[f"Climate VaR EAD ({_sym_map})"] = rank_df[f"Climate VaR EAD ({_sym_map})"].apply(lambda x: _fmt_cur(x, _cur_map))
     rank_df["Physical VaR (%)"] = rank_df["Physical VaR (%)"].apply(lambda x: f"{x:.3f}%")
     if "Water Stress (BWS 0–5)" in rank_df.columns:
         rank_df["Water Stress (BWS 0–5)"] = rank_df["Water Stress (BWS 0–5)"].apply(lambda x: f"{x:.1f}")

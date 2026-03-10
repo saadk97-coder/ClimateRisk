@@ -9,6 +9,7 @@ import numpy as np
 import plotly.graph_objects as go
 
 from engine.asset_model import Asset as _Asset, load_asset_types
+from engine.fmt import fmt as _fmt_cur
 from engine.hazard_fetcher import (
     fetch_all_hazards, get_region_zone, get_fallback_detail, _load_baseline
 )
@@ -23,7 +24,7 @@ with st.sidebar:
     n = len(st.session_state.get("assets", []))
     total_val = sum(a.replacement_value for a in st.session_state.get("assets", []))
     st.metric("Assets", n)
-    st.metric("Total Value", f"£{total_val:,.0f}")
+    st.metric("Total Value", _fmt_cur(total_val, st.session_state.get("currency_code", "GBP")))
 
 st.title("Hazard Data")
 st.markdown(

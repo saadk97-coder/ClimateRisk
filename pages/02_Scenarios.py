@@ -5,6 +5,7 @@ selector, regional qualitative narratives, financial parameters, warming traject
 
 import streamlit as st
 import plotly.graph_objects as go
+from engine.fmt import fmt as _fmt_cur
 from engine.scenario_model import (
     SCENARIOS, SCENARIO_PROVIDERS, PROVIDER_SOURCES, list_scenarios,
     get_bsr_narrative,
@@ -17,7 +18,7 @@ with st.sidebar:
     n = len(st.session_state.get("assets", []))
     total_val = sum(a.replacement_value for a in st.session_state.get("assets", []))
     st.metric("Assets", n)
-    st.metric("Total Value", f"£{total_val:,.0f}")
+    st.metric("Total Value", _fmt_cur(total_val, st.session_state.get("currency_code", "GBP")))
 
 st.title("Climate Scenarios & Regional Insights")
 st.markdown(
@@ -303,6 +304,81 @@ st.caption(
     "[IEA WEO 2023](https://www.iea.org/reports/world-energy-outlook-2023) | "
     "[IPCC AR6 WG1 SPM Table 1](https://www.ipcc.ch/report/ar6/wg1/chapter/summary-for-policymakers/)"
 )
+
+# ── BSR Scenario Framework Integration ────────────────────────────────────
+st.divider()
+with st.expander("🔗 How BSR Scenarios relate to NGFS, SSP, and IEA frameworks", expanded=False):
+    st.markdown(
+        "**BSR Climate Scenarios 2025 are quantitatively grounded in NGFS Phase V and IPCC AR6 SSPs.** "
+        "They do not have an independent Integrated Assessment Model (IAM); instead, BSR maps each "
+        "narrative scenario to the corresponding NGFS/SSP trajectory for all quantitative outputs — "
+        "including warming levels, hazard multipliers, and physical damage calculations in this platform."
+    )
+
+    st.markdown("#### Scenario Mapping Table")
+    import pandas as pd
+    _mapping_df = pd.DataFrame([
+        {
+            "BSR Scenario": "🟢 Net Zero 2050",
+            "NGFS Phase V": "Net Zero 2050",
+            "SSP / RCP": "SSP1-1.9",
+            "IEA WEO Equivalent": "Net Zero Emissions (NZE)",
+            "Warming 2050": "~1.5°C",
+            "Warming 2080": "~1.5°C",
+            "Risk Profile": "Low physical · Low transition (orderly)",
+        },
+        {
+            "BSR Scenario": "🟡 Delayed Transition",
+            "NGFS Phase V": "Delayed Transition",
+            "SSP / RCP": "SSP2-4.5",
+            "IEA WEO Equivalent": "Announced Pledges (APS)",
+            "Warming 2050": "~2.0°C",
+            "Warming 2080": "~2.4°C",
+            "Risk Profile": "Moderate physical · Very high transition (disorderly)",
+        },
+        {
+            "BSR Scenario": "🔴 Current Policies",
+            "NGFS Phase V": "Current Policies",
+            "SSP / RCP": "SSP5-8.5",
+            "IEA WEO Equivalent": "Stated Policies (STEPS)",
+            "Warming 2050": "~3.0°C",
+            "Warming 2080": "~4.3°C",
+            "Risk Profile": "Very high physical · Low transition",
+        },
+        {
+            "BSR Scenario": "🟣 Fragmented World",
+            "NGFS Phase V": "Fragmented World",
+            "SSP / RCP": "SSP3-7.0",
+            "IEA WEO Equivalent": "No direct equivalent",
+            "Warming 2050": "~2.5°C",
+            "Warming 2080": "~3.5°C",
+            "Risk Profile": "High physical + high transition (dual-risk)",
+        },
+    ])
+    st.dataframe(_mapping_df, use_container_width=True, hide_index=True)
+
+    st.markdown(
+        "#### How quantitative damage outputs are generated for BSR scenarios\n\n"
+        "Since BSR Climate Scenarios 2025 are narrative frameworks built on NGFS/IPCC foundations, "
+        "this platform generates physical damage estimates by:\n\n"
+        "1. **Mapping each BSR scenario to its NGFS/SSP equivalent** (table above)\n"
+        "2. **Applying IPCC AR6 warming trajectories** for the mapped SSP pathway "
+        "(median estimate from the NGFS GCAM/REMIND-MAgPIE IAM ensemble)\n"
+        "3. **Scaling hazard intensities** using IPCC AR6 climate sensitivity relationships "
+        "(Tabari 2020 for flood, Knutson 2020 for wind, Jolly 2015 for wildfire)\n"
+        "4. **Running HAZUS/JRC vulnerability curves** against the scaled hazard intensities "
+        "to produce asset-level Expected Annual Damage (EAD)\n\n"
+        "The BSR **qualitative narratives** (transition pathways, regional stories, socioeconomic "
+        "context) layer *on top of* these quantitative outputs, providing the corporate strategy "
+        "and cross-functional context that SSPs alone do not provide.\n\n"
+        "**Fragmented World** is unique: it combines high physical risk (SSP3-7.0 warming) with "
+        "high transition risk (divergent national policies, carbon border adjustments, regulatory "
+        "fragmentation) — meaning assets face compounding risks from both channels simultaneously. "
+        "This has no single IEA WEO equivalent and is the primary reason BSR developed this "
+        "scenario separately from the NGFS framework.\n\n"
+        "*Source: [BSR Climate Scenarios 2025](https://www.bsr.org/en/reports/bsr-climate-scenarios-2025) "
+        "· [NGFS Phase V Technical Note](https://www.ngfs.net/sites/default/files/medias/documents/ngfs_climate_scenarios_phase_v.pdf)*"
+    )
 
 # ── BSR Regional Qualitative Insights ─────────────────────────────────────
 if new_scenarios:
