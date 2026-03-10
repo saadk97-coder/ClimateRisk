@@ -27,6 +27,7 @@ from engine.risk_scorer import (
     score_label,
     climate_exposure_score,
 )
+from engine.insights import results_hotspots, render_insights_html
 
 st.set_page_config(page_title="Results", page_icon="📊", layout="wide")
 
@@ -149,6 +150,17 @@ m3.metric("EAD (2050 projected)",     _fmt_cur(total_ead_2050, _cur),
           delta=f"+{(total_ead_2050-total_ead_2025)/max(total_ead_2025,1)*100:.1f}%" if total_ead_2025 > 0 else None)
 m4.metric("Total PV Damages 2025–50", _fmt_cur(total_pv, _cur))
 m5.metric("EAD as % of Value (2050)", f"{total_ead_2050/total_value*100:.3f}%")
+
+# ── Risk Hotspot Insights ─────────────────────────────────────────────────
+_hotspots = results_hotspots(annual_df, assets, view_scenario, year=2050)
+if _hotspots:
+    st.divider()
+    st.subheader("Risk Hotspot Analysis")
+    st.caption(
+        "Key risk findings for the selected scenario based on modelled 2050 EAD. "
+        "Use these insights to prioritise assets for adaptation and due diligence."
+    )
+    st.markdown(render_insights_html(_hotspots), unsafe_allow_html=True)
 
 # ── Annual EAD Visualizations ──────────────────────────────────────────────
 st.divider()

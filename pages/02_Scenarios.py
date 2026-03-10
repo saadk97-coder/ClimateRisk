@@ -27,36 +27,46 @@ st.markdown(
     "below for each selected scenario."
 )
 
+# ── BSR context banner ─────────────────────────────────────────────────────
+st.info(
+    "**BSR Climate Scenarios 2025** are the qualitative framework underpinning this platform. "
+    "They do not have independent damage data — instead, each BSR scenario maps to a quantitative "
+    "pathway from NGFS Phase V / IPCC AR6. Select your preferred quantitative framework below; "
+    "BSR regional narratives will appear alongside your chosen scenarios. "
+    "[BSR Climate Scenarios 2025 ↗](https://www.bsr.org/en/reports/bsr-climate-scenarios-2025)"
+)
+
 # ── Scenario Provider ──────────────────────────────────────────────────────
 st.subheader("Scenario Framework")
 
-provider_options = list(SCENARIO_PROVIDERS.keys())
-current_provider = st.session_state.get("scenario_provider", "BSR Climate Scenarios 2025")
-# Ensure current_provider is valid
-if current_provider not in provider_options:
-    current_provider = "BSR Climate Scenarios 2025"
+# BSR is not a standalone provider — it annotates the other frameworks
+_provider_options = ["NGFS Phase V", "IEA WEO 2023", "IPCC AR6"]
+current_provider = st.session_state.get("scenario_provider", "NGFS Phase V")
+if current_provider not in _provider_options:
+    current_provider = "NGFS Phase V"
 
 col_prov, col_src = st.columns([3, 4])
 with col_prov:
     new_provider = st.selectbox(
-        "Select framework",
-        provider_options,
-        index=provider_options.index(current_provider),
+        "Select quantitative framework",
+        _provider_options,
+        index=_provider_options.index(current_provider),
         help=(
-            "BSR Climate Scenarios 2025 is the recommended default — four canonical scenarios "
-            "including the new Fragmented World scenario. NGFS Phase V is the standard for "
-            "financial institution TCFD/TNFD disclosure. IPCC AR6 SSPs underpin all scenarios."
+            "NGFS Phase V is the standard for financial institution TCFD/TNFD disclosure "
+            "and covers the same pathways as BSR Climate Scenarios 2025. "
+            "IEA WEO 2023 focuses on energy-system trajectories. "
+            "IPCC AR6 SSPs underpin all frameworks."
         ),
     )
 with col_src:
     st.markdown(
-        f"""
+        """
         | Framework | Scenarios | Source |
         |---|---|---|
-        | **BSR Climate Scenarios 2025** | 4 (incl. Fragmented World) | [BSR Report ↗](https://www.bsr.org/en/reports/bsr-climate-scenarios-2025) |
-        | **NGFS Phase V** | 6 | [NGFS Portal ↗](https://www.ngfs.net/ngfs-scenarios-portal/) |
+        | **NGFS Phase V** | 6 (incl. Fragmented World) | [NGFS Portal ↗](https://www.ngfs.net/ngfs-scenarios-portal/) |
         | **IEA WEO 2023** | 3 | [IEA WEO 2023 ↗](https://www.iea.org/reports/world-energy-outlook-2023) |
         | **IPCC AR6** | 5 | [AR6 SPM Table 1 ↗](https://www.ipcc.ch/report/ar6/wg1/chapter/summary-for-policymakers/) |
+        | **BSR 2025 overlay** | Narratives on all above | [BSR Report ↗](https://www.bsr.org/en/reports/bsr-climate-scenarios-2025) |
         """
     )
 
@@ -66,47 +76,22 @@ active_scenarios = SCENARIO_PROVIDERS[new_provider]
 st.divider()
 st.subheader(f"Select Scenarios — {new_provider}")
 
-if new_provider == "BSR Climate Scenarios 2025":
-    bsr_col, bsr_info = st.columns([6, 1])
-    with bsr_col:
-        st.caption(
-            "BSR Climate Scenarios 2025 are aligned with NGFS Phase V and designed for "
-            "cross-functional corporate scenario planning (strategy, finance, operations, legal). "
-            "The **Fragmented World** scenario (🟣) is new in 2025 and unique in combining high "
-            "physical risk *and* high transition risk simultaneously — reflecting divergent national "
-            "policies and weak international co-ordination. "
-            "[Full report ↗](https://www.bsr.org/en/reports/bsr-climate-scenarios-2025)"
-        )
-    with bsr_info:
-        with st.popover("ℹ️ About BSR Scenarios"):
-            st.markdown(
-                "**BSR Climate Scenarios 2025**\n\n"
-                "Published by BSR (Business for Social Responsibility), these scenarios are "
-                "aligned with NGFS Phase V (2024) and IPCC AR6. They are designed specifically "
-                "for corporate cross-functional use — integrating physical risk, transition risk, "
-                "and socioeconomic narratives decade-by-decade.\n\n"
-                "The four scenarios represent distinct risk archetypes:\n"
-                "- 🟢 **Net Zero 2050**: Orderly transition, lowest long-term physical risk\n"
-                "- 🟡 **Delayed Transition**: Reactive, disorderly pathway — peak stranded-asset risk\n"
-                "- 🔴 **Current Policies**: Business-as-usual; highest physical risk\n"
-                "- 🟣 **Fragmented World**: Dual-channel risk (physical + transition simultaneously)\n\n"
-                "[BSR Climate Scenarios 2025 ↗](https://www.bsr.org/en/reports/bsr-climate-scenarios-2025)"
-            )
-elif new_provider == "NGFS Phase V":
+if new_provider == "NGFS Phase V":
     st.caption(
         "NGFS Phase V (November 2023) uses GCAM 6.0 and REMIND-MAgPIE 3.2 IAMs with MAGICC7 temperature outputs. "
-        "Adds 'Divergent Net Zero' and 'Fragmented World' scenarios vs Phase IV. "
+        "BSR Climate Scenarios 2025 maps directly onto these pathways for quantitative outputs. "
         "[Technical Note ↗](https://www.ngfs.net/sites/default/files/medias/documents/ngfs_climate_scenarios_phase_v.pdf)"
     )
 elif new_provider == "IEA WEO 2023":
     st.caption(
         "IEA World Energy Outlook 2023 scenarios cover the global energy system through 2050. "
+        "BSR's Net Zero 2050 aligns with NZE; Current Policies aligns with STEPS. "
         "[Full report ↗](https://www.iea.org/reports/world-energy-outlook-2023)"
     )
 elif new_provider == "IPCC AR6":
     st.caption(
         "IPCC AR6 Shared Socioeconomic Pathways (SSPs) from the Sixth Assessment Report (2021). "
-        "Best-estimate (median) global mean surface temperature above 1850–1900 baseline. "
+        "All BSR and NGFS scenarios are grounded in these SSP warming trajectories. "
         "[SPM Table 1 ↗](https://www.ipcc.ch/report/ar6/wg1/chapter/summary-for-policymakers/)"
     )
 
@@ -304,81 +289,6 @@ st.caption(
     "[IEA WEO 2023](https://www.iea.org/reports/world-energy-outlook-2023) | "
     "[IPCC AR6 WG1 SPM Table 1](https://www.ipcc.ch/report/ar6/wg1/chapter/summary-for-policymakers/)"
 )
-
-# ── BSR Scenario Framework Integration ────────────────────────────────────
-st.divider()
-with st.expander("🔗 How BSR Scenarios relate to NGFS, SSP, and IEA frameworks", expanded=False):
-    st.markdown(
-        "**BSR Climate Scenarios 2025 are quantitatively grounded in NGFS Phase V and IPCC AR6 SSPs.** "
-        "They do not have an independent Integrated Assessment Model (IAM); instead, BSR maps each "
-        "narrative scenario to the corresponding NGFS/SSP trajectory for all quantitative outputs — "
-        "including warming levels, hazard multipliers, and physical damage calculations in this platform."
-    )
-
-    st.markdown("#### Scenario Mapping Table")
-    import pandas as pd
-    _mapping_df = pd.DataFrame([
-        {
-            "BSR Scenario": "🟢 Net Zero 2050",
-            "NGFS Phase V": "Net Zero 2050",
-            "SSP / RCP": "SSP1-1.9",
-            "IEA WEO Equivalent": "Net Zero Emissions (NZE)",
-            "Warming 2050": "~1.5°C",
-            "Warming 2080": "~1.5°C",
-            "Risk Profile": "Low physical · Low transition (orderly)",
-        },
-        {
-            "BSR Scenario": "🟡 Delayed Transition",
-            "NGFS Phase V": "Delayed Transition",
-            "SSP / RCP": "SSP2-4.5",
-            "IEA WEO Equivalent": "Announced Pledges (APS)",
-            "Warming 2050": "~2.0°C",
-            "Warming 2080": "~2.4°C",
-            "Risk Profile": "Moderate physical · Very high transition (disorderly)",
-        },
-        {
-            "BSR Scenario": "🔴 Current Policies",
-            "NGFS Phase V": "Current Policies",
-            "SSP / RCP": "SSP5-8.5",
-            "IEA WEO Equivalent": "Stated Policies (STEPS)",
-            "Warming 2050": "~3.0°C",
-            "Warming 2080": "~4.3°C",
-            "Risk Profile": "Very high physical · Low transition",
-        },
-        {
-            "BSR Scenario": "🟣 Fragmented World",
-            "NGFS Phase V": "Fragmented World",
-            "SSP / RCP": "SSP3-7.0",
-            "IEA WEO Equivalent": "No direct equivalent",
-            "Warming 2050": "~2.5°C",
-            "Warming 2080": "~3.5°C",
-            "Risk Profile": "High physical + high transition (dual-risk)",
-        },
-    ])
-    st.dataframe(_mapping_df, use_container_width=True, hide_index=True)
-
-    st.markdown(
-        "#### How quantitative damage outputs are generated for BSR scenarios\n\n"
-        "Since BSR Climate Scenarios 2025 are narrative frameworks built on NGFS/IPCC foundations, "
-        "this platform generates physical damage estimates by:\n\n"
-        "1. **Mapping each BSR scenario to its NGFS/SSP equivalent** (table above)\n"
-        "2. **Applying IPCC AR6 warming trajectories** for the mapped SSP pathway "
-        "(median estimate from the NGFS GCAM/REMIND-MAgPIE IAM ensemble)\n"
-        "3. **Scaling hazard intensities** using IPCC AR6 climate sensitivity relationships "
-        "(Tabari 2020 for flood, Knutson 2020 for wind, Jolly 2015 for wildfire)\n"
-        "4. **Running HAZUS/JRC vulnerability curves** against the scaled hazard intensities "
-        "to produce asset-level Expected Annual Damage (EAD)\n\n"
-        "The BSR **qualitative narratives** (transition pathways, regional stories, socioeconomic "
-        "context) layer *on top of* these quantitative outputs, providing the corporate strategy "
-        "and cross-functional context that SSPs alone do not provide.\n\n"
-        "**Fragmented World** is unique: it combines high physical risk (SSP3-7.0 warming) with "
-        "high transition risk (divergent national policies, carbon border adjustments, regulatory "
-        "fragmentation) — meaning assets face compounding risks from both channels simultaneously. "
-        "This has no single IEA WEO equivalent and is the primary reason BSR developed this "
-        "scenario separately from the NGFS framework.\n\n"
-        "*Source: [BSR Climate Scenarios 2025](https://www.bsr.org/en/reports/bsr-climate-scenarios-2025) "
-        "· [NGFS Phase V Technical Note](https://www.ngfs.net/sites/default/files/medias/documents/ngfs_climate_scenarios_phase_v.pdf)*"
-    )
 
 # ── BSR Regional Qualitative Insights ─────────────────────────────────────
 if new_scenarios:

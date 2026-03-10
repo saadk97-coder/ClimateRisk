@@ -1,16 +1,21 @@
 id,name,lat,lon,asset_type,replacement_value,construction_material,year_built,stories,basement,roof_type,elevation_m,floor_area_m2,region
-ASSET001,Thames Gateway Office Complex,51.5074,-0.1278,commercial_steel,12500000,steel,2008,12,True,flat,0.0,8000,GBR
-ASSET002,Canary Wharf Tower,51.5055,-0.0250,commercial_concrete,45000000,concrete,1999,50,True,flat,0.0,35000,GBR
-ASSET003,Residential Block – Southwark,51.4995,-0.0934,residential_masonry,2800000,masonry,1972,4,False,flat,0.5,1200,GBR
-ASSET004,Surrey Family Home,51.2362,-0.5704,residential_masonry,485000,masonry,1955,2,False,gable,0.3,130,GBR
-ASSET005,Kent Wood-Frame Cottage,51.2788,0.5217,residential_wood,320000,wood_frame,1930,2,False,gable,0.0,95,GBR
-ASSET006,Bristol Logistics Hub,51.4545,-2.5879,industrial_steel,8200000,steel,2015,1,False,flat,0.0,12000,GBR
-ASSET007,Birmingham Manufacturing Plant,52.4862,-1.8904,industrial_steel,15000000,steel,1988,2,False,flat,0.0,18000,GBR
-ASSET008,Cambridge Tech Park,52.2053,0.1218,commercial_concrete,6500000,concrete,2010,4,False,flat,0.2,4500,GBR
-ASSET009,Edinburgh City Centre Hotel,55.9533,-3.1883,commercial_masonry,9800000,masonry,1910,7,True,flat,0.0,6000,GBR
-ASSET010,Glasgow Industrial Estate,55.8642,-4.2518,industrial_steel,4200000,steel,1975,1,False,flat,0.0,8500,GBR
-ASSET011,Paris Commercial Tower,48.8566,2.3522,commercial_concrete,28000000,concrete,2005,30,True,flat,0.0,22000,FRA
-ASSET012,Lyon Warehouse Facility,45.7640,4.8357,industrial_steel,5500000,steel,2001,1,False,flat,0.5,9000,FRA
-ASSET013,Amsterdam Canal Office,52.3676,4.9041,commercial_steel,7200000,steel,1990,6,True,flat,-0.5,4000,NLD
-ASSET014,Rotterdam Port Facility,51.9244,4.4777,infrastructure_utility,18000000,steel,2000,1,False,flat,-1.0,5000,NLD
-ASSET015,Hamburg Residential Block,53.5511,9.9937,residential_masonry,3200000,masonry,1965,5,True,flat,0.0,2000,DEU
+SAM001,Manhattan Financial Tower,40.7074,-74.0113,commercial_office,125000000,steel,2001,42,True,flat,3.5,32000,USA
+SAM002,Miami Oceanfront Resort,25.7617,-80.1918,hotel_resort,48000000,concrete,1998,12,False,flat,1.5,9500,USA
+SAM003,Houston Petrochemical Plant,29.7604,-95.3698,industrial_heavy,185000000,concrete,1982,4,False,flat,8.0,28000,USA
+SAM004,Los Angeles Office Campus,34.0522,-118.2437,commercial_office,62000000,steel,2005,8,False,flat,84.0,18000,USA
+SAM005,San Francisco Bay Area Data Centre,37.7749,-122.4194,data_center,95000000,concrete,2015,3,False,flat,12.0,6000,USA
+SAM006,Amsterdam Polder Logistics Hub,52.3676,4.9041,commercial_warehouse,22000000,steel,2008,1,False,flat,-1.5,35000,NLD
+SAM007,Rotterdam Port Terminal,51.9244,4.4777,infrastructure_port,75000000,concrete,1995,1,False,flat,-0.8,0,NLD
+SAM008,London Canary Wharf Tower,51.5055,-0.0250,commercial_office,210000000,concrete,2002,50,True,flat,2.0,42000,GBR
+SAM009,Thames Valley Residential Block,51.4607,-0.9238,residential_masonry,8500000,masonry,1968,5,False,flat,38.0,3200,GBR
+SAM010,Paris La Défense Commercial Tower,48.8917,2.2360,commercial_concrete,145000000,concrete,2010,35,True,flat,28.0,30000,FRA
+SAM011,Rhine Valley Industrial Factory,51.3397,6.8750,industrial_steel,31000000,steel,1990,2,False,flat,31.0,22000,DEU
+SAM012,Singapore Marina Bay Office,1.2839,103.8607,commercial_office,88000000,steel,2012,38,True,flat,4.0,25000,SGP
+SAM013,Mumbai Coastal Mixed-Use Tower,19.0760,72.8777,mixed_use,35000000,concrete,2008,25,True,flat,3.0,18000,IND
+SAM014,Tokyo Shinjuku Office Block,35.6895,139.6917,commercial_office,92000000,concrete,2003,20,True,flat,45.0,16000,JPN
+SAM015,Dubai Internet City Data Centre,25.0942,55.1533,data_center,120000000,concrete,2018,4,False,flat,5.0,8000,ARE
+SAM016,Sydney Bush Interface Residential,33.7295,151.2862,residential_wood,1850000,wood_frame,1975,2,False,gable,65.0,180,AUS
+SAM017,Melbourne CBD Commercial Tower,37.8136,144.9631,commercial_concrete,67000000,concrete,1999,22,True,flat,25.0,18000,AUS
+SAM018,São Paulo Industrial Complex,-23.5505,-46.6333,industrial_steel,28000000,steel,1985,2,False,flat,760.0,20000,BRA
+SAM019,Jakarta Flood Pumping Station,-6.2088,106.8456,infrastructure_utility,18000000,steel,2005,1,False,flat,1.5,400,IDN
+SAM020,Cape Town Mixed-Use Development,-33.9249,18.4241,mixed_use,42000000,concrete,2016,8,False,flat,22.0,12000,ZAF
