@@ -11,4 +11,6 @@ openpyxl>=3.1
 xarray>=2024.1
 rasterio>=1.3
 isimip-client>=2.0
-scipy>=1.12
+h5py>=3.10
+h5netcdf>=1.3
+netcdf4>=1.6

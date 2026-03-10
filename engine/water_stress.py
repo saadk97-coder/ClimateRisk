@@ -304,7 +304,11 @@ def fetch_water_stress_profile(
         return_periods = STANDARD_RETURN_PERIODS
 
     aqueduct_scenario = _NGFS_TO_AQUEDUCT.get(ngfs_scenario, "business_as_usual")
-    sensitivity = _ASSET_TYPE_WATER_SENSITIVITY.get(asset_type, 1.0)
+    # Try exact match, then prefix match (e.g. "commercial_office" → "commercial")
+    sensitivity = _ASSET_TYPE_WATER_SENSITIVITY.get(asset_type)
+    if sensitivity is None:
+        prefix = asset_type.split("_")[0]
+        sensitivity = _ASSET_TYPE_WATER_SENSITIVITY.get(prefix, _ASSET_TYPE_WATER_SENSITIVITY["default"])
 
     # --- Try WRI Aqueduct API ---
     bws_baseline = fetch_aqueduct_bws(lat, lon)
