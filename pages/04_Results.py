@@ -227,7 +227,7 @@ with tab2:
             name=haz.capitalize(),
             mode="lines",
             stackgroup="one",
-            fillcolor=HAZARD_COLORS.get(haz, "#888") + "cc",
+            fillcolor="rgba({},{},{},0.8)".format(*[int(HAZARD_COLORS.get(haz, "#888888")[i:i+2], 16) for i in (1, 3, 5)]),
             line=dict(color=HAZARD_COLORS.get(haz, "#888"), width=0.5),
             hovertemplate=f"<b>{haz.capitalize()}</b><br>Year: %{{x}}<br>EAD: {_sym}%{{y:,.0f}}<extra></extra>",
         ))
@@ -247,7 +247,7 @@ with tab2:
     )
     sc_haz_pv.columns = ["Hazard", f"PV ({_sym})"]
     sc_haz_pv["Hazard"] = sc_haz_pv["Hazard"].str.capitalize()
-    sc_haz_pv = sc_haz_pv.sort_values("PV (£)", ascending=False)
+    sc_haz_pv = sc_haz_pv.sort_values(f"PV ({_sym})", ascending=False)
     sc_haz_pv["color"] = sc_haz_pv["Hazard"].str.lower().map(HAZARD_COLORS)
 
     col_pie, col_bar = st.columns(2)
@@ -267,7 +267,7 @@ with tab2:
             sc_haz_pv, y="Hazard", x=f"PV ({_sym})", orientation="h",
             color="Hazard",
             color_discrete_map={h.capitalize(): c for h, c in HAZARD_COLORS.items()},
-            text="PV (£)",
+            text=f"PV ({_sym})",
         )
         fig_hbar.update_traces(texttemplate=f"{_sym}%{{x:,.0f}}", textposition="outside")
         fig_hbar.update_layout(height=300, showlegend=False,
@@ -667,7 +667,7 @@ if not _score_df.empty:
     _styled = (
         _pivot_display
         .style
-        .applymap(_colour_score_cell)
+        .map(_colour_score_cell)
         .format(_fmt_score)
     )
 

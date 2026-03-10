@@ -269,8 +269,8 @@ for cat, color in _CAT_COLORS.items():
         name=cat,
         text=[n["label"] for n in nodes],
         textposition="middle right",
-        textfont=dict(size=10.5, color="#1a1a1a"),
-        marker=dict(color=color, size=24, symbol="circle",
+        textfont=dict(size=13, color="#1a1a1a", family="Arial, sans-serif"),
+        marker=dict(color=color, size=32, symbol="circle",
                     line=dict(color="white", width=2.5)),
         customdata=[n["desc"] for n in nodes],
         hovertemplate="<b>%{text}</b><br><br>%{customdata}<extra></extra>",
@@ -279,16 +279,16 @@ for cat, color in _CAT_COLORS.items():
 for cx, label in [(0.0,"INPUTS"),(1.1,"HAZARD DATA"),(2.2,"VULNERABILITY"),(3.3,"EAD CALC"),(4.4,"OUTPUTS")]:
     fig_flow.add_annotation(
         x=cx, y=5.0, text=f"<b>{label}</b>", showarrow=False,
-        font=dict(size=11, color="#666"), xanchor="center",
+        font=dict(size=13, color="#444", family="Arial, sans-serif"), xanchor="center",
     )
 
 fig_flow.update_layout(
-    height=520, margin=dict(l=10, r=10, t=10, b=10),
-    xaxis=dict(range=[-0.25, 5.2], showticklabels=False, showgrid=False, zeroline=False),
+    height=580, margin=dict(l=20, r=20, t=20, b=20),
+    xaxis=dict(range=[-0.35, 5.4], showticklabels=False, showgrid=False, zeroline=False),
     yaxis=dict(range=[-1.0, 5.6],  showticklabels=False, showgrid=False, zeroline=False),
     plot_bgcolor="#fafafa", paper_bgcolor="white",
     legend=dict(orientation="h", yanchor="top", y=-0.02, xanchor="center", x=0.5,
-                title_text="Category:", font=dict(size=11)),
+                title_text="Category:", font=dict(size=12)),
     hovermode="closest",
 )
 
@@ -302,12 +302,7 @@ st.caption("Click any step for equations, calibration details, and source citati
 
 
 def _step_header(num: str, icon: str, title: str, color: str) -> str:
-    return (
-        f"<span style='display:inline-block;background:{color};color:white;"
-        f"font-weight:800;font-size:12px;border-radius:14px;padding:1px 9px;"
-        f"margin-right:8px;'>{num}</span>"
-        f"{icon} **{title}**"
-    )
+    return f"{icon}  Step {num} — {title}"
 
 
 # Step 1
@@ -497,7 +492,7 @@ aep = 1.0 / np.array([2, 5, 10, 25, 50, 100, 250, 500, 1000])
 losses = damage_fractions * asset_value
 
 # Trapezoidal integration of the Loss EP curve
-ead = np.trapz(losses[np.argsort(aep)], aep[np.argsort(aep)])
+ead = np.trapezoid(losses[np.argsort(aep)], aep[np.argsort(aep)])
 ```
 
 **Climate change timeline (2025–2050):**
@@ -522,7 +517,8 @@ Log-normalised so all scores use the full 1–10 range even when one asset domin
         rps = np.array([2, 5, 10, 25, 50, 100, 250, 500, 1000])
         aep_ex = 1.0 / rps
         losses_ex = 0.01 * (1 - np.exp(-0.003 * rps)) * 10_000_000
-        ead_ex = np.trapz(losses_ex[::-1], aep_ex[::-1])
+        _trapz = getattr(np, "trapezoid", None) or getattr(np, "trapz")
+        ead_ex = _trapz(losses_ex[::-1], aep_ex[::-1])
         fig_ep = go.Figure()
         fig_ep.add_trace(go.Scatter(
             x=losses_ex[::-1], y=aep_ex[::-1],
