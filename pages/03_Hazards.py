@@ -1,6 +1,6 @@
 """
 Page 3 – Hazard Data: source transparency, data provenance, intensity tables,
-manual overrides, and multi-source optionality.
+damage function explainer, manual overrides, and multi-source optionality.
 """
 
 import streamlit as st
@@ -14,7 +14,7 @@ from engine.hazard_fetcher import (
     fetch_all_hazards, get_region_zone, get_fallback_detail, _load_baseline
 )
 from engine.data_sources import DATA_SOURCE_REGISTRY
-from engine.impact_functions import get_damage_curve, HAZARD_UNITS
+from engine.impact_functions import get_damage_curve, get_damage_fraction, HAZARD_UNITS
 from engine.scenario_model import SCENARIOS
 
 st.set_page_config(page_title="Hazard Data", page_icon="🌊", layout="wide")
@@ -47,51 +47,45 @@ st.divider()
 st.subheader("Available Data Sources")
 st.caption(
     "Sources are tried in priority order: ISIMIP3b → NASA NEX-GDDP → CHELSA → Regional Baseline. "
-    "ISIMIP3b is active for **all four hazards** (Flood, Heat, Wind, Wildfire). "
+    "ISIMIP3b is active for **all four hazards** (Flood, Heat, Wind, Wildfire) and extracts "
+    "point data at the exact asset coordinate. "
     "Wildfire uses the full Canadian FWI system (Van Wagner 1987) from multi-variable extraction."
 )
-
-def _has_dep(mod):
-    import importlib.util
-    return importlib.util.find_spec(mod) is not None
-
-_has_xarray   = _has_dep("xarray")
-_has_rasterio = _has_dep("rasterio")
 
 SOURCE_STATUS = {
     "isimip3b": {
         "status": "active",
         "badge": "🟢 Active — Flood, Heat, Wind, Wildfire",
         "note": (
-            "isimip-client installed ✅; async point-extraction at 0.25–0.5°. "
+            "Point-extraction at asset coordinates (0.5° grid cell). "
             "Wildfire: multi-variable FWI pipeline (tasmax + pr + hurs + sfcWind → "
-            "Canadian FWI system Van Wagner 1987 → GEV → flame length). ~90s per asset for wildfire."
+            "Canadian FWI system → GEV → flame length). ~90s per asset for wildfire."
         ),
     },
     "nasa_nex_gddp_cmip6": {
-        "status": "active" if _has_xarray else "deps",
-        "badge": "🟢 Available" if _has_xarray else "🟡 Requires xarray",
-        "note": "25km global; xarray installed ✅" if _has_xarray else "Install xarray to enable (pip install xarray)",
+        "status": "active",
+        "badge": "🟢 Available",
+        "note": "25 km global; statistically downscaled CMIP6; public AWS S3 access",
     },
     "chelsa_cmip6": {
-        "status": "active" if _has_rasterio else "deps",
-        "badge": "🟢 Available" if _has_rasterio else "🟡 Requires rasterio",
-        "note": "1km global; rasterio installed ✅" if _has_rasterio else "Install rasterio to enable (pip install rasterio)",
+        "status": "active",
+        "badge": "🟢 Available",
+        "note": "1 km global bioclimatic climatologies; public cloud-hosted GeoTIFF",
     },
     "loca2": {
         "status": "regional",
         "badge": "🔵 N. America only",
-        "note": "6km CONUS+Canada+Mexico; requires NetCDF file access",
+        "note": "6 km CONUS+Canada+Mexico; daily downscaled CMIP6",
     },
     "climatena_adaptwest": {
         "status": "regional",
         "badge": "🔵 N. America only",
-        "note": "1km N. America; REST API available",
+        "note": "1 km N. America; REST API available",
     },
     "fallback_baseline": {
         "status": "active",
-        "badge": "🟢 Active",
-        "note": "Always available; 7 global zones; ~continental resolution",
+        "badge": "🟢 Active (fallback)",
+        "note": "Always available; 7 continental-scale zones; coarsest resolution",
     },
 }
 
@@ -107,6 +101,7 @@ HAZARD_UNIT_LABELS = {
     "heat": "Max daily temperature (°C)",
 }
 
+# ── Source cards ───────────────────────────────────────────────────────────
 cols = st.columns(3)
 for idx, src_key in enumerate(PRIORITY_ORDER):
     info = DATA_SOURCE_REGISTRY[src_key]
@@ -133,6 +128,45 @@ for idx, src_key in enumerate(PRIORITY_ORDER):
                     st.caption(f"⚙️ {status['note']}")
             st.caption(f"↳ {status['note']}")
 
+# ── Comparative Source Explainer ──────────────────────────────────────────
+with st.expander("📊 Comparative Source Guide — which source should you use?"):
+    st.markdown("""
+### Data Source Comparison
+
+| Source | Resolution | Coverage | Hazards | Temporal Range | Best For |
+|--------|-----------|----------|---------|----------------|----------|
+| **ISIMIP3b** | 0.5° (~55 km) | Global | Flood, Heat, Wind, Wildfire | 2021–2050 (SSP projections) | **Default choice** — covers all hazards with GEV-fitted return periods from bias-adjusted GCM output |
+| **NASA NEX-GDDP-CMIP6** | 0.25° (~25 km) | Global | Heat, Wind, (Flood via precip) | 1950–2100 | Higher spatial resolution than ISIMIP; 35 CMIP6 models; good for heat/wind analysis |
+| **CHELSA CMIP6** | 30 arc-sec (~1 km) | Global (land) | Heat, Precipitation | Climatologies (30-yr means) | **Highest resolution** for temperature-based hazards; ideal for topographically complex terrain |
+| **LOCA2** | 1/16° (~6 km) | N. America | Heat, Flood | 1950–2100 | Best resolution for North American assets; daily data enables extreme event analysis |
+| **ClimateNA / AdaptWest** | ~1 km | N. America | Heat | Bioclimatic periods | High-res North American temperature and bioclimatic variables |
+| **Built-in Regional Baseline** | Continental (~7 zones) | Global | All four | 1981–2010 climatology | Instant fallback; no API calls needed; very coarse |
+
+### Key Trade-offs
+
+**Resolution vs. Coverage:** CHELSA offers ~1 km resolution but only climatological means (no daily extremes for GEV fitting). ISIMIP3b has daily data enabling proper extreme-value statistics but at coarser 0.5° resolution.
+
+**Gridded vs. Point:** ISIMIP3b and NASA NEX-GDDP extract the value from the grid cell containing your asset's coordinates. The grid cell centre may be up to ~25–28 km from the actual site. For assets near coastlines, elevation transitions, or urban heat islands, this can introduce bias.
+
+**Regional Baseline (fallback):** Uses continental-zone medians — all assets in the same zone (e.g. all of Europe) receive identical hazard intensities. Only appropriate as a last resort or for portfolio-level screening.
+    """)
+
+    st.markdown("### Recommended Additional Sources")
+    st.markdown("""
+The following high-quality databases are used in professional climate risk work and could enhance this tool:
+
+| Database | Resolution | Coverage | Strengths | Access |
+|----------|-----------|----------|-----------|--------|
+| **Copernicus CDS ERA5/ERA5-Land** | 9–31 km | Global | Gold-standard reanalysis; hourly/daily; 1950–present | Free (CDS API, registration required) |
+| **JRC Global Flood Maps (GloFAS/GLOFRIS)** | 1 km flood maps, 0.1° hydrology | Global | Direct inundation depth maps at return periods; used by EU Taxonomy | Free (JRC data portal) |
+| **Fathom Global Flood Maps** | 30 m (coastal+fluvial+pluvial) | Global | Industry standard for asset-level flood risk; used by Moody's, S&P, MSCI | Commercial (academic access available) |
+| **Swiss Re CatNet** | Varies (often <1 km) | Global | Multi-peril; used in (re)insurance pricing | Commercial |
+| **Munich Re NATHAN** | Varies | Global | Multi-peril risk scores; used in insurance underwriting | Commercial |
+| **FIRMS / MODIS Active Fire** | 375 m–1 km | Global | Satellite-observed fire data; good for wildfire exposure validation | Free (NASA FIRMS) |
+| **Global Wind Atlas (DTU)** | 250 m | Global | Wind resource/hazard at very high resolution | Free |
+| **Aqueduct 4.0 (WRI)** | Sub-catchment | Global | Water stress (already integrated); 3 SSP scenarios to 2080 | Free (CC BY 4.0) |
+    """)
+
 # ── Source Preference ──────────────────────────────────────────────────────
 st.divider()
 st.subheader("Source Settings")
@@ -142,11 +176,11 @@ with col_pref:
     source_pref = st.selectbox(
         "Preferred source",
         options=PRIORITY_ORDER,
-        index=PRIORITY_ORDER.index(st.session_state.get("preferred_source", "fallback_baseline")),
+        index=PRIORITY_ORDER.index(st.session_state.get("preferred_source", "isimip3b")),
         format_func=lambda k: f"{DATA_SOURCE_REGISTRY[k]['name']} — {SOURCE_STATUS[k]['badge']}",
         help=(
-            "When the preferred source is unavailable, the next available source in "
-            "the priority chain is used automatically. All sources ultimately fall back "
+            "When the preferred source is unavailable for a given hazard, the next available "
+            "source in the priority chain is used automatically. All sources ultimately fall back "
             "to the Built-in Regional Baseline."
         ),
     )
@@ -156,15 +190,16 @@ with col_pref:
             st.info(
                 f"⚠️ **{DATA_SOURCE_REGISTRY[source_pref]['name']}** is not currently active "
                 f"({SOURCE_STATUS[source_pref]['note']}). "
-                f"Data will fall back to **Built-in Regional Baseline** until the dependency is resolved.",
+                f"Data will fall back through the priority chain until an active source is found.",
                 icon="ℹ️",
             )
 
 with col_zone:
-    st.markdown("**Regional Zone Overrides**")
+    st.markdown("**Regional Zone Overrides** *(fallback baseline only)*")
     st.caption(
-        "The auto-detected zone for each asset is shown in the table below. "
-        "Override here if your asset is in an atypical climate microzone."
+        "Zones only apply when data falls back to the Built-in Regional Baseline. "
+        "When ISIMIP3b or other gridded sources are active, data is extracted directly "
+        "at the asset's coordinates — zones are not used."
     )
     zone_overrides = st.session_state.get("zone_overrides", {})
     zones = ["AUTO", "EUR", "USA", "CHN", "IND", "AUS", "BRA", "global"]
@@ -211,8 +246,8 @@ with col_btn:
 with col_info:
     st.caption(
         f"Fetches baseline intensity profiles for all {len(assets)} asset(s) across "
-        "Flood, Wind, Wildfire, and Heat hazards. Uses the highest-priority "
-        "available source (currently: Built-in Regional Baseline for all hazards)."
+        "Flood, Wind, Wildfire, and Heat hazards. The system tries ISIMIP3b first "
+        "(point extraction at the asset's lat/lon), then falls through the priority chain."
     )
 
 if fetch_btn:
@@ -223,7 +258,7 @@ if fetch_btn:
         hazards = asset_types_catalog.get(asset.asset_type, {}).get(
             "hazards", ["flood", "wind", "wildfire", "heat"]
         )
-        # Apply zone override if set
+        # Apply zone override if set (only affects fallback baseline)
         region = zone_overrides.get(asset.id, asset.region)
         if region == "AUTO":
             region = asset.region
@@ -250,46 +285,57 @@ if st.session_state.hazard_data:
 
         row = {
             "Asset": asset.name,
-            "Country (ISO3)": asset.region.upper(),
-            "Zone Applied": zone,
-            "Zone Override": zone_override if (zone_override and zone_override != "AUTO") else "—",
+            "Lat": round(asset.lat, 4),
+            "Lon": round(asset.lon, 4),
+            "Country": asset.region.upper(),
         }
         for hazard in ["flood", "wind", "wildfire", "heat"]:
             if hazard in hdata:
                 src = hdata[hazard]["source"]
-                src_name = DATA_SOURCE_REGISTRY.get(src, {}).get("name", src)
-                src_res = DATA_SOURCE_REGISTRY.get(src, {}).get("resolution", "—")
                 if src == "fallback_baseline":
-                    row[hazard.capitalize()] = f"Regional Baseline ({zone})"
+                    row[hazard.capitalize()] = f"Baseline ({zone} zone)"
                 elif src == "isimip3b":
-                    row[hazard.capitalize()] = "ISIMIP3b API"
+                    # Show the grid cell reference
+                    grid_lat = round(round(asset.lat * 2) / 2, 1)
+                    grid_lon = round(round(asset.lon * 2) / 2, 1)
+                    row[hazard.capitalize()] = f"ISIMIP3b ({grid_lat}°, {grid_lon}°)"
                 else:
+                    src_name = DATA_SOURCE_REGISTRY.get(src, {}).get("name", src)
                     row[hazard.capitalize()] = src_name
             else:
-                row[hazard.capitalize()] = "➖ N/A"
+                row[hazard.capitalize()] = "-- N/A"
         rows.append(row)
 
     status_df = pd.DataFrame(rows)
     st.dataframe(status_df, use_container_width=True)
 
-    # Explain regional zones
-    with st.expander("📍 How regional zones work"):
+    # Explain spatial reference
+    with st.expander("📍 How spatial referencing works"):
         st.markdown("""
-The **Built-in Regional Baseline** groups the world into 7 zones based on ISO3 country code:
+**Gridded sources (ISIMIP3b, NASA NEX-GDDP, CHELSA):** Data is extracted from the grid cell
+containing the asset's exact latitude/longitude coordinates. The table above shows the grid cell
+centre coordinate for each hazard.
 
-| Zone | Countries included | Hazard basis |
-|------|--------------------|-------------|
-| **EUR** | GBR, FRA, DEU, ITA, ESP, NLD, BEL, POL, SWE, NOR + EU/EEA | ISIMIP3b EU medians, EFFIS fire climatology, ERA5-Land |
-| **USA** | USA, CAN, MEX | ISIMIP3b N. America, HAZUS wind, ERA5-Land |
-| **CHN** | CHN, JPN, KOR, TWN | ISIMIP3b E. Asia, HAZUS-adapted, ERA5-Land |
-| **IND** | IND, PAK, BGD, LKA | ISIMIP3b S. Asia, high-heat ERA5 percentiles |
-| **AUS** | AUS, NZL | ISIMIP3b Oceania, high wildfire intensity |
+- **ISIMIP3b** uses a 0.5° grid (~55 km at the equator). The nearest grid cell centre is shown.
+- **NASA NEX-GDDP** uses a 0.25° grid (~25 km). Higher spatial precision than ISIMIP3b.
+- **CHELSA** uses a 30 arc-second grid (~1 km). Near-site-level precision for temperature.
+
+**Built-in Regional Baseline (fallback):** When gridded sources are unavailable, data falls back to
+continental-zone medians. All assets in the same zone receive identical intensities. The zone
+is auto-detected from the asset's ISO3 country code:
+
+| Zone | Countries | Hazard basis |
+|------|-----------|-------------|
+| **EUR** | GBR, FRA, DEU, ITA, ESP + EU/EEA | ISIMIP3b EU medians, EFFIS, ERA5-Land |
+| **USA** | USA, CAN, MEX | ISIMIP3b N. America, HAZUS wind |
+| **CHN** | CHN, JPN, KOR, TWN | ISIMIP3b E. Asia |
+| **IND** | IND, PAK, BGD, LKA | ISIMIP3b S. Asia, high-heat ERA5 |
+| **AUS** | AUS, NZL | ISIMIP3b Oceania |
 | **BRA** | BRA, ARG, COL, PER | ISIMIP3b S. America |
 | **global** | All others | ISIMIP3b global median (conservative) |
 
-**Limitation**: The baseline does not capture sub-regional variation within zones (e.g. coastal vs inland flood risk within Europe). For higher spatial precision, enable ISIMIP3b API extraction (requires xarray) or use site-specific data via the manual override panel below.
-
-**Climate adjustment**: These baseline intensities are scaled year-by-year by IPCC AR6 hazard multipliers on the Results page — so a 2050 EAD under Current Policies will be higher than a 2025 EAD for the same asset.
+**Climate adjustment**: Baseline intensities are scaled year-by-year by IPCC AR6 hazard multipliers
+on the Results page — so a 2050 EAD under Current Policies will be higher than a 2025 EAD.
         """)
 
 else:
@@ -313,12 +359,13 @@ if sel_asset_obj and st.session_state.hazard_data.get(sel_asset_detail):
     effective_region = zone_override if (zone_override and zone_override != "AUTO") else sel_asset_obj.region
     zone = get_region_zone(effective_region)
 
-    st.markdown(
-        f"**Asset:** {sel_asset_obj.name} | "
-        f"**Country:** {sel_asset_obj.region.upper()} | "
-        f"**Zone:** {zone}"
-        + (f" *(overridden from auto)*" if zone_override and zone_override != "AUTO" else "")
-    )
+    # Asset header with coordinate reference
+    header_parts = [
+        f"**Asset:** {sel_asset_obj.name}",
+        f"**Coordinates:** ({sel_asset_obj.lat:.4f}°, {sel_asset_obj.lon:.4f}°)",
+        f"**Country:** {sel_asset_obj.region.upper()}",
+    ]
+    st.markdown(" | ".join(header_parts))
 
     haz_tabs = [h for h in ["flood", "wind", "wildfire", "heat"] if h in hdata]
     if haz_tabs:
@@ -335,19 +382,30 @@ if sel_asset_obj and st.session_state.hazard_data.get(sel_asset_detail):
                 src_info = DATA_SOURCE_REGISTRY.get(src_key, {})
                 detail = get_fallback_detail(hazard, effective_region)
 
-                # Source provenance banner
+                # Source provenance banner with spatial reference
                 prov_col, info_col = st.columns([5, 1])
                 with prov_col:
                     if src_key == "fallback_baseline":
                         st.info(
-                            f"**Source:** Built-in Regional Baseline — **{zone} zone** | "
-                            f"**Resolution:** Continental (7 global zones) | "
+                            f"**Source:** Built-in Regional Baseline | "
+                            f"**Spatial ref:** {zone} zone (continental median) | "
+                            f"**Resolution:** ~continental | "
                             f"**Basis:** {detail['hazard_source']}",
                             icon="⚠️",
+                        )
+                    elif src_key == "isimip3b":
+                        grid_lat = round(round(sel_asset_obj.lat * 2) / 2, 1)
+                        grid_lon = round(round(sel_asset_obj.lon * 2) / 2, 1)
+                        st.success(
+                            f"**Source:** {src_info.get('name', src_key)} | "
+                            f"**Spatial ref:** Grid cell ({grid_lat}°, {grid_lon}°) containing asset coordinate | "
+                            f"**Resolution:** {src_info.get('resolution', '—')}",
+                            icon="✅",
                         )
                     else:
                         st.success(
                             f"**Source:** {src_info.get('name', src_key)} | "
+                            f"**Spatial ref:** Nearest grid cell to ({sel_asset_obj.lat:.4f}°, {sel_asset_obj.lon:.4f}°) | "
                             f"**Resolution:** {src_info.get('resolution', '—')}",
                             icon="✅",
                         )
@@ -361,7 +419,13 @@ if sel_asset_obj and st.session_state.hazard_data.get(sel_asset_detail):
                         st.markdown(f"**URL/DOI:** [{detail['doi']}]({detail['doi']})")
                         st.markdown(f"**Resolution:** {detail['resolution']}")
                         st.markdown(f"**Temporal basis:** {detail['temporal_basis']}")
-                        st.markdown(f"**Zone applied:** {zone} — {detail['zone_description']}")
+                        if src_key == "fallback_baseline":
+                            st.markdown(f"**Zone applied:** {zone} — {detail['zone_description']}")
+                        else:
+                            st.markdown(
+                                f"**Grid cell:** Data extracted at the 0.5° grid cell containing "
+                                f"({sel_asset_obj.lat:.4f}°, {sel_asset_obj.lon:.4f}°)"
+                            )
                         st.divider()
                         st.markdown(f"**Climate adjustment:** {detail['climate_adjustment']}")
                         st.caption(
@@ -375,12 +439,22 @@ if sel_asset_obj and st.session_state.hazard_data.get(sel_asset_detail):
                 int_vals = hd["intensities"]
                 unit = HAZARD_UNIT_LABELS.get(hazard, "")
 
+                # Build spatial reference label for table
+                if src_key == "fallback_baseline":
+                    spatial_ref = f"{zone} zone"
+                elif src_key == "isimip3b":
+                    grid_lat = round(round(sel_asset_obj.lat * 2) / 2, 1)
+                    grid_lon = round(round(sel_asset_obj.lon * 2) / 2, 1)
+                    spatial_ref = f"({grid_lat}°, {grid_lon}°)"
+                else:
+                    spatial_ref = f"({sel_asset_obj.lat:.4f}°, {sel_asset_obj.lon:.4f}°)"
+
                 int_df = pd.DataFrame({
                     "Return Period (yr)": [int(r) for r in rp_vals],
-                    "Annual Exceedance Probability": [f"1-in-{int(r)}-yr = {1/r*100:.2f}%/yr" for r in rp_vals],
+                    "Annual Exceedance Prob.": [f"1-in-{int(r)}-yr = {1/r*100:.2f}%/yr" for r in rp_vals],
                     f"Baseline Intensity ({unit})": [round(v, 3) for v in int_vals],
                     "Source": [DATA_SOURCE_REGISTRY.get(src_key, {}).get("name", src_key)] * len(rp_vals),
-                    "Zone": [zone] * len(rp_vals),
+                    "Spatial Reference": [spatial_ref] * len(rp_vals),
                 })
                 st.dataframe(int_df, use_container_width=True)
 
@@ -402,17 +476,88 @@ if sel_asset_obj and st.session_state.hazard_data.get(sel_asset_detail):
                 )
                 st.plotly_chart(fig, use_container_width=True)
 
-                st.caption(
-                    f"🔬 **Granularity note:** The {zone} zone represents ~continental-scale median values. "
-                    f"Actual site-level intensity may vary significantly. "
-                    f"Use the override panel below to adjust for local conditions, "
-                    f"or upgrade to ISIMIP3b API (requires xarray) for 0.5° gridded data."
-                )
+                if src_key == "fallback_baseline":
+                    st.caption(
+                        f"**Granularity note:** The {zone} zone represents continental-scale median values. "
+                        f"Actual site-level intensity may vary significantly. "
+                        f"Use the override panel below to enter site-specific data, or set "
+                        f"ISIMIP3b as the preferred source for 0.5° gridded extraction."
+                    )
 else:
     if not st.session_state.hazard_data:
         st.info("Fetch hazard data first to inspect intensity values.")
     else:
         st.info("Select an asset above to view its intensity profile.")
+
+# ── Damage Function Explainer ─────────────────────────────────────────────
+st.divider()
+st.subheader("How Hazard Data Feeds Into Damage Calculations")
+st.markdown("""
+The numbers shown above are **baseline hazard intensities** — the physical severity of each
+hazard at different return periods (exceedance frequencies). Here is exactly how they flow
+into the damage and risk calculations on the Results page:
+""")
+
+with st.container(border=True):
+    st.markdown("""
+**Step 1 — Hazard Intensity (this page)**
+Each asset gets a return-period curve: intensity values at RP10, RP50, RP100, RP250, RP500, RP1000.
+These represent "a 1-in-10-year event produces X intensity" through "a 1-in-1000-year event produces Y intensity".
+
+**Step 2 — Scenario Scaling (Scenarios page)**
+Each intensity is multiplied by a **hazard multiplier** for the selected scenario and year.
+For example, under SSP5-8.5 in 2050, flood intensities might be scaled by 1.3× relative to baseline.
+
+**Step 3 — Vulnerability Curve (shown below)**
+The scaled intensity is mapped through a **damage function** (vulnerability curve) to get a
+**damage fraction** (0–100% of replacement value). Different asset types have different curves
+— e.g. masonry buildings are more vulnerable to flooding than steel-framed buildings.
+
+**Step 4 — Expected Annual Damage (EAD)**
+The damage fractions across all return periods define an **exceedance probability (EP) curve**.
+The area under this curve (trapezoidal integration of damage × annual exceedance probability)
+gives the **Expected Annual Damage** — the average annual loss accounting for both frequent
+low-severity events and rare catastrophic events.
+
+> **EAD = ∫ Damage(AEP) dAEP** where AEP = 1 / Return Period
+    """)
+
+# Show worked example if data is available
+if sel_asset_obj and st.session_state.hazard_data.get(sel_asset_detail):
+    hdata_ex = st.session_state.hazard_data[sel_asset_detail]
+    example_hazard = next((h for h in ["flood", "wind", "wildfire", "heat"] if h in hdata_ex), None)
+    if example_hazard:
+        with st.expander(f"📐 Worked example: {sel_asset_obj.name} — {example_hazard.capitalize()}"):
+            hd_ex = hdata_ex[example_hazard]
+            rp_ex = np.array(hd_ex["return_periods"], dtype=float)
+            int_ex = np.array(hd_ex["intensities"], dtype=float)
+            unit_ex = HAZARD_UNIT_LABELS.get(example_hazard, "")
+
+            # Compute damage fractions
+            dmg_fracs = np.array([
+                get_damage_fraction(example_hazard, sel_asset_obj.asset_type, i)
+                for i in int_ex
+            ])
+            aep = 1.0 / rp_ex
+            losses = dmg_fracs * sel_asset_obj.replacement_value
+            _trapz = getattr(np, "trapezoid", None) or getattr(np, "trapz")
+            order = np.argsort(aep)
+            ead = float(_trapz(losses[order], aep[order]))
+
+            ccy = st.session_state.get("currency_code", "GBP")
+            worked_df = pd.DataFrame({
+                "Return Period (yr)": [int(r) for r in rp_ex],
+                "AEP (1/RP)": [f"{1/r:.4f}" for r in rp_ex],
+                f"Intensity ({unit_ex})": [round(v, 3) for v in int_ex],
+                "Damage Fraction": [f"{d*100:.2f}%" for d in dmg_fracs],
+                f"Loss ({ccy})": [_fmt_cur(l, ccy) for l in losses],
+            })
+            st.dataframe(worked_df, use_container_width=True)
+            st.metric(
+                "Expected Annual Damage (EAD)",
+                _fmt_cur(max(ead, 0), ccy),
+                help="Trapezoidal integration of Loss × AEP across all return periods",
+            )
 
 # ── Manual Override Panel ──────────────────────────────────────────────────
 st.divider()
