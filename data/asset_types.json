@@ -1,57 +1,153 @@
 {
   "residential_masonry": {
-    "label": "Residential – Masonry",
+    "label": "Residential \u2013 Masonry",
     "default_material": "masonry",
     "default_stories": 2,
     "default_roof": "gable",
     "default_floor_area_m2": 120,
     "hazards": ["flood", "wind", "wildfire", "heat"],
-    "description": "Brick or block residential building"
+    "description": "Brick or block residential building. Common in UK/EU. Higher flood resistance than wood, lower than concrete.",
+    "hazus_class": "RES1"
   },
   "residential_wood": {
-    "label": "Residential – Wood Frame",
+    "label": "Residential \u2013 Wood Frame",
     "default_material": "wood_frame",
     "default_stories": 2,
     "default_roof": "gable",
     "default_floor_area_m2": 150,
     "hazards": ["flood", "wind", "wildfire", "heat"],
-    "description": "Light wood-frame single-family home"
+    "description": "Light wood-frame single-family home. High wildfire vulnerability; common in North America and Oceania.",
+    "hazus_class": "RES1"
   },
   "residential_concrete": {
-    "label": "Residential – Concrete",
+    "label": "Residential \u2013 Concrete",
     "default_material": "concrete",
     "default_stories": 1,
     "default_roof": "flat",
     "default_floor_area_m2": 90,
     "hazards": ["flood", "wind", "heat"],
-    "description": "Concrete block / reinforced concrete home"
+    "description": "Concrete block or reinforced concrete home. Common in Mediterranean, Middle East, South Asia.",
+    "hazus_class": "RES1"
+  },
+  "residential_high_rise": {
+    "label": "Residential \u2013 High-Rise Apartment",
+    "default_material": "concrete",
+    "default_stories": 15,
+    "default_roof": "flat",
+    "default_floor_area_m2": 800,
+    "hazards": ["flood", "wind", "heat"],
+    "description": "Multi-storey apartment block (10+ floors). Concrete frame. Ground-floor flood exposure; significant wind and heat load. Common in Asia and urban Europe.",
+    "hazus_class": "RES3"
   },
   "commercial_steel": {
-    "label": "Commercial – Steel Frame",
+    "label": "Commercial \u2013 Steel Frame",
     "default_material": "steel",
     "default_stories": 5,
     "default_roof": "flat",
     "default_floor_area_m2": 2000,
     "hazards": ["flood", "wind", "heat"],
-    "description": "Steel-frame office or retail building"
+    "description": "Mid-rise steel-frame office or retail building. Flat roof increases wind load. Common in city centres.",
+    "hazus_class": "COM1"
   },
   "commercial_concrete": {
-    "label": "Commercial – Concrete",
+    "label": "Commercial \u2013 Concrete Tower",
     "default_material": "concrete",
     "default_stories": 8,
     "default_roof": "flat",
     "default_floor_area_m2": 5000,
     "hazards": ["flood", "wind", "heat"],
-    "description": "Reinforced concrete commercial or mixed-use"
+    "description": "Reinforced concrete commercial or mixed-use tower. Robust structure; main risk is flood (lower floors) and heat (HVAC load).",
+    "hazus_class": "COM4"
+  },
+  "commercial_office": {
+    "label": "Commercial \u2013 Office Building",
+    "default_material": "steel",
+    "default_stories": 10,
+    "default_roof": "flat",
+    "default_floor_area_m2": 6000,
+    "hazards": ["flood", "wind", "heat"],
+    "description": "Modern office tower (steel or composite frame). Heat is the primary operational risk; flood affects lower floors and mechanical plant.",
+    "hazus_class": "COM4"
+  },
+  "commercial_retail": {
+    "label": "Commercial \u2013 Retail / Shopping Centre",
+    "default_material": "steel",
+    "default_stories": 2,
+    "default_roof": "flat",
+    "default_floor_area_m2": 8000,
+    "hazards": ["flood", "wind", "heat"],
+    "description": "Single- or multi-level retail unit or shopping centre. Large flat roof; significant flood exposure at ground level.",
+    "hazus_class": "COM1"
+  },
+  "commercial_warehouse": {
+    "label": "Commercial \u2013 Logistics / Warehouse",
+    "default_material": "steel",
+    "default_stories": 1,
+    "default_roof": "flat",
+    "default_floor_area_m2": 15000,
+    "hazards": ["flood", "wind", "wildfire"],
+    "description": "Large-span distribution or logistics warehouse. Light steel portal frame; high wind and flood exposure due to large footprint and shallow eaves.",
+    "hazus_class": "IND2"
   },
   "industrial_steel": {
-    "label": "Industrial – Steel",
+    "label": "Industrial \u2013 Light Steel / Factory",
     "default_material": "steel",
     "default_stories": 1,
     "default_roof": "flat",
     "default_floor_area_m2": 10000,
     "hazards": ["flood", "wind", "wildfire"],
-    "description": "Light steel industrial / warehouse"
+    "description": "Light steel industrial shed, factory, or workshop. Vulnerable to wind uplift; significant flood exposure.",
+    "hazus_class": "IND1"
+  },
+  "industrial_heavy": {
+    "label": "Industrial \u2013 Heavy / Chemical / Refinery",
+    "default_material": "concrete",
+    "default_stories": 3,
+    "default_roof": "flat",
+    "default_floor_area_m2": 20000,
+    "hazards": ["flood", "wind", "heat", "water_stress"],
+    "description": "Heavy industrial process plant, chemical works, or refinery. Robust structure but highly sensitive to flood contamination and water stress (process cooling dependency).",
+    "hazus_class": "IND6"
+  },
+  "healthcare_hospital": {
+    "label": "Healthcare \u2013 Hospital / Medical Centre",
+    "default_material": "concrete",
+    "default_stories": 6,
+    "default_roof": "flat",
+    "default_floor_area_m2": 12000,
+    "hazards": ["flood", "wind", "heat", "water_stress"],
+    "description": "Hospital or large medical facility. Critical infrastructure: all hazards apply. Essential services on lower floors have high flood sensitivity.",
+    "hazus_class": "GOV2"
+  },
+  "education_school": {
+    "label": "Education \u2013 School / University",
+    "default_material": "masonry",
+    "default_stories": 2,
+    "default_roof": "gable",
+    "default_floor_area_m2": 3000,
+    "hazards": ["flood", "wind", "wildfire", "heat"],
+    "description": "School, college, or university building. Masonry or concrete; large roof. Heat impacts occupant productivity significantly.",
+    "hazus_class": "EDU1"
+  },
+  "data_center": {
+    "label": "Data Centre / Server Facility",
+    "default_material": "concrete",
+    "default_stories": 2,
+    "default_roof": "flat",
+    "default_floor_area_m2": 3000,
+    "hazards": ["flood", "wind", "heat", "water_stress"],
+    "description": "Mission-critical data centre. Extremely sensitive to heat (cooling systems), flood (raised floor), and water availability (cooling towers).",
+    "hazus_class": "IND5"
+  },
+  "hotel_resort": {
+    "label": "Hotel / Resort",
+    "default_material": "concrete",
+    "default_stories": 8,
+    "default_roof": "flat",
+    "default_floor_area_m2": 7000,
+    "hazards": ["flood", "wind", "wildfire", "heat"],
+    "description": "Hotel or resort building. Coastal resorts face elevated wind and storm surge risk; heat affects guest comfort and HVAC demand.",
+    "hazus_class": "COM5"
   },
   "agricultural": {
     "label": "Agricultural Building",
@@ -60,24 +156,57 @@
     "default_roof": "gable",
     "default_floor_area_m2": 500,
     "hazards": ["flood", "wind", "wildfire", "heat"],
-    "description": "Farm buildings, barns, storage"
+    "description": "Farm buildings, barns, grain stores. Lightweight construction; high wind and flood vulnerability.",
+    "hazus_class": "AGR1"
   },
   "infrastructure_road": {
-    "label": "Road Infrastructure",
+    "label": "Road / Highway Infrastructure",
     "default_material": "mixed",
     "default_stories": 1,
     "default_roof": "flat",
     "default_floor_area_m2": 0,
     "hazards": ["flood", "wildfire"],
-    "description": "Roads, bridges, paved surfaces"
+    "description": "Roads, highways, and paved surfaces. Flood undermining and wildfire closures are primary risks.",
+    "hazus_class": "INF1"
+  },
+  "infrastructure_bridge": {
+    "label": "Bridge / Overpass",
+    "default_material": "concrete",
+    "default_stories": 1,
+    "default_roof": "flat",
+    "default_floor_area_m2": 0,
+    "hazards": ["flood", "wind"],
+    "description": "Road or rail bridge. Scour (flood undermining of foundations) and extreme wind on deck are primary risks.",
+    "hazus_class": "INF2"
   },
   "infrastructure_utility": {
-    "label": "Utility Infrastructure",
+    "label": "Utility Infrastructure (Substation / Pump)",
     "default_material": "steel",
     "default_stories": 1,
     "default_roof": "flat",
     "default_floor_area_m2": 200,
     "hazards": ["flood", "wind", "wildfire", "heat"],
-    "description": "Substations, pumping stations, telecoms"
+    "description": "Electrical substations, pumping stations, telecom towers. Flood and heat are critical; wildfire can sever power lines.",
+    "hazus_class": "INF3"
+  },
+  "infrastructure_port": {
+    "label": "Port / Marine Infrastructure",
+    "default_material": "concrete",
+    "default_stories": 1,
+    "default_roof": "flat",
+    "default_floor_area_m2": 0,
+    "hazards": ["flood", "wind"],
+    "description": "Port terminals, jetties, quay walls. Storm surge and extreme wind are primary risks; low-lying elevation is a key risk driver.",
+    "hazus_class": "INF4"
+  },
+  "mixed_use": {
+    "label": "Mixed-Use Development",
+    "default_material": "concrete",
+    "default_stories": 6,
+    "default_roof": "flat",
+    "default_floor_area_m2": 5000,
+    "hazards": ["flood", "wind", "heat"],
+    "description": "Combined residential, retail, and office building. Concrete or steel-composite frame. All urban hazards apply.",
+    "hazus_class": "COM4"
   }
 }

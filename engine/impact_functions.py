@@ -17,6 +17,29 @@ def _load(filename: str) -> dict:
         return json.load(f)
 
 
+# Alias map: new/extended asset types → existing curve keys in JSON files.
+# Allows asset_types.json to grow without duplicating curve data.
+_CURVE_ALIAS: dict[str, str] = {
+    "residential_high_rise": "residential_concrete",
+    "commercial_office":     "commercial_steel",
+    "commercial_retail":     "commercial_steel",
+    "commercial_warehouse":  "industrial_steel",
+    "industrial_heavy":      "industrial_steel",
+    "healthcare_hospital":   "commercial_concrete",
+    "education_school":      "residential_masonry",
+    "data_center":           "commercial_concrete",
+    "hotel_resort":          "commercial_concrete",
+    "mixed_use":             "commercial_concrete",
+    "infrastructure_bridge": "infrastructure_road",
+    "infrastructure_port":   "infrastructure_utility",
+}
+
+
+def _resolve_curve_key(asset_type: str) -> str:
+    """Resolve an asset_type to its curve key, following alias chain."""
+    return _CURVE_ALIAS.get(asset_type, asset_type)
+
+
 _FLOOD_CURVES: Optional[dict] = None
 _WIND_CURVES: Optional[dict] = None
 _WILDFIRE_CURVES: Optional[dict] = None
@@ -77,25 +100,27 @@ def get_damage_fraction(hazard: str, asset_type: str, intensity: float) -> float
                  wildfire → flame length (m)
                  heat → max temperature (°C)
     """
+    key = _resolve_curve_key(asset_type)
+
     if hazard == "flood":
         curves = _flood()
-        curve = curves.get(asset_type, curves["_default"])
+        curve = curves.get(key, curves.get(asset_type, curves["_default"]))
         return _interpolate(curve["depth_m"], curve["damage_fraction"], intensity)
 
     elif hazard in ("wind", "cyclone"):
         curves = _wind()
-        curve = curves.get(asset_type, curves["_default"])
+        curve = curves.get(key, curves.get(asset_type, curves["_default"]))
         return _interpolate(curve["speed_ms"], curve["damage_fraction"], intensity)
 
     elif hazard == "wildfire":
         curves = _wildfire()
-        curve = curves.get(asset_type, curves["_default"])
+        curve = curves.get(key, curves.get(asset_type, curves["_default"]))
         return _interpolate(curve["flame_length_m"], curve["damage_fraction"], intensity)
 
     elif hazard == "heat":
         curves = _heat()
         cooling = curves["cooling_cost"]
-        curve = cooling.get(asset_type, cooling["_default"])
+        curve = cooling.get(key, cooling.get(asset_type, cooling["_default"]))
         return _interpolate(curve["temp_c"], curve["damage_fraction"], intensity)
 
     return 0.0
@@ -103,21 +128,22 @@ def get_damage_fraction(hazard: str, asset_type: str, intensity: float) -> float
 
 def get_damage_curve(hazard: str, asset_type: str, n_points: int = 100) -> tuple:
     """Return (intensities, damage_fractions) arrays for plotting the vulnerability curve."""
+    key = _resolve_curve_key(asset_type)
     if hazard == "flood":
         curves = _flood()
-        curve = curves.get(asset_type, curves["_default"])
+        curve = curves.get(key, curves.get(asset_type, curves["_default"]))
         x_min, x_max = 0.0, curve["depth_m"][-1]
     elif hazard in ("wind", "cyclone"):
         curves = _wind()
-        curve = curves.get(asset_type, curves["_default"])
+        curve = curves.get(key, curves.get(asset_type, curves["_default"]))
         x_min, x_max = 0.0, curve["speed_ms"][-1]
     elif hazard == "wildfire":
         curves = _wildfire()
-        curve = curves.get(asset_type, curves["_default"])
+        curve = curves.get(key, curves.get(asset_type, curves["_default"]))
         x_min, x_max = 0.0, curve["flame_length_m"][-1]
     elif hazard == "heat":
         curves = _heat()
-        curve = curves["cooling_cost"].get(asset_type, curves["cooling_cost"]["_default"])
+        curve = curves["cooling_cost"].get(key, curves["cooling_cost"].get(asset_type, curves["cooling_cost"]["_default"]))
         x_min, x_max = curve["temp_c"][0], curve["temp_c"][-1]
     else:
         return np.array([]), np.array([])

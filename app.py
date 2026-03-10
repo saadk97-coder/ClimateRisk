@@ -29,7 +29,7 @@ if "discount_rate" not in st.session_state:
 if "results" not in st.session_state:
     st.session_state.results = []
 if "currency_code" not in st.session_state:
-    st.session_state.currency_code = "GBP"
+    st.session_state.currency_code = "USD"
 
 # ---------------------------------------------------------------------------
 # Sidebar
