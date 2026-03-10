@@ -208,7 +208,7 @@ with tab1:
 
 # ── TAB 2: Stacked area by hazard ─────────────────────────────────────────
 with tab2:
-    HAZARD_COLORS = {"flood": "#2980b9", "wind": "#8e44ad", "wildfire": "#e67e22", "heat": "#e74c3c"}
+    HAZARD_COLORS = {"flood": "#2980b9", "wind": "#8e44ad", "wildfire": "#e67e22", "heat": "#e74c3c", "coastal_flood": "#1abc9c"}
     sc_haz_year = (
         annual_df[annual_df["scenario_id"] == view_scenario]
         .groupby(["year", "hazard"])["ead"]
@@ -573,6 +573,7 @@ _HAZARD_COLORS_BSR = dict(
     wind="#2A9D8F",
     wildfire="#F4721A",
     heat="#C94040",
+    coastal_flood="#1abc9c",
     water_stress="#E9C46A",
 )
 

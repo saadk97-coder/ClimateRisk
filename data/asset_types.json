@@ -145,7 +145,7 @@
     "default_stories": 8,
     "default_roof": "flat",
     "default_floor_area_m2": 7000,
-    "hazards": ["flood", "wind", "wildfire", "heat"],
+    "hazards": ["flood", "wind", "wildfire", "heat", "coastal_flood"],
     "description": "Hotel or resort building. Coastal resorts face elevated wind and storm surge risk; heat affects guest comfort and HVAC demand.",
     "hazus_class": "COM5"
   },
@@ -195,7 +195,7 @@
     "default_stories": 1,
     "default_roof": "flat",
     "default_floor_area_m2": 0,
-    "hazards": ["flood", "wind"],
+    "hazards": ["flood", "wind", "coastal_flood"],
     "description": "Port terminals, jetties, quay walls. Storm surge and extreme wind are primary risks; low-lying elevation is a key risk driver.",
     "hazus_class": "INF4"
   },

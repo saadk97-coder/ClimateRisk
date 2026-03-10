@@ -112,6 +112,25 @@ DATA_SOURCE_REGISTRY = {
         "variables": ["bws", "bwd"],
         "hazards": ["water_stress"],
     },
+    "coastal_slr_baseline": {
+        "name": "Coastal Flood Baseline (Storm Surge + SLR)",
+        "description": (
+            "Storm surge return-period intensities from GTSM global tide and surge reanalysis "
+            "(Muis et al. 2020) and probabilistic extreme sea levels (Vousdoukas et al. 2018). "
+            "Sea-level rise amplification via IPCC AR6 WG1 Ch.9 projections (Fox-Kemper et al. 2021). "
+            "Coastal proximity screening at 50 km threshold using simplified global coastline."
+        ),
+        "citation": (
+            "Muis et al. (2020) Nature Commun. 11, 3806; "
+            "Vousdoukas et al. (2018) Nature Commun. 9, 2360; "
+            "Fox-Kemper et al. (2021) IPCC AR6 WG1 Ch.9"
+        ),
+        "url": "https://doi.org/10.1038/s41467-018-04692-w",
+        "doi": "https://doi.org/10.1038/s41467-020-17858-2",
+        "resolution": "Regional (7 zones) + distance-to-coast attenuation",
+        "variables": ["storm_surge_depth"],
+        "hazards": ["coastal_flood"],
+    },
     "fallback_baseline": {
         "name": "Built-in Regional Baseline",
         "description": "Compiled regional median hazard intensities from IPCC AR6 / ISIMIP medians. Used when all API sources are unavailable.",

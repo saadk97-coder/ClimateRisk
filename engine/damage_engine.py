@@ -12,7 +12,7 @@ from engine.hazard_fetcher import fetch_all_hazards
 from engine.ead_calculator import calc_ead_from_intensities, calc_ead, STANDARD_RETURN_PERIODS
 from engine.impact_functions import get_damage_fraction
 
-SUPPORTED_HAZARDS = ["flood", "wind", "wildfire", "heat"]
+SUPPORTED_HAZARDS = ["flood", "wind", "wildfire", "heat", "coastal_flood"]
 
 
 @dataclass
@@ -46,7 +46,18 @@ def _get_hazards_for_asset(asset: Asset) -> List[str]:
     from engine.asset_model import load_asset_types
     catalog = load_asset_types()
     atype = catalog.get(asset.asset_type, {})
-    return atype.get("hazards", SUPPORTED_HAZARDS)
+    hazards = list(atype.get("hazards", SUPPORTED_HAZARDS))
+
+    # Dynamically add coastal_flood for any asset within the coastal zone
+    if "coastal_flood" not in hazards:
+        try:
+            from engine.coastal import is_coastal
+            if is_coastal(asset.lat, asset.lon):
+                hazards.append("coastal_flood")
+        except Exception:
+            pass
+
+    return hazards
 
 
 def run_asset_scenario(
@@ -102,8 +113,8 @@ def run_asset_scenario(
         intens = np.array(hdata["intensities"], dtype=float)
         source = hdata["source"]
 
-        # Elevation correction for flood
-        if hazard == "flood":
+        # Elevation correction for flood and coastal flood
+        if hazard in ("flood", "coastal_flood"):
             intens = np.clip(intens - asset.elevation_m, 0.0, None)
 
         # Scenario hazard multiplier

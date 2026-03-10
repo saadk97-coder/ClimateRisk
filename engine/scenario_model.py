@@ -718,6 +718,15 @@ HAZARD_SCALING = {
         # Same as wind but slightly amplified for storm surge component
         1.0: 1.03, 1.5: 1.06, 2.0: 1.10, 2.5: 1.15, 3.0: 1.20, 4.0: 1.32, 4.4: 1.40,
     },
+    "coastal_flood": {
+        # Sea-level rise amplifies storm surge. Combines SLR + storminess changes.
+        # Source: IPCC AR6 WG1 Ch.9 Table 9.9 (Fox-Kemper et al. 2021);
+        # Vousdoukas et al. (2018) Nature Communications — extreme sea levels.
+        # SLR alone: +0.12 m at 1.5°C, +0.21 m at 2.0°C, +0.40 m at 3.0°C (median);
+        # but surge frequency increase is super-linear.
+        # https://doi.org/10.1038/s41467-018-04692-w
+        1.0: 1.08, 1.5: 1.15, 2.0: 1.30, 2.5: 1.50, 3.0: 1.75, 4.0: 2.30, 4.4: 2.60,
+    },
     "water_stress": {
         # Chronic water scarcity intensification per °C.
         # Source: WRI Aqueduct 4.0 scenario projections; IPCC AR6 WG2 Ch. 4 (water cycle)
@@ -749,6 +758,10 @@ HAZARD_SCALING_SOURCES = {
     "cyclone": {
         "citation": "Knutson et al. (2020) — tropical cyclone intensity scaling.",
         "url": "https://doi.org/10.1175/BAMS-D-18-0194.1",
+    },
+    "coastal_flood": {
+        "citation": "IPCC AR6 WG1 Ch.9 (Fox-Kemper et al. 2021); Vousdoukas et al. (2018) Nat. Commun.",
+        "url": "https://doi.org/10.1038/s41467-018-04692-w",
     },
     "water_stress": {
         "citation": "WRI Aqueduct 4.0 (2023); IPCC AR6 WG2 Ch. 4 (freshwater cycle).",

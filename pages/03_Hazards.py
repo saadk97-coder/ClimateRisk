@@ -47,8 +47,8 @@ st.divider()
 st.subheader("Available Data Sources")
 st.caption(
     "Sources are tried in priority order: ISIMIP3b → NASA NEX-GDDP → CHELSA → Regional Baseline. "
-    "ISIMIP3b is active for **all four hazards** (Flood, Heat, Wind, Wildfire) and extracts "
-    "point data at the exact asset coordinate. "
+    "ISIMIP3b is active for **all five hazards** (Flood, Heat, Wind, Wildfire + Coastal Flood for coastal assets). "
+    "Coastal Flood is auto-detected for assets within 50 km of a coastline, adding storm surge + SLR risk. "
     "Wildfire uses the full Canadian FWI system (Van Wagner 1987) from multi-variable extraction."
 )
 
@@ -82,6 +82,11 @@ SOURCE_STATUS = {
         "badge": "🔵 N. America only",
         "note": "1 km N. America; REST API available",
     },
+    "coastal_slr_baseline": {
+        "status": "active",
+        "badge": "🟢 Active — Coastal Flood",
+        "note": "Auto-enabled for assets within 50 km of coast; storm surge + IPCC AR6 SLR projections",
+    },
     "fallback_baseline": {
         "status": "active",
         "badge": "🟢 Active (fallback)",
@@ -91,7 +96,7 @@ SOURCE_STATUS = {
 
 PRIORITY_ORDER = [
     "isimip3b", "nasa_nex_gddp_cmip6", "chelsa_cmip6",
-    "loca2", "climatena_adaptwest", "fallback_baseline"
+    "loca2", "climatena_adaptwest", "coastal_slr_baseline", "fallback_baseline"
 ]
 
 HAZARD_UNIT_LABELS = {
@@ -99,6 +104,7 @@ HAZARD_UNIT_LABELS = {
     "wind": "3-s gust wind speed (m/s)",
     "wildfire": "Flame length (m)",
     "heat": "Max daily temperature (°C)",
+    "coastal_flood": "Storm surge depth (m)",
 }
 
 # ── Source cards ───────────────────────────────────────────────────────────
@@ -140,6 +146,7 @@ with st.expander("📊 Comparative Source Guide — which source should you use?
 | **CHELSA CMIP6** | 30 arc-sec (~1 km) | Global (land) | Heat, Precipitation | Climatologies (30-yr means) | **Highest resolution** for temperature-based hazards; ideal for topographically complex terrain |
 | **LOCA2** | 1/16° (~6 km) | N. America | Heat, Flood | 1950–2100 | Best resolution for North American assets; daily data enables extreme event analysis |
 | **ClimateNA / AdaptWest** | ~1 km | N. America | Heat | Bioclimatic periods | High-res North American temperature and bioclimatic variables |
+| **Coastal Flood Baseline** | Regional + distance decay | Global (coastal) | Coastal Flood | IPCC AR6 SLR projections | Auto-enabled for assets ≤50 km from coast; storm surge + sea-level rise |
 | **Built-in Regional Baseline** | Continental (~7 zones) | Global | All four | 1981–2010 climatology | Instant fallback; no API calls needed; very coarse |
 
 ### Key Trade-offs
@@ -151,21 +158,6 @@ with st.expander("📊 Comparative Source Guide — which source should you use?
 **Regional Baseline (fallback):** Uses continental-zone medians — all assets in the same zone (e.g. all of Europe) receive identical hazard intensities. Only appropriate as a last resort or for portfolio-level screening.
     """)
 
-    st.markdown("### Recommended Additional Sources")
-    st.markdown("""
-The following high-quality databases are used in professional climate risk work and could enhance this tool:
-
-| Database | Resolution | Coverage | Strengths | Access |
-|----------|-----------|----------|-----------|--------|
-| **Copernicus CDS ERA5/ERA5-Land** | 9–31 km | Global | Gold-standard reanalysis; hourly/daily; 1950–present | Free (CDS API, registration required) |
-| **JRC Global Flood Maps (GloFAS/GLOFRIS)** | 1 km flood maps, 0.1° hydrology | Global | Direct inundation depth maps at return periods; used by EU Taxonomy | Free (JRC data portal) |
-| **Fathom Global Flood Maps** | 30 m (coastal+fluvial+pluvial) | Global | Industry standard for asset-level flood risk; used by Moody's, S&P, MSCI | Commercial (academic access available) |
-| **Swiss Re CatNet** | Varies (often <1 km) | Global | Multi-peril; used in (re)insurance pricing | Commercial |
-| **Munich Re NATHAN** | Varies | Global | Multi-peril risk scores; used in insurance underwriting | Commercial |
-| **FIRMS / MODIS Active Fire** | 375 m–1 km | Global | Satellite-observed fire data; good for wildfire exposure validation | Free (NASA FIRMS) |
-| **Global Wind Atlas (DTU)** | 250 m | Global | Wind resource/hazard at very high resolution | Free |
-| **Aqueduct 4.0 (WRI)** | Sub-catchment | Global | Water stress (already integrated); 3 SSP scenarios to 2080 | Free (CC BY 4.0) |
-    """)
 
 # ── Source Preference ──────────────────────────────────────────────────────
 st.divider()
@@ -255,9 +247,17 @@ if fetch_btn:
     scenario_id = selected_scenarios[0] if selected_scenarios else "current_policies"
     ssp = SCENARIOS.get(scenario_id, {}).get("ssp", "SSP2-4.5")
     for i, asset in enumerate(assets):
-        hazards = asset_types_catalog.get(asset.asset_type, {}).get(
+        hazards = list(asset_types_catalog.get(asset.asset_type, {}).get(
             "hazards", ["flood", "wind", "wildfire", "heat"]
-        )
+        ))
+        # Dynamically add coastal_flood for assets near the coast
+        if "coastal_flood" not in hazards:
+            try:
+                from engine.coastal import is_coastal
+                if is_coastal(asset.lat, asset.lon):
+                    hazards.append("coastal_flood")
+            except Exception:
+                pass
         # Apply zone override if set (only affects fallback baseline)
         region = zone_overrides.get(asset.id, asset.region)
         if region == "AUTO":
@@ -289,21 +289,25 @@ if st.session_state.hazard_data:
             "Lon": round(asset.lon, 4),
             "Country": asset.region.upper(),
         }
-        for hazard in ["flood", "wind", "wildfire", "heat"]:
+        _HAZ_LABELS = {"flood": "Flood", "wind": "Wind", "wildfire": "Wildfire",
+                       "heat": "Heat", "coastal_flood": "Coastal Flood"}
+        for hazard in ["flood", "wind", "wildfire", "heat", "coastal_flood"]:
+            col_name = _HAZ_LABELS[hazard]
             if hazard in hdata:
                 src = hdata[hazard]["source"]
                 if src == "fallback_baseline":
-                    row[hazard.capitalize()] = f"Baseline ({zone} zone)"
+                    row[col_name] = f"Baseline ({zone} zone)"
                 elif src == "isimip3b":
-                    # Show the grid cell reference
                     grid_lat = round(round(asset.lat * 2) / 2, 1)
                     grid_lon = round(round(asset.lon * 2) / 2, 1)
-                    row[hazard.capitalize()] = f"ISIMIP3b ({grid_lat}°, {grid_lon}°)"
+                    row[col_name] = f"ISIMIP3b ({grid_lat}°, {grid_lon}°)"
+                elif src == "coastal_slr_baseline":
+                    row[col_name] = "Coastal SLR Baseline"
                 else:
                     src_name = DATA_SOURCE_REGISTRY.get(src, {}).get("name", src)
-                    row[hazard.capitalize()] = src_name
+                    row[col_name] = src_name
             else:
-                row[hazard.capitalize()] = "-- N/A"
+                row[col_name] = "-- N/A"
         rows.append(row)
 
     status_df = pd.DataFrame(rows)
@@ -367,13 +371,11 @@ if sel_asset_obj and st.session_state.hazard_data.get(sel_asset_detail):
     ]
     st.markdown(" | ".join(header_parts))
 
-    haz_tabs = [h for h in ["flood", "wind", "wildfire", "heat"] if h in hdata]
+    haz_tabs = [h for h in ["flood", "wind", "wildfire", "heat", "coastal_flood"] if h in hdata]
     if haz_tabs:
-        tabs = st.tabs([f"🌊 Flood" if h == "flood"
-                        else f"💨 Wind" if h == "wind"
-                        else f"🔥 Wildfire" if h == "wildfire"
-                        else f"🌡️ Heat"
-                        for h in haz_tabs])
+        _TAB_LABELS = {"flood": "🌊 Flood", "wind": "💨 Wind", "wildfire": "🔥 Wildfire",
+                       "heat": "🌡️ Heat", "coastal_flood": "🌊 Coastal Flood / SLR"}
+        tabs = st.tabs([_TAB_LABELS.get(h, h) for h in haz_tabs])
 
         for tab, hazard in zip(tabs, haz_tabs):
             with tab:
@@ -392,6 +394,19 @@ if sel_asset_obj and st.session_state.hazard_data.get(sel_asset_detail):
                             f"**Resolution:** ~continental | "
                             f"**Basis:** {detail['hazard_source']}",
                             icon="⚠️",
+                        )
+                    elif src_key == "coastal_slr_baseline":
+                        try:
+                            from engine.coastal import distance_to_coast_km
+                            dist = distance_to_coast_km(sel_asset_obj.lat, sel_asset_obj.lon)
+                            dist_str = f"{dist:.0f} km from coast"
+                        except Exception:
+                            dist_str = "coastal zone"
+                        st.success(
+                            f"**Source:** Coastal Flood Baseline (Storm Surge + SLR) | "
+                            f"**Spatial ref:** {dist_str} | "
+                            f"**Resolution:** Regional + distance attenuation",
+                            icon="✅",
                         )
                     elif src_key == "isimip3b":
                         grid_lat = round(round(sel_asset_obj.lat * 2) / 2, 1)
@@ -525,9 +540,10 @@ low-severity events and rare catastrophic events.
 # Show worked example if data is available
 if sel_asset_obj and st.session_state.hazard_data.get(sel_asset_detail):
     hdata_ex = st.session_state.hazard_data[sel_asset_detail]
-    example_hazard = next((h for h in ["flood", "wind", "wildfire", "heat"] if h in hdata_ex), None)
+    example_hazard = next((h for h in ["flood", "wind", "wildfire", "heat", "coastal_flood"] if h in hdata_ex), None)
     if example_hazard:
-        with st.expander(f"📐 Worked example: {sel_asset_obj.name} — {example_hazard.capitalize()}"):
+        _haz_label = example_hazard.replace("_", " ").title()
+        with st.expander(f"📐 Worked example: {sel_asset_obj.name} — {_haz_label}"):
             hd_ex = hdata_ex[example_hazard]
             rp_ex = np.array(hd_ex["return_periods"], dtype=float)
             int_ex = np.array(hd_ex["intensities"], dtype=float)
@@ -649,7 +665,8 @@ st.caption("For full vulnerability curve auditing, editing, and source citations
 
 col1, col2 = st.columns(2)
 with col1:
-    curve_hazard = st.selectbox("Hazard", ["flood", "wind", "wildfire", "heat"], key="curve_haz")
+    curve_hazard = st.selectbox("Hazard", ["flood", "wind", "wildfire", "heat", "coastal_flood"],
+                                format_func=lambda h: h.replace("_", " ").title(), key="curve_haz")
 with col2:
     at_catalog = load_asset_types()
     curve_atype = st.selectbox(
@@ -681,5 +698,6 @@ if len(xs) > 0:
     st.plotly_chart(fig, use_container_width=True)
     st.caption(
         "Sources: HAZUS 6.0 (FEMA 2022) | JRC Global DDFs (Huizinga et al. 2017) | "
-        "Syphard et al. (2012) | IEA Future of Cooling (2018) | ILO (2019)"
+        "Syphard et al. (2012) | IEA Future of Cooling (2018) | ILO (2019) | "
+        "Vousdoukas et al. (2018) [coastal flood]"
     )

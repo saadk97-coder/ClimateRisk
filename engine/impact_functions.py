@@ -44,6 +44,7 @@ _FLOOD_CURVES: Optional[dict] = None
 _WIND_CURVES: Optional[dict] = None
 _WILDFIRE_CURVES: Optional[dict] = None
 _HEAT_CURVES: Optional[dict] = None
+_COASTAL_FLOOD_CURVES: Optional[dict] = None
 
 
 def _flood() -> dict:
@@ -72,6 +73,13 @@ def _heat() -> dict:
     if _HEAT_CURVES is None:
         _HEAT_CURVES = _load("heat_curves.json")
     return _HEAT_CURVES
+
+
+def _coastal_flood() -> dict:
+    global _COASTAL_FLOOD_CURVES
+    if _COASTAL_FLOOD_CURVES is None:
+        _COASTAL_FLOOD_CURVES = _load("coastal_flood_curves.json")
+    return _COASTAL_FLOOD_CURVES
 
 
 def _interpolate(xs: list, ys: list, x_query: float) -> float:
@@ -123,6 +131,11 @@ def get_damage_fraction(hazard: str, asset_type: str, intensity: float) -> float
         curve = cooling.get(key, cooling.get(asset_type, cooling["_default"]))
         return _interpolate(curve["temp_c"], curve["damage_fraction"], intensity)
 
+    elif hazard == "coastal_flood":
+        curves = _coastal_flood()
+        curve = curves.get(key, curves.get(asset_type, curves["_default"]))
+        return _interpolate(curve["depth_m"], curve["damage_fraction"], intensity)
+
     return 0.0
 
 
@@ -145,6 +158,10 @@ def get_damage_curve(hazard: str, asset_type: str, n_points: int = 100) -> tuple
         curves = _heat()
         curve = curves["cooling_cost"].get(key, curves["cooling_cost"].get(asset_type, curves["cooling_cost"]["_default"]))
         x_min, x_max = curve["temp_c"][0], curve["temp_c"][-1]
+    elif hazard == "coastal_flood":
+        curves = _coastal_flood()
+        curve = curves.get(key, curves.get(asset_type, curves["_default"]))
+        x_min, x_max = 0.0, curve["depth_m"][-1]
     else:
         return np.array([]), np.array([])
 
@@ -159,4 +176,5 @@ HAZARD_UNITS = {
     "cyclone": "3-s gust wind speed (m/s)",
     "wildfire": "Flame length (m)",
     "heat": "Max temperature (°C)",
+    "coastal_flood": "Storm surge depth (m)",
 }

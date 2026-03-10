@@ -73,6 +73,12 @@ def get_fallback_detail(hazard: str, region_iso3: str) -> dict:
         values[rp] = float(val)
 
     HAZARD_SOURCES = {
+        "coastal_flood": {
+            "source": "IPCC AR6 WG1 Ch.9 SLR + Vousdoukas et al. (2018) storm surge",
+            "citation": "Fox-Kemper et al. (2021) AR6 WG1 Ch.9; Vousdoukas et al. (2018) Nature Commun. 9, 2360; Muis et al. (2020) Nature Commun. 11, 3806",
+            "doi": "https://doi.org/10.1038/s41467-018-04692-w",
+            "description": "Storm surge depth (m above MHWS) at return periods, derived from GTSM global tide/surge reanalysis (Muis et al. 2020) regional medians. Distance-to-coast attenuation applied. SLR amplification via IPCC AR6 scenario multipliers.",
+        },
         "flood": {
             "source": "ISIMIP3b global flood medians",
             "citation": "Sauer et al. (2021) Earth's Future 9(2)",
@@ -180,12 +186,23 @@ def fetch_hazard_intensities(
     (return_periods, intensities, source_key)
     source_key maps to DATA_SOURCE_REGISTRY for full citation.
     """
-    from engine.isimip_fetcher import (
-        fetch_isimip3b_flood, fetch_isimip3b_heat,
-        fetch_isimip3b_wind, fetch_isimip3b_wildfire,
-    )
+    # ── 0a. Coastal flood — storm surge + SLR (dedicated pipeline) ────────
+    if hazard == "coastal_flood":
+        try:
+            from engine.coastal import is_coastal, get_coastal_flood_intensities
+            if is_coastal(lat, lon):
+                rp, intensities = get_coastal_flood_intensities(
+                    lat, lon, region_iso3,
+                    elevation_m=0.0,  # elevation applied in damage_engine
+                )
+                return rp, intensities, "coastal_slr_baseline"
+        except Exception:
+            pass
+        # Non-coastal or error: return zero intensities
+        rps = np.array([10, 50, 100, 250, 500, 1000], dtype=float)
+        return rps, np.zeros(len(rps)), "coastal_slr_baseline"
 
-    # ── 0. Water stress — WRI Aqueduct 4.0 (dedicated pipeline) ───────────
+    # ── 0b. Water stress — WRI Aqueduct 4.0 (dedicated pipeline) ───────────
     if hazard == "water_stress":
         try:
             from engine.water_stress import fetch_water_stress_profile
@@ -204,6 +221,10 @@ def fetch_hazard_intensities(
 
     # ── 1. ISIMIP3b (full extraction pipeline) ─────────────────────────────
     try:
+        from engine.isimip_fetcher import (
+            fetch_isimip3b_flood, fetch_isimip3b_heat,
+            fetch_isimip3b_wind, fetch_isimip3b_wildfire,
+        )
         if hazard == "flood":
             result = fetch_isimip3b_flood(lat, lon, ssp=scenario_ssp)
             if result is not None:

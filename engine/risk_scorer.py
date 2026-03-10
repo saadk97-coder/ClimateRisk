@@ -50,6 +50,7 @@ _SCORE_PARAMS: Dict[str, Dict[str, float]] = {
     "wind":         {"mid_pct": 0.3,  "max_pct": 3.0},
     "wildfire":     {"mid_pct": 0.4,  "max_pct": 4.0},
     "heat":         {"mid_pct": 0.2,  "max_pct": 2.0},
+    "coastal_flood": {"mid_pct": 0.6,  "max_pct": 6.0},
     "water_stress": {"mid_pct": 0.15, "max_pct": 1.5},
     "default":      {"mid_pct": 0.4,  "max_pct": 4.0},
 }
