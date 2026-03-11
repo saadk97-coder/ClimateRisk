@@ -478,8 +478,45 @@ def fetch_isimip3b_flood(
         return_periods = STANDARD_RETURN_PERIODS
     ssp_key = _SSP_MAP.get(ssp, "ssp245")
 
-    DRAINAGE_THRESHOLD_MM = 25.0   # typical urban drainage capacity
-    DEPTH_FACTOR = 0.012           # m per mm excess (JRC calibrated, EUR median)
+    # Regional drainage threshold and depth factor — accounts for regional variation
+    # in drainage capacity, soil permeability, and terrain slope.
+    # Source: Huizinga et al. (2017) JRC EUR 28505 EN; Alfieri et al. (2017) NHESS.
+    _REGIONAL_FLOOD_PARAMS = {
+        # (drainage_threshold_mm, depth_factor_m_per_mm)
+        "EUR": (30.0, 0.010),    # good drainage infrastructure
+        "USA": (28.0, 0.011),    # variable; urban areas better drained
+        "CHN": (22.0, 0.014),    # dense urban areas, high runoff
+        "IND": (18.0, 0.016),    # poor drainage, flat terrain, monsoon
+        "AUS": (25.0, 0.012),    # moderate drainage
+        "BRA": (20.0, 0.015),    # tropical rainfall, variable drainage
+        "MEA": (15.0, 0.018),    # arid soils, poor absorption, flash flood prone
+        "global": (25.0, 0.012),
+    }
+
+    # Determine regional parameters
+    try:
+        from engine.hazard_fetcher import _get_region_key
+        # Approximate region from latitude/longitude
+        if 35 <= lat <= 72 and -10 <= lon <= 40:
+            zone = "EUR"
+        elif 25 <= lat <= 50 and -130 <= lon <= -60:
+            zone = "USA"
+        elif 18 <= lat <= 55 and 73 <= lon <= 135:
+            zone = "CHN"
+        elif 5 <= lat <= 40 and 60 <= lon <= 100:
+            zone = "IND"
+        elif -45 <= lat <= -10 and 110 <= lon <= 155:
+            zone = "AUS"
+        elif -35 <= lat <= 10 and -75 <= lon <= -35:
+            zone = "BRA"
+        elif (15 <= lat <= 40 and 25 <= lon <= 60) or (-35 <= lat <= 15 and 10 <= lon <= 50):
+            zone = "MEA"
+        else:
+            zone = "global"
+    except Exception:
+        zone = "global"
+
+    DRAINAGE_THRESHOLD_MM, DEPTH_FACTOR = _REGIONAL_FLOOD_PARAMS.get(zone, _REGIONAL_FLOOD_PARAMS["global"])
 
     for gcm in _GCM_PRIORITY:
         paths = _query_isimip_paths("ISIMIP3b", "SecondaryInputData", ssp_key, "pr", gcm)
@@ -502,9 +539,9 @@ def fetch_isimip3b_flood(
         if rx1day is None:
             continue
 
-        # Convert Rx1day → flood depth
+        # Convert Rx1day → flood depth using regional parameters
         depths = np.clip((rx1day - DRAINAGE_THRESHOLD_MM) * DEPTH_FACTOR, 0.0, 8.0)
-        logger.info(f"ISIMIP3b flood (pr-derived): {gcm}/{ssp_key} → {len(annual_max_pr)} yr, "
+        logger.info(f"ISIMIP3b flood (pr-derived, zone={zone}): {gcm}/{ssp_key} → {len(annual_max_pr)} yr, "
                     f"RP100 Rx1day={rx1day[2]:.0f}mm → depth={depths[2]:.2f}m")
         return return_periods, depths
 

@@ -28,7 +28,7 @@ from typing import Tuple, Optional
 # ---------------------------------------------------------------------------
 # Coastal zone threshold (km) — assets within this distance are exposed
 # ---------------------------------------------------------------------------
-COASTAL_ZONE_KM = 50.0
+COASTAL_ZONE_KM = 10.0  # 10 km — consistent with EU Floods Directive / FEMA standards
 
 # ---------------------------------------------------------------------------
 # Simplified global coastline reference points (~600 pts)

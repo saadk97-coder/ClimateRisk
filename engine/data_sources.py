@@ -350,26 +350,20 @@ def fetch_best_available(
     Try data sources in priority order and return (source_key, value).
     Falls back to regional baseline if all fail.
     """
-    # 1. LOCA2 (North America, best resolution)
-    if hazard in ("heat", "flood") and fetch_loca2(lat, lon) is not None:
-        val = fetch_loca2(lat, lon, ssp=ssp.lower().replace("-", ""))
-        if val is not None:
-            return "loca2", val
-
-    # 2. NASA NEX-GDDP-CMIP6 (global)
+    # 1. NASA NEX-GDDP-CMIP6 (global)
     if hazard == "heat":
         val = fetch_nasa_nex(lat, lon, variable="tasmax", ssp=ssp, year=year)
         if val is not None:
             return "nasa_nex_gddp_cmip6", val
 
-    # 3. CHELSA (global, high-res)
+    # 2. CHELSA (global, high-res)
     if hazard == "heat":
         val = fetch_chelsa_temp(lat, lon, ssp=ssp)
         if val is not None:
             return "chelsa_cmip6", val
 
-    # 4. ClimateNA (North America)
-    if hazard == "heat" and fetch_climatena(lat, lon) is not None:
+    # 3. ClimateNA (North America)
+    if hazard == "heat":
         val = fetch_climatena(lat, lon, scenario=ssp.lower().replace("-", ""))
         if val is not None:
             return "climatena_adaptwest", val

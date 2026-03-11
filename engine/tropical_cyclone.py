@@ -275,14 +275,16 @@ def cyclone_wind_at_distance(
 
     Returns 3-second gust speed (m/s) using Holland profile × WMO 1.5 gust factor.
     """
-    sustained = holland_wind_profile(
+    gradient_wind = holland_wind_profile(
         r_km=max(dist_km, 1.0),
         r_max_km=r_max_km,
         v_max_ms=max_wind_ms,
         lat=lat,
     )
+    # Boundary layer reduction: surface wind ≈ 0.75× gradient wind (Powell et al. 2003)
+    surface_sustained = gradient_wind * 0.75
     # WMO gust factor: 3-second gust ≈ 1.5× 1-minute sustained
-    gust_ms = sustained * 1.5
+    gust_ms = surface_sustained * 1.5
     return gust_ms
 
 

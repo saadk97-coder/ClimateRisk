@@ -68,9 +68,19 @@ def _discount_factors(years: np.ndarray, wacc: float) -> np.ndarray:
 
 
 def _terminal_value(last_cf: float, growth: float, wacc: float) -> float:
+    if last_cf < 0:
+        # Negative terminal CF: cap at 10× to avoid nonsensical large negative TV
+        import logging
+        logging.getLogger(__name__).warning(
+            f"Terminal value: negative last CF ({last_cf:.2f}); capping at 10x"
+        )
+        return last_cf * 10
     if wacc <= growth:
-        return last_cf * 20  # cap to prevent explosion
-    return last_cf * (1 + growth) / (wacc - growth)
+        return last_cf * 20  # cap to prevent explosion when Gordon Growth Model is invalid
+    tv = last_cf * (1 + growth) / (wacc - growth)
+    # Guard against extreme values when wacc is very close to growth
+    max_tv = last_cf * 50
+    return min(tv, max_tv) if last_cf > 0 else tv
 
 
 def compute_base_dcf(inputs: DCFInputs) -> float:

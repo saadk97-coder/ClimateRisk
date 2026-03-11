@@ -139,12 +139,13 @@ def export_results_xlsx(
             total_ead = sc_df["ead"].sum()
             total_pv = sc_df["pv"].sum()
             mean_ead = sc_df.groupby("year")["ead"].sum().mean()
+            currency = metadata.get("currency_symbol", "")
             sc_summary_rows.append({
                 "Scenario": sc_label,
                 "Scenario ID": sc,
-                "Total EAD 2025–2050 (£)": round(total_ead, 2),
-                "Total PV Damages (£)": round(total_pv, 2),
-                "Mean Annual EAD (£)": round(mean_ead, 2),
+                f"Total EAD 2025\u20132050 ({currency})": round(total_ead, 2),
+                f"Total PV Damages ({currency})": round(total_pv, 2),
+                f"Mean Annual EAD ({currency})": round(mean_ead, 2),
             })
         if sc_summary_rows:
             _write_df(ws_sc, pd.DataFrame(sc_summary_rows))
