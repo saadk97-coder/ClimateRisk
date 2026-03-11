@@ -71,9 +71,9 @@ def compute_annual_damages(
             warming_c = get_warming(scenario_id, year)
             mult = get_scenario_multipliers(scenario_id, year, hazard)
 
-            # Adjust intensity
+            # Adjust intensity — elevation correction for flood and coastal flood
             intens = base_intens.copy()
-            if hazard == "flood":
+            if hazard in ("flood", "coastal_flood"):
                 intens = np.clip(intens - asset.elevation_m, 0.0, None)
 
             ead, damage_fracs = calc_ead_from_intensities(

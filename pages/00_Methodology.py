@@ -150,7 +150,7 @@ for col, step in zip(cols, STEPS):
         st.markdown(
             f"""
             <div style="background:{step['color']}14;border:1.5px solid {step['color']}44;
-                        border-radius:10px;padding:16px;height:200px;position:relative;">
+                        border-radius:10px;padding:16px;min-height:200px;position:relative;overflow:hidden;">
               <div style="position:absolute;top:-14px;left:14px;
                           background:{step['color']};color:white;
                           font-size:13px;font-weight:800;border-radius:20px;

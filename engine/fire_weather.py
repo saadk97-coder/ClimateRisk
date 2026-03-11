@@ -70,6 +70,11 @@ _DC_LF = {
 
 
 def _get_dmc_le(lat: float, month_idx: int) -> float:
+    # Southern Hemisphere: shift month by 6 to account for opposite seasons.
+    # January (idx 0) in SH corresponds to summer (long days), equivalent to
+    # July (idx 6) in NH. Day-length table values are NH-centric.
+    if lat < -10:
+        month_idx = (month_idx + 6) % 12
     if lat >= 60:
         key = "≥60°N"
     elif lat >= 45:
@@ -88,6 +93,9 @@ def _get_dmc_le(lat: float, month_idx: int) -> float:
 
 
 def _get_dc_lf(lat: float, month_idx: int) -> float:
+    # Southern Hemisphere: shift month by 6 for opposite season day-length
+    if lat < -10:
+        month_idx = (month_idx + 6) % 12
     if lat >= 45:
         key = "north"
     elif lat >= 10:

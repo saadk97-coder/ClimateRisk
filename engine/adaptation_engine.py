@@ -299,19 +299,29 @@ def _calc_irr(cashflows: list, tol: float = 1e-6, max_iter: int = 200) -> float:
     cf = np.array(cashflows, dtype=float)
     if len(cf) < 2 or np.all(cf == 0):
         return float("nan")
-    r = 0.1  # initial guess
-    for _ in range(max_iter):
-        t = np.arange(len(cf))
-        pv = cf / (1 + r) ** t
-        npv = pv.sum()
-        dpv = -(t * cf / (1 + r) ** (t + 1)).sum()
-        if abs(dpv) < 1e-14:
-            break
-        r_new = r - npv / dpv
-        if abs(r_new - r) < tol:
-            return r_new
-        r = r_new
-    return r
+    # Try multiple initial guesses to handle different cash flow profiles
+    for r0 in [0.1, 0.0, -0.05, 0.5]:
+        r = r0
+        converged = False
+        for _ in range(max_iter):
+            t = np.arange(len(cf))
+            try:
+                pv = cf / (1 + r) ** t
+            except (ZeroDivisionError, FloatingPointError):
+                break
+            npv = pv.sum()
+            dpv = -(t * cf / (1 + r) ** (t + 1)).sum()
+            if abs(dpv) < 1e-14:
+                break
+            r_new = r - npv / dpv
+            if abs(r_new - r) < tol:
+                converged = True
+                r = r_new
+                break
+            r = r_new
+        if converged:
+            return r
+    return float("nan")
 
 
 def portfolio_adaptation_frontier(

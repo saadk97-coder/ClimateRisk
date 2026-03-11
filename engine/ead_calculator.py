@@ -43,6 +43,16 @@ def calc_ead(
     aep_sorted = aep[order]
     dmg_sorted = damages[order]
 
+    # Extend EP curve to cover full probability space [0, 1]:
+    # - AEP=0 (tail): assume damage at rarest RP extends to AEP=0
+    # - AEP=1.0 (RP=1): assume zero damage for very frequent events
+    if aep_sorted[0] > 0.0:
+        aep_sorted = np.concatenate([[0.0], aep_sorted])
+        dmg_sorted = np.concatenate([[dmg_sorted[0]], dmg_sorted])
+    if aep_sorted[-1] < 1.0:
+        aep_sorted = np.concatenate([aep_sorted, [1.0]])
+        dmg_sorted = np.concatenate([dmg_sorted, [0.0]])
+
     # Trapezoidal integration (damages vs AEP)
     # np.trapz renamed to np.trapezoid in NumPy 2.0
     _trapz = getattr(np, "trapezoid", None) or getattr(np, "trapz")

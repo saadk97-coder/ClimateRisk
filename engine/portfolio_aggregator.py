@@ -65,24 +65,41 @@ def aggregate_portfolio(
             r.hazard_results[hazard].ead for r in subset if hazard in r.hazard_results
         )
 
-    # Simplified correlation-adjusted portfolio EAD
+    # Correlation-adjusted portfolio risk using proper variance decomposition.
+    # EAD is the mean loss; we estimate per-asset loss std dev as CV * EAD,
+    # where CV (coefficient of variation) is typical for cat loss distributions.
+    CV_LOSS = 2.0  # loss distribution CV — conservative cat-model estimate
+
     n = len(subset)
+    portfolio_sigma = 0.0
+    undiversified_sigma = 0.0
+
     if n == 1:
         portfolio_ead = sum_ead
     else:
-        # Assume uniform correlation ρ between assets
-        rho = SAME_REGION_CORR
-        # Var(portfolio) ≈ Σ σi² + ρ Σ_{i≠j} σi σj
-        # Use EAD as proxy for σ (loss std)
         eads = np.array([r.total_ead for r in subset])
-        var_undiversified = np.sum(eads**2)
-        var_cross = rho * (np.sum(eads)**2 - np.sum(eads**2))
-        var_portfolio = var_undiversified + var_cross
-        portfolio_ead = np.sqrt(max(var_portfolio, 0.0))
-        # Cap at undiversified sum
-        portfolio_ead = min(portfolio_ead, sum_ead)
+        sigmas = eads * CV_LOSS  # per-asset loss standard deviation
 
-    diversification_benefit = sum_ead - portfolio_ead if n > 1 else 0.0
+        # Build correlation matrix using region from asset_id prefix
+        asset_regions = [r.asset_id.split('_')[0] if '_' in r.asset_id else r.asset_id for r in subset]
+        corr_matrix = np.full((n, n), DIFF_REGION_CORR)
+        for i in range(n):
+            corr_matrix[i, i] = 1.0
+            for j in range(i + 1, n):
+                if asset_regions[i] == asset_regions[j]:
+                    corr_matrix[i, j] = SAME_REGION_CORR
+                    corr_matrix[j, i] = SAME_REGION_CORR
+
+        # Portfolio variance: σ_p² = Σ_i Σ_j ρ_ij σ_i σ_j
+        var_portfolio = float(sigmas @ corr_matrix @ sigmas)
+        portfolio_sigma = np.sqrt(max(var_portfolio, 0.0))
+        undiversified_sigma = float(np.sum(sigmas))
+
+        # Portfolio EAD (mean) is simply the sum — means add linearly
+        portfolio_ead = sum_ead
+
+    # Diversification benefit is on the risk (volatility), not the mean
+    diversification_benefit = undiversified_sigma - portfolio_sigma if n > 1 else 0.0
 
     return {
         "n_assets": n,
@@ -91,6 +108,8 @@ def aggregate_portfolio(
         "portfolio_ead": portfolio_ead,
         "ead_pct": portfolio_ead / total_value * 100 if total_value > 0 else 0.0,
         "diversification_benefit": diversification_benefit,
+        "portfolio_sigma": portfolio_sigma,
+        "undiversified_sigma": undiversified_sigma,
         "ead_by_hazard": ead_by_hazard,
     }
 

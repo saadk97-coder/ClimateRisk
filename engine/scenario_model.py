@@ -693,6 +693,7 @@ def get_bsr_narrative(scenario_id: str, region: str, decade: str) -> Dict[str, s
     })
 
 
+# Global default hazard scaling (used when no region-specific scaling is available)
 HAZARD_SCALING = {
     "flood": {
         # ~5–8 % per °C from Tabari 2020; AR6 WG1 Ch.11 Box 11.1
@@ -722,19 +723,30 @@ HAZARD_SCALING = {
         # Sea-level rise amplifies storm surge. Combines SLR + storminess changes.
         # Source: IPCC AR6 WG1 Ch.9 Table 9.9 (Fox-Kemper et al. 2021);
         # Vousdoukas et al. (2018) Nature Communications — extreme sea levels.
-        # SLR alone: +0.12 m at 1.5°C, +0.21 m at 2.0°C, +0.40 m at 3.0°C (median);
-        # but surge frequency increase is super-linear.
         # https://doi.org/10.1038/s41467-018-04692-w
         1.0: 1.08, 1.5: 1.15, 2.0: 1.30, 2.5: 1.50, 3.0: 1.75, 4.0: 2.30, 4.4: 2.60,
     },
     "water_stress": {
         # Chronic water scarcity intensification per °C.
-        # Source: WRI Aqueduct 4.0 scenario projections; IPCC AR6 WG2 Ch. 4 (water cycle)
-        # ~4% decrease in renewable freshwater per °C above pre-industrial in dry regions;
-        # demand-side pressure compounds supply reduction.
+        # Source: WRI Aqueduct 4.0; IPCC AR6 WG2 Ch. 4
         # https://doi.org/10.1175/BAMS-D-20-0218.1
         1.0: 1.10, 1.5: 1.20, 2.0: 1.40, 2.5: 1.65, 3.0: 1.90, 4.0: 2.40, 4.4: 2.80,
     },
+}
+
+# Regional hazard scaling adjustments — multiplied on top of global scaling.
+# IPCC AR6 WG1 Ch.11-12 shows significant regional variation in hazard response
+# to global warming. These factors capture the most material differences.
+# Sources: AR6 WG1 Ch.11 (extremes), Ch.12 (regional), Interactive Atlas.
+REGIONAL_HAZARD_SCALING_FACTOR: Dict[str, Dict[str, float]] = {
+    "EUR": {"flood": 1.15, "wildfire": 1.25, "heat": 0.85, "wind": 0.90, "coastal_flood": 1.10},
+    "USA": {"flood": 1.05, "wildfire": 1.20, "heat": 1.10, "wind": 1.05, "coastal_flood": 1.15},
+    "CHN": {"flood": 1.20, "wildfire": 0.90, "heat": 1.05, "wind": 1.10, "coastal_flood": 1.15},
+    "IND": {"flood": 1.30, "wildfire": 0.80, "heat": 1.25, "wind": 1.15, "coastal_flood": 1.25},
+    "AUS": {"flood": 0.90, "wildfire": 1.40, "heat": 1.15, "wind": 0.95, "coastal_flood": 0.95},
+    "BRA": {"flood": 1.10, "wildfire": 1.30, "heat": 1.00, "wind": 0.85, "coastal_flood": 0.90},
+    "MEA": {"flood": 0.80, "wildfire": 1.10, "heat": 1.35, "wind": 0.90, "coastal_flood": 1.00},
+    "global": {"flood": 1.0, "wildfire": 1.0, "heat": 1.0, "wind": 1.0, "coastal_flood": 1.0},
 }
 
 HAZARD_SCALING_SOURCES = {
@@ -784,9 +796,17 @@ def _interp(mapping: dict, x: float) -> float:
     return 1.0
 
 
-def get_hazard_multiplier(hazard: str, warming_delta_c: float) -> float:
-    """Return hazard intensity multiplier for a given warming level (°C above pre-industrial)."""
-    return _interp(HAZARD_SCALING.get(hazard, {}), warming_delta_c)
+def get_hazard_multiplier(hazard: str, warming_delta_c: float, region: str = "global") -> float:
+    """Return hazard intensity multiplier for a given warming level and region.
+
+    Applies global scaling from HAZARD_SCALING, then adjusts by the regional
+    factor from REGIONAL_HAZARD_SCALING_FACTOR (IPCC AR6 WG1 Ch.11-12).
+    """
+    base_mult = _interp(HAZARD_SCALING.get(hazard, {}), warming_delta_c)
+    regional_factors = REGIONAL_HAZARD_SCALING_FACTOR.get(region, REGIONAL_HAZARD_SCALING_FACTOR["global"])
+    regional_adj = regional_factors.get(hazard, 1.0)
+    # Apply regional adjustment to the excess above 1.0 (the change portion)
+    return 1.0 + (base_mult - 1.0) * regional_adj
 
 
 def get_warming(scenario_id: str, year: int) -> float:
@@ -798,10 +818,10 @@ def get_warming(scenario_id: str, year: int) -> float:
     return _interp(w, year)
 
 
-def get_scenario_multipliers(scenario_id: str, year: int, hazard: str) -> float:
-    """Return hazard intensity multiplier for a given scenario, year, and hazard."""
+def get_scenario_multipliers(scenario_id: str, year: int, hazard: str, region: str = "global") -> float:
+    """Return hazard intensity multiplier for a given scenario, year, hazard, and region."""
     delta_t = get_warming(scenario_id, year)
-    return get_hazard_multiplier(hazard, delta_t)
+    return get_hazard_multiplier(hazard, delta_t, region)
 
 
 def list_scenarios(provider: Optional[str] = None) -> List[dict]:

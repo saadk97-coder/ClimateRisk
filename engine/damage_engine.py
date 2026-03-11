@@ -117,8 +117,12 @@ def run_asset_scenario(
         if hazard in ("flood", "coastal_flood"):
             intens = np.clip(intens - asset.elevation_m, 0.0, None)
 
-        # Scenario hazard multiplier
-        mult = get_scenario_multipliers(scenario_id, year, hazard)
+        # Scenario hazard multiplier — skip if data is already SSP-specific (ISIMIP)
+        # to avoid double-counting the climate signal
+        if source.startswith("isimip"):
+            mult = 1.0
+        else:
+            mult = get_scenario_multipliers(scenario_id, year, hazard, asset.region)
 
         ead, damage_fracs = calc_ead_from_intensities(
             rp, intens, asset.asset_type, hazard, asset.replacement_value, mult

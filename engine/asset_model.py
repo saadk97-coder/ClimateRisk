@@ -23,6 +23,14 @@ class Asset:
     def to_dict(self) -> dict:
         return asdict(self)
 
+    def __post_init__(self):
+        if not (-90 <= self.lat <= 90):
+            raise ValueError(f"lat must be in [-90, 90], got {self.lat}")
+        if not (-180 <= self.lon <= 180):
+            raise ValueError(f"lon must be in [-180, 180], got {self.lon}")
+        if self.replacement_value < 0:
+            raise ValueError(f"replacement_value must be >= 0, got {self.replacement_value}")
+
     @classmethod
     def from_dict(cls, d: dict) -> "Asset":
         return cls(

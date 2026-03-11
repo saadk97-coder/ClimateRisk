@@ -205,7 +205,7 @@ def fetch_aqueduct_bws(lat: float, lon: float) -> Optional[float]:
             "year": "2023",
         }
         r = requests.get(
-            "https://aqueduct-water-risk.s3.amazonaws.com/api/v2/point",
+            "https://aqueduct.wri.org/api/v2/point",
             params=params,
             timeout=_TIMEOUT,
         )
@@ -249,7 +249,7 @@ def fetch_aqueduct_projected(
             "year": str(yr),
         }
         r = requests.get(
-            "https://aqueduct-water-risk.s3.amazonaws.com/api/v2/point/projected",
+            "https://aqueduct.wri.org/api/v2/point/projected",
             params=params,
             timeout=_TIMEOUT,
         )
