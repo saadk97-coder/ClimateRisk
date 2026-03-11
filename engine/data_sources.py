@@ -131,6 +131,25 @@ DATA_SOURCE_REGISTRY = {
         "variables": ["storm_surge_depth"],
         "hazards": ["coastal_flood"],
     },
+    "ibtracs_cyclone": {
+        "name": "IBTrACS Tropical Cyclone Tracks",
+        "description": (
+            "International Best Track Archive for Climate Stewardship (IBTrACS). "
+            "Comprehensive global dataset of historical tropical cyclone tracks from all "
+            "Regional Specialized Meteorological Centres (RSMCs). Used for cyclone basin "
+            "classification and wind hazard amplification via Holland (1980) wind profile model."
+        ),
+        "citation": (
+            "Knapp et al. (2010) Bull. AMS 91(3), 363–376; "
+            "Holland (1980) Mon. Wea. Rev. 108(8), 1212–1218; "
+            "Knutson et al. (2020) BAMS 101(3), E303–E322"
+        ),
+        "url": "https://www.ncei.noaa.gov/products/international-best-track-archive",
+        "doi": "https://doi.org/10.1175/2009BAMS2755.1",
+        "resolution": "6-hourly track positions; basin-level exposure classification",
+        "variables": ["track_lat_lon", "max_wind", "min_pressure", "rmax"],
+        "hazards": ["wind"],
+    },
     "fallback_baseline": {
         "name": "Built-in Regional Baseline",
         "description": "Compiled regional median hazard intensities from IPCC AR6 / ISIMIP medians. Used when all API sources are unavailable.",

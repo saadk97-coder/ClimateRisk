@@ -58,7 +58,7 @@ TILE_URLS = {
     "Terrain": "https://stamen-tiles-{s}.a.ssl.fastly.net/terrain/{z}/{x}/{y}.jpg",
 }
 
-col_bld, col_ws = st.columns(2)
+col_bld, col_ws, col_tc = st.columns(3)
 with col_bld:
     show_buildings = st.checkbox("Show OSM building footprints (per-asset, within 150m)", value=False)
 with col_ws:
@@ -69,6 +69,17 @@ with col_ws:
             "Fetches Baseline Water Stress (BWS) scores from WRI Aqueduct 4.0 for each asset location. "
             "BWS = total annual withdrawals / available renewable water supply (0–5 scale). "
             "Source: Kuzma et al. (2023) https://doi.org/10.46830/writn.23.00061"
+        ),
+    )
+with col_tc:
+    show_cyclone_tracks = st.checkbox(
+        "Show tropical cyclone tracks (IBTrACS)",
+        value=False,
+        help=(
+            "Overlays representative historical tropical cyclone tracks near portfolio assets. "
+            "Track data from IBTrACS (Knapp et al. 2010). Colour intensity indicates "
+            "storm strength on the Saffir-Simpson scale. Wind amplification is automatically "
+            "applied to assets within cyclone basins."
         ),
     )
 
@@ -123,7 +134,7 @@ for asset in assets:
     row["total_ead"] = 0.0
     row["ead_pct"] = 0.0
     row["water_stress_score"] = water_stress_scores.get(asset.id, 0.0)
-    for haz in ["flood", "wind", "wildfire", "heat"]:
+    for haz in ["flood", "wind", "wildfire", "heat", "coastal_flood"]:
         row[f"ead_{haz}"] = 0.0
 
     if not ead_totals.empty:
@@ -135,7 +146,7 @@ for asset in assets:
     if not ead_by_asset_haz.empty and "asset_id" in ead_by_asset_haz.columns:
         m = ead_by_asset_haz[ead_by_asset_haz["asset_id"] == asset.id]
         if not m.empty:
-            for haz in ["flood", "wind", "wildfire", "heat"]:
+            for haz in ["flood", "wind", "wildfire", "heat", "coastal_flood"]:
                 if haz in m.columns:
                     row[f"ead_{haz}"] = float(m[haz].iloc[0])
     rows.append(row)
@@ -260,6 +271,28 @@ try:
             if show_water_stress else ""
         )
 
+        # Cyclone basin info for popup
+        tc_row = ""
+        if show_cyclone_tracks:
+            try:
+                from engine.tropical_cyclone import get_cyclone_basin, CYCLONE_BASINS, cyclone_amplification_factor
+                _tc_basin = get_cyclone_basin(row["lat"], row["lon"])
+                if _tc_basin:
+                    _tc_info = CYCLONE_BASINS[_tc_basin]
+                    _tc_amp = cyclone_amplification_factor(row["lat"], row["lon"], _tc_basin)
+                    tc_row = (
+                        f"<b>Cyclone Basin:</b> {_tc_info['name']} ({_tc_basin})<br>"
+                        f"<b>TC Season:</b> {_tc_info['season']}<br>"
+                        f"<b>Wind Amplification:</b> {_tc_amp:.0%}<br>"
+                    )
+            except Exception:
+                pass
+
+        coastal_row = ""
+        cf_ead = row.get('ead_coastal_flood', 0)
+        if cf_ead > 0:
+            coastal_row = f"<b>Coastal Flood EAD:</b> £{cf_ead:,.0f}<br>"
+
         popup_html = f"""
         <div style="font-family:sans-serif;font-size:13px;min-width:240px">
           <b style="font-size:14px;">{row['name']}</b><br>
@@ -276,6 +309,8 @@ try:
           <b>Wind EAD:</b> £{row.get('ead_wind',0):,.0f}<br>
           <b>Wildfire EAD:</b> £{row.get('ead_wildfire',0):,.0f}<br>
           <b>Heat EAD:</b> £{row.get('ead_heat',0):,.0f}<br>
+          {coastal_row}
+          {tc_row}
           {ws_row}
         </div>
         """
@@ -304,6 +339,88 @@ try:
                     tooltip=tooltip,
                 ).add_to(m)
 
+    # ── Tropical cyclone track overlay ────────────────────────────────────
+    asset_basins = set()
+    if show_cyclone_tracks:
+        try:
+            from engine.tropical_cyclone import (
+                get_cyclone_basin, get_all_tracks, CYCLONE_BASINS,
+                classify_saffir_simpson, nearest_track_distance_km,
+            )
+            # Determine which basins have portfolio assets
+            for asset in assets:
+                b = get_cyclone_basin(asset.lat, asset.lon)
+                if b:
+                    asset_basins.add(b)
+
+            if asset_basins:
+                all_tracks = get_all_tracks()
+                # Saffir-Simpson colour scale for track segments
+                _SS_COLORS = {
+                    "TD": "#87CEEB",    # light blue
+                    "TS": "#00CED1",    # dark turquoise
+                    "Cat 1": "#FFD700", # gold
+                    "Cat 2": "#FFA500", # orange
+                    "Cat 3": "#FF4500", # orange-red
+                    "Cat 4": "#DC143C", # crimson
+                    "Cat 5": "#8B0000", # dark red
+                }
+                tc_group = folium.FeatureGroup(name="Tropical Cyclone Tracks", show=True)
+
+                for basin_code in asset_basins:
+                    tracks = all_tracks.get(basin_code, [])
+                    for track in tracks:
+                        waypoints = track.get("waypoints", [])
+                        if len(waypoints) < 2:
+                            continue
+
+                        # Check if track passes near any asset (within 500 km)
+                        near_asset = False
+                        for asset in assets:
+                            if nearest_track_distance_km(asset.lat, asset.lon, track) < 500:
+                                near_asset = True
+                                break
+                        if not near_asset:
+                            continue
+
+                        # Draw track segments coloured by intensity
+                        for j in range(len(waypoints) - 1):
+                            wp1 = waypoints[j]
+                            wp2 = waypoints[j + 1]
+                            cat = wp2.get("cat", "TS")
+                            color = _SS_COLORS.get(cat, "#00CED1")
+                            wind_kt = wp2.get("wind_kt", 0)
+
+                            folium.PolyLine(
+                                locations=[
+                                    [wp1["lat"], wp1["lon"]],
+                                    [wp2["lat"], wp2["lon"]],
+                                ],
+                                color=color, weight=3, opacity=0.8,
+                                tooltip=(
+                                    f"{track['name']} ({track['year']}) — "
+                                    f"{cat} ({wind_kt} kt)"
+                                ),
+                            ).add_to(tc_group)
+
+                        # Storm name label at peak intensity point
+                        peak_wp = max(waypoints, key=lambda w: w.get("wind_kt", 0))
+                        folium.Marker(
+                            location=[peak_wp["lat"], peak_wp["lon"]],
+                            icon=folium.DivIcon(
+                                html=f'<div style="font-size:10px;color:#fff;background:rgba(0,0,0,0.6);'
+                                     f'padding:1px 4px;border-radius:3px;white-space:nowrap;">'
+                                     f'{track["name"]} ({track["year"]}) {track.get("category","")}</div>',
+                                icon_size=(120, 20),
+                                icon_anchor=(60, 10),
+                            ),
+                            tooltip=f"{track['name']} ({track['year']}) — Peak: {track.get('max_wind_kt',0)} kt",
+                        ).add_to(tc_group)
+
+                tc_group.add_to(m)
+        except Exception:
+            pass
+
     folium.LayerControl().add_to(m)
 
     st_folium(m, use_container_width=True, height=620)
@@ -319,7 +436,30 @@ try:
             "Water stress: [WRI Aqueduct 4.0](https://www.wri.org/data/aqueduct-water-risk-atlas) "
             "— Kuzma et al. (2023) https://doi.org/10.46830/writn.23.00061 (CC BY 4.0)."
         )
+    if show_cyclone_tracks:
+        caption_parts.append(
+            "Cyclone tracks: [IBTrACS](https://www.ncei.noaa.gov/products/international-best-track-archive) "
+            "— Knapp et al. (2010). Colour = Saffir-Simpson category. "
+            "Wind profile: Holland (1980)."
+        )
     st.caption("  ".join(caption_parts))
+
+    # Saffir-Simpson legend
+    if show_cyclone_tracks and asset_basins:
+        legend_items = [
+            ("TD", "#87CEEB"), ("TS", "#00CED1"), ("Cat 1", "#FFD700"),
+            ("Cat 2", "#FFA500"), ("Cat 3", "#FF4500"), ("Cat 4", "#DC143C"),
+            ("Cat 5", "#8B0000"),
+        ]
+        legend_html = " ".join(
+            f'<span style="display:inline-block;width:12px;height:12px;background:{c};'
+            f'margin-right:2px;border-radius:2px;"></span>{label}&nbsp;&nbsp;'
+            for label, c in legend_items
+        )
+        st.markdown(
+            f'<div style="font-size:12px;margin-top:-8px;">Saffir-Simpson Scale: {legend_html}</div>',
+            unsafe_allow_html=True,
+        )
 
 except ImportError:
     st.warning("folium / streamlit-folium not installed.")

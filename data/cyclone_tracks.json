@@ -1,0 +1,320 @@
+{
+  "_metadata": {
+    "source": "IBTrACS (International Best Track Archive for Climate Stewardship)",
+    "citation": "Knapp et al. (2010) Bull. AMS 91(3), 363–376. https://doi.org/10.1175/2009BAMS2755.1",
+    "url": "https://www.ncei.noaa.gov/products/international-best-track-archive",
+    "description": "Representative historical tropical cyclone tracks per basin. Simplified waypoints at 6-hourly intervals. Wind speeds are 1-minute maximum sustained (kt).",
+    "note": "Tracks selected to represent diverse paths within each basin. Waypoints simplified for visualization."
+  },
+  "NA": [
+    {
+      "name": "Katrina",
+      "year": 2005,
+      "category": "Cat 5",
+      "max_wind_kt": 150,
+      "min_pressure_hpa": 902,
+      "waypoints": [
+        {"lat": 23.1, "lon": -75.1, "wind_kt": 35, "cat": "TS"},
+        {"lat": 24.5, "lon": -76.2, "wind_kt": 55, "cat": "TS"},
+        {"lat": 25.4, "lon": -78.4, "wind_kt": 65, "cat": "Cat 1"},
+        {"lat": 25.9, "lon": -80.1, "wind_kt": 75, "cat": "Cat 1"},
+        {"lat": 25.1, "lon": -83.5, "wind_kt": 100, "cat": "Cat 3"},
+        {"lat": 24.9, "lon": -85.9, "wind_kt": 145, "cat": "Cat 5"},
+        {"lat": 26.3, "lon": -88.0, "wind_kt": 150, "cat": "Cat 5"},
+        {"lat": 28.2, "lon": -89.1, "wind_kt": 110, "cat": "Cat 3"},
+        {"lat": 29.5, "lon": -89.6, "wind_kt": 105, "cat": "Cat 3"},
+        {"lat": 31.1, "lon": -89.6, "wind_kt": 65, "cat": "Cat 1"},
+        {"lat": 34.1, "lon": -88.1, "wind_kt": 35, "cat": "TD"}
+      ]
+    },
+    {
+      "name": "Sandy",
+      "year": 2012,
+      "category": "Cat 3",
+      "max_wind_kt": 100,
+      "min_pressure_hpa": 940,
+      "waypoints": [
+        {"lat": 14.3, "lon": -77.8, "wind_kt": 40, "cat": "TS"},
+        {"lat": 15.9, "lon": -78.7, "wind_kt": 65, "cat": "Cat 1"},
+        {"lat": 18.0, "lon": -77.7, "wind_kt": 80, "cat": "Cat 1"},
+        {"lat": 19.5, "lon": -76.0, "wind_kt": 100, "cat": "Cat 3"},
+        {"lat": 23.0, "lon": -76.0, "wind_kt": 75, "cat": "Cat 1"},
+        {"lat": 27.2, "lon": -76.0, "wind_kt": 65, "cat": "Cat 1"},
+        {"lat": 30.5, "lon": -73.5, "wind_kt": 70, "cat": "Cat 1"},
+        {"lat": 33.8, "lon": -72.0, "wind_kt": 75, "cat": "Cat 1"},
+        {"lat": 37.0, "lon": -73.0, "wind_kt": 70, "cat": "Cat 1"},
+        {"lat": 39.5, "lon": -74.5, "wind_kt": 65, "cat": "Cat 1"},
+        {"lat": 40.0, "lon": -74.0, "wind_kt": 60, "cat": "TS"}
+      ]
+    },
+    {
+      "name": "Harvey",
+      "year": 2017,
+      "category": "Cat 4",
+      "max_wind_kt": 115,
+      "min_pressure_hpa": 937,
+      "waypoints": [
+        {"lat": 13.5, "lon": -57.0, "wind_kt": 35, "cat": "TS"},
+        {"lat": 14.5, "lon": -62.5, "wind_kt": 40, "cat": "TS"},
+        {"lat": 15.0, "lon": -72.0, "wind_kt": 35, "cat": "TS"},
+        {"lat": 18.0, "lon": -84.0, "wind_kt": 35, "cat": "TS"},
+        {"lat": 22.5, "lon": -93.0, "wind_kt": 45, "cat": "TS"},
+        {"lat": 25.0, "lon": -95.0, "wind_kt": 80, "cat": "Cat 1"},
+        {"lat": 27.0, "lon": -96.5, "wind_kt": 115, "cat": "Cat 4"},
+        {"lat": 28.0, "lon": -97.0, "wind_kt": 110, "cat": "Cat 4"},
+        {"lat": 29.5, "lon": -96.0, "wind_kt": 40, "cat": "TS"},
+        {"lat": 30.0, "lon": -95.0, "wind_kt": 35, "cat": "TD"}
+      ]
+    },
+    {
+      "name": "Irma",
+      "year": 2017,
+      "category": "Cat 5",
+      "max_wind_kt": 160,
+      "min_pressure_hpa": 914,
+      "waypoints": [
+        {"lat": 16.3, "lon": -30.0, "wind_kt": 50, "cat": "TS"},
+        {"lat": 16.7, "lon": -40.0, "wind_kt": 85, "cat": "Cat 2"},
+        {"lat": 16.9, "lon": -50.0, "wind_kt": 130, "cat": "Cat 4"},
+        {"lat": 17.1, "lon": -57.0, "wind_kt": 155, "cat": "Cat 5"},
+        {"lat": 17.7, "lon": -61.8, "wind_kt": 160, "cat": "Cat 5"},
+        {"lat": 18.4, "lon": -64.7, "wind_kt": 155, "cat": "Cat 5"},
+        {"lat": 19.5, "lon": -68.0, "wind_kt": 155, "cat": "Cat 5"},
+        {"lat": 21.3, "lon": -71.5, "wind_kt": 145, "cat": "Cat 5"},
+        {"lat": 22.7, "lon": -78.0, "wind_kt": 130, "cat": "Cat 4"},
+        {"lat": 24.5, "lon": -80.3, "wind_kt": 115, "cat": "Cat 4"},
+        {"lat": 25.9, "lon": -81.3, "wind_kt": 100, "cat": "Cat 3"},
+        {"lat": 27.8, "lon": -82.0, "wind_kt": 85, "cat": "Cat 2"},
+        {"lat": 30.5, "lon": -83.5, "wind_kt": 60, "cat": "TS"}
+      ]
+    },
+    {
+      "name": "Maria",
+      "year": 2017,
+      "category": "Cat 5",
+      "max_wind_kt": 150,
+      "min_pressure_hpa": 908,
+      "waypoints": [
+        {"lat": 12.0, "lon": -50.0, "wind_kt": 40, "cat": "TS"},
+        {"lat": 13.5, "lon": -55.0, "wind_kt": 65, "cat": "Cat 1"},
+        {"lat": 14.5, "lon": -58.0, "wind_kt": 85, "cat": "Cat 2"},
+        {"lat": 15.3, "lon": -61.0, "wind_kt": 140, "cat": "Cat 5"},
+        {"lat": 16.0, "lon": -63.0, "wind_kt": 150, "cat": "Cat 5"},
+        {"lat": 17.5, "lon": -66.0, "wind_kt": 130, "cat": "Cat 4"},
+        {"lat": 18.2, "lon": -67.2, "wind_kt": 135, "cat": "Cat 4"},
+        {"lat": 20.0, "lon": -68.5, "wind_kt": 100, "cat": "Cat 3"},
+        {"lat": 24.0, "lon": -70.5, "wind_kt": 95, "cat": "Cat 2"},
+        {"lat": 30.0, "lon": -68.0, "wind_kt": 60, "cat": "TS"}
+      ]
+    }
+  ],
+  "EP": [
+    {
+      "name": "Patricia",
+      "year": 2015,
+      "category": "Cat 5",
+      "max_wind_kt": 185,
+      "min_pressure_hpa": 872,
+      "waypoints": [
+        {"lat": 12.0, "lon": -99.0, "wind_kt": 35, "cat": "TS"},
+        {"lat": 13.0, "lon": -100.5, "wind_kt": 55, "cat": "TS"},
+        {"lat": 14.5, "lon": -103.0, "wind_kt": 80, "cat": "Cat 1"},
+        {"lat": 15.5, "lon": -104.5, "wind_kt": 130, "cat": "Cat 4"},
+        {"lat": 17.0, "lon": -105.5, "wind_kt": 185, "cat": "Cat 5"},
+        {"lat": 19.0, "lon": -105.0, "wind_kt": 130, "cat": "Cat 4"},
+        {"lat": 21.0, "lon": -104.0, "wind_kt": 60, "cat": "TS"},
+        {"lat": 23.5, "lon": -102.0, "wind_kt": 30, "cat": "TD"}
+      ]
+    },
+    {
+      "name": "Otis",
+      "year": 2023,
+      "category": "Cat 5",
+      "max_wind_kt": 145,
+      "min_pressure_hpa": 923,
+      "waypoints": [
+        {"lat": 11.5, "lon": -96.0, "wind_kt": 30, "cat": "TD"},
+        {"lat": 13.0, "lon": -97.5, "wind_kt": 40, "cat": "TS"},
+        {"lat": 14.5, "lon": -99.0, "wind_kt": 70, "cat": "Cat 1"},
+        {"lat": 15.5, "lon": -99.5, "wind_kt": 115, "cat": "Cat 4"},
+        {"lat": 16.8, "lon": -99.8, "wind_kt": 145, "cat": "Cat 5"},
+        {"lat": 18.5, "lon": -100.5, "wind_kt": 80, "cat": "Cat 1"},
+        {"lat": 20.0, "lon": -101.0, "wind_kt": 30, "cat": "TD"}
+      ]
+    }
+  ],
+  "WP": [
+    {
+      "name": "Haiyan",
+      "year": 2013,
+      "category": "Cat 5",
+      "max_wind_kt": 170,
+      "min_pressure_hpa": 895,
+      "waypoints": [
+        {"lat": 6.5, "lon": 153.0, "wind_kt": 35, "cat": "TS"},
+        {"lat": 7.0, "lon": 148.0, "wind_kt": 65, "cat": "Cat 1"},
+        {"lat": 7.5, "lon": 143.0, "wind_kt": 100, "cat": "Cat 3"},
+        {"lat": 8.0, "lon": 138.0, "wind_kt": 145, "cat": "Cat 5"},
+        {"lat": 9.0, "lon": 133.0, "wind_kt": 170, "cat": "Cat 5"},
+        {"lat": 10.5, "lon": 127.0, "wind_kt": 170, "cat": "Cat 5"},
+        {"lat": 11.0, "lon": 125.0, "wind_kt": 165, "cat": "Cat 5"},
+        {"lat": 11.5, "lon": 122.5, "wind_kt": 130, "cat": "Cat 4"},
+        {"lat": 12.5, "lon": 118.0, "wind_kt": 115, "cat": "Cat 4"},
+        {"lat": 14.0, "lon": 114.0, "wind_kt": 100, "cat": "Cat 3"},
+        {"lat": 16.0, "lon": 110.0, "wind_kt": 70, "cat": "Cat 1"}
+      ]
+    },
+    {
+      "name": "Mangkhut",
+      "year": 2018,
+      "category": "Cat 5",
+      "max_wind_kt": 155,
+      "min_pressure_hpa": 906,
+      "waypoints": [
+        {"lat": 11.5, "lon": 161.5, "wind_kt": 35, "cat": "TS"},
+        {"lat": 12.5, "lon": 155.0, "wind_kt": 65, "cat": "Cat 1"},
+        {"lat": 14.0, "lon": 148.0, "wind_kt": 100, "cat": "Cat 3"},
+        {"lat": 15.0, "lon": 142.0, "wind_kt": 130, "cat": "Cat 4"},
+        {"lat": 15.5, "lon": 136.0, "wind_kt": 155, "cat": "Cat 5"},
+        {"lat": 16.0, "lon": 130.0, "wind_kt": 145, "cat": "Cat 5"},
+        {"lat": 16.5, "lon": 125.0, "wind_kt": 140, "cat": "Cat 5"},
+        {"lat": 17.0, "lon": 122.0, "wind_kt": 130, "cat": "Cat 4"},
+        {"lat": 18.0, "lon": 118.0, "wind_kt": 110, "cat": "Cat 3"},
+        {"lat": 19.5, "lon": 114.0, "wind_kt": 85, "cat": "Cat 2"},
+        {"lat": 22.0, "lon": 112.0, "wind_kt": 60, "cat": "TS"}
+      ]
+    },
+    {
+      "name": "Hagibis",
+      "year": 2019,
+      "category": "Cat 5",
+      "max_wind_kt": 140,
+      "min_pressure_hpa": 915,
+      "waypoints": [
+        {"lat": 16.0, "lon": 149.0, "wind_kt": 35, "cat": "TS"},
+        {"lat": 17.0, "lon": 147.0, "wind_kt": 80, "cat": "Cat 1"},
+        {"lat": 18.0, "lon": 145.0, "wind_kt": 130, "cat": "Cat 4"},
+        {"lat": 19.5, "lon": 143.0, "wind_kt": 140, "cat": "Cat 5"},
+        {"lat": 22.0, "lon": 141.0, "wind_kt": 120, "cat": "Cat 4"},
+        {"lat": 26.0, "lon": 139.0, "wind_kt": 100, "cat": "Cat 3"},
+        {"lat": 30.0, "lon": 138.0, "wind_kt": 85, "cat": "Cat 2"},
+        {"lat": 33.0, "lon": 139.0, "wind_kt": 70, "cat": "Cat 1"},
+        {"lat": 36.0, "lon": 140.0, "wind_kt": 65, "cat": "Cat 1"},
+        {"lat": 39.0, "lon": 142.0, "wind_kt": 50, "cat": "TS"}
+      ]
+    }
+  ],
+  "NI": [
+    {
+      "name": "Amphan",
+      "year": 2020,
+      "category": "Cat 5",
+      "max_wind_kt": 140,
+      "min_pressure_hpa": 920,
+      "waypoints": [
+        {"lat": 10.0, "lon": 87.0, "wind_kt": 35, "cat": "TS"},
+        {"lat": 12.0, "lon": 86.5, "wind_kt": 65, "cat": "Cat 1"},
+        {"lat": 14.0, "lon": 86.0, "wind_kt": 100, "cat": "Cat 3"},
+        {"lat": 15.5, "lon": 86.5, "wind_kt": 130, "cat": "Cat 4"},
+        {"lat": 16.5, "lon": 87.0, "wind_kt": 140, "cat": "Cat 5"},
+        {"lat": 18.0, "lon": 87.5, "wind_kt": 120, "cat": "Cat 4"},
+        {"lat": 20.0, "lon": 88.0, "wind_kt": 100, "cat": "Cat 3"},
+        {"lat": 21.5, "lon": 88.5, "wind_kt": 80, "cat": "Cat 1"},
+        {"lat": 22.5, "lon": 89.0, "wind_kt": 60, "cat": "TS"}
+      ]
+    },
+    {
+      "name": "Fani",
+      "year": 2019,
+      "category": "Cat 4",
+      "max_wind_kt": 130,
+      "min_pressure_hpa": 932,
+      "waypoints": [
+        {"lat": 8.0, "lon": 88.0, "wind_kt": 35, "cat": "TS"},
+        {"lat": 10.0, "lon": 87.0, "wind_kt": 65, "cat": "Cat 1"},
+        {"lat": 12.0, "lon": 85.0, "wind_kt": 90, "cat": "Cat 2"},
+        {"lat": 14.5, "lon": 84.0, "wind_kt": 115, "cat": "Cat 4"},
+        {"lat": 17.0, "lon": 83.5, "wind_kt": 130, "cat": "Cat 4"},
+        {"lat": 19.5, "lon": 84.0, "wind_kt": 115, "cat": "Cat 4"},
+        {"lat": 20.5, "lon": 86.0, "wind_kt": 80, "cat": "Cat 1"},
+        {"lat": 22.0, "lon": 88.0, "wind_kt": 55, "cat": "TS"},
+        {"lat": 24.0, "lon": 90.0, "wind_kt": 35, "cat": "TD"}
+      ]
+    }
+  ],
+  "SI": [
+    {
+      "name": "Idai",
+      "year": 2019,
+      "category": "Cat 4",
+      "max_wind_kt": 115,
+      "min_pressure_hpa": 940,
+      "waypoints": [
+        {"lat": -15.0, "lon": 42.0, "wind_kt": 35, "cat": "TS"},
+        {"lat": -16.0, "lon": 40.0, "wind_kt": 50, "cat": "TS"},
+        {"lat": -17.0, "lon": 38.0, "wind_kt": 65, "cat": "Cat 1"},
+        {"lat": -18.0, "lon": 37.0, "wind_kt": 90, "cat": "Cat 2"},
+        {"lat": -18.5, "lon": 36.5, "wind_kt": 115, "cat": "Cat 4"},
+        {"lat": -19.5, "lon": 35.0, "wind_kt": 100, "cat": "Cat 3"},
+        {"lat": -20.0, "lon": 34.5, "wind_kt": 80, "cat": "Cat 1"},
+        {"lat": -21.0, "lon": 33.0, "wind_kt": 40, "cat": "TS"}
+      ]
+    }
+  ],
+  "SP": [
+    {
+      "name": "Winston",
+      "year": 2016,
+      "category": "Cat 5",
+      "max_wind_kt": 160,
+      "min_pressure_hpa": 884,
+      "waypoints": [
+        {"lat": -11.0, "lon": 170.0, "wind_kt": 35, "cat": "TS"},
+        {"lat": -13.0, "lon": 175.0, "wind_kt": 55, "cat": "TS"},
+        {"lat": -15.5, "lon": 179.0, "wind_kt": 80, "cat": "Cat 1"},
+        {"lat": -16.0, "lon": 178.0, "wind_kt": 120, "cat": "Cat 4"},
+        {"lat": -17.0, "lon": 177.5, "wind_kt": 150, "cat": "Cat 5"},
+        {"lat": -17.8, "lon": 177.0, "wind_kt": 160, "cat": "Cat 5"},
+        {"lat": -18.5, "lon": 176.0, "wind_kt": 130, "cat": "Cat 4"},
+        {"lat": -20.0, "lon": 172.0, "wind_kt": 80, "cat": "Cat 1"},
+        {"lat": -22.0, "lon": 168.0, "wind_kt": 50, "cat": "TS"}
+      ]
+    },
+    {
+      "name": "Yasi",
+      "year": 2011,
+      "category": "Cat 5",
+      "max_wind_kt": 140,
+      "min_pressure_hpa": 929,
+      "waypoints": [
+        {"lat": -12.0, "lon": 168.0, "wind_kt": 35, "cat": "TS"},
+        {"lat": -13.5, "lon": 163.0, "wind_kt": 55, "cat": "TS"},
+        {"lat": -14.5, "lon": 158.0, "wind_kt": 80, "cat": "Cat 1"},
+        {"lat": -15.5, "lon": 155.0, "wind_kt": 100, "cat": "Cat 3"},
+        {"lat": -16.0, "lon": 152.0, "wind_kt": 130, "cat": "Cat 4"},
+        {"lat": -16.5, "lon": 150.0, "wind_kt": 140, "cat": "Cat 5"},
+        {"lat": -17.5, "lon": 148.0, "wind_kt": 130, "cat": "Cat 4"},
+        {"lat": -18.0, "lon": 146.5, "wind_kt": 110, "cat": "Cat 3"},
+        {"lat": -19.0, "lon": 145.0, "wind_kt": 75, "cat": "Cat 1"},
+        {"lat": -21.0, "lon": 143.0, "wind_kt": 40, "cat": "TS"}
+      ]
+    }
+  ],
+  "SA": [
+    {
+      "name": "Catarina",
+      "year": 2004,
+      "category": "Cat 2",
+      "max_wind_kt": 85,
+      "min_pressure_hpa": 972,
+      "waypoints": [
+        {"lat": -26.0, "lon": -36.0, "wind_kt": 35, "cat": "TS"},
+        {"lat": -27.0, "lon": -37.0, "wind_kt": 55, "cat": "TS"},
+        {"lat": -27.5, "lon": -40.0, "wind_kt": 65, "cat": "Cat 1"},
+        {"lat": -28.0, "lon": -44.0, "wind_kt": 85, "cat": "Cat 2"},
+        {"lat": -28.5, "lon": -48.0, "wind_kt": 75, "cat": "Cat 1"},
+        {"lat": -29.0, "lon": -49.5, "wind_kt": 50, "cat": "TS"}
+      ]
+    }
+  ]
+}

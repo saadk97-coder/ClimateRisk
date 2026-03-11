@@ -236,7 +236,14 @@ def fetch_hazard_intensities(
         elif hazard == "wind":
             result = fetch_isimip3b_wind(lat, lon, ssp=scenario_ssp)
             if result is not None:
-                return result[0], result[1], "isimip3b"
+                rp_w, int_w = result[0], result[1]
+                # Apply cyclone amplification for TC-exposed locations
+                try:
+                    from engine.tropical_cyclone import get_cyclone_wind_intensities
+                    rp_w, int_w, _basin = get_cyclone_wind_intensities(lat, lon, rp_w, int_w)
+                except Exception:
+                    pass
+                return rp_w, int_w, "isimip3b"
         elif hazard == "wildfire":
             # Multi-variable FWI pipeline: tasmax + pr + hurs + sfcWind → FWI → flame length
             result = fetch_isimip3b_wildfire(lat, lon, ssp=scenario_ssp)
@@ -256,13 +263,35 @@ def fetch_hazard_intensities(
                 # Scale baseline to match the API value at RP100 (index 2)
                 rp100_idx = 2
                 scale_factor = val / base_intens[rp100_idx] if base_intens[rp100_idx] > 0 else 1.0
-                return rp_base, base_intens * scale_factor, src_key
+                rp_out, int_out = rp_base, base_intens * scale_factor
+                # Apply cyclone amplification for wind
+                if hazard == "wind":
+                    try:
+                        from engine.tropical_cyclone import get_cyclone_wind_intensities
+                        rp_out, int_out, _basin = get_cyclone_wind_intensities(lat, lon, rp_out, int_out)
+                    except Exception:
+                        pass
+                return rp_out, int_out, src_key
         except Exception:
             pass
 
     # ── 3. Built-in regional baseline (always available) ───────────────────
     rp, intensities = _fallback_intensities(hazard, region_iso3)
-    return rp, intensities, "fallback_baseline"
+    source = "fallback_baseline"
+
+    # ── 4. Cyclone amplification for wind hazard ──────────────────────────
+    if hazard == "wind":
+        try:
+            from engine.tropical_cyclone import get_cyclone_wind_intensities
+            rp, intensities, basin = get_cyclone_wind_intensities(
+                lat, lon, rp, intensities
+            )
+            if basin is not None:
+                source = source  # keep original source, basin info in damage_engine
+        except Exception:
+            pass
+
+    return rp, intensities, source
 
 
 def fetch_all_hazards(
@@ -280,7 +309,7 @@ def fetch_all_hazards(
             lat, lon, hazard, region_iso3, scenario_ssp, time_period
         )
         src_info = DATA_SOURCE_REGISTRY.get(source, {})
-        results[hazard] = {
+        entry = {
             "return_periods": rp.tolist(),
             "intensities": intensities.tolist(),
             "source": source,
@@ -288,4 +317,14 @@ def fetch_all_hazards(
             "citation": src_info.get("citation", ""),
             "source_url": src_info.get("url", ""),
         }
+        # Attach cyclone basin info to wind hazard for UI display
+        if hazard == "wind":
+            try:
+                from engine.tropical_cyclone import get_cyclone_exposure_summary
+                tc_info = get_cyclone_exposure_summary(lat, lon)
+                if tc_info is not None:
+                    entry["cyclone_basin"] = tc_info
+            except Exception:
+                pass
+        results[hazard] = entry
     return results

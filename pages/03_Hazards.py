@@ -49,6 +49,7 @@ st.caption(
     "Sources are tried in priority order: ISIMIP3b → NASA NEX-GDDP → CHELSA → Regional Baseline. "
     "ISIMIP3b is active for **all five hazards** (Flood, Heat, Wind, Wildfire + Coastal Flood for coastal assets). "
     "Coastal Flood is auto-detected for assets within 50 km of a coastline, adding storm surge + SLR risk. "
+    "**Tropical cyclone** wind amplification is auto-applied for assets within TC basins (IBTrACS + Holland 1980). "
     "Wildfire uses the full Canadian FWI system (Van Wagner 1987) from multi-variable extraction."
 )
 
@@ -87,6 +88,11 @@ SOURCE_STATUS = {
         "badge": "🟢 Active — Coastal Flood",
         "note": "Auto-enabled for assets within 50 km of coast; storm surge + IPCC AR6 SLR projections",
     },
+    "ibtracs_cyclone": {
+        "status": "active",
+        "badge": "🟢 Active — Wind (TC amplification)",
+        "note": "Auto-enabled for assets within tropical cyclone basins; amplifies wind intensities at high return periods using Holland (1980) wind profile model",
+    },
     "fallback_baseline": {
         "status": "active",
         "badge": "🟢 Active (fallback)",
@@ -96,7 +102,8 @@ SOURCE_STATUS = {
 
 PRIORITY_ORDER = [
     "isimip3b", "nasa_nex_gddp_cmip6", "chelsa_cmip6",
-    "loca2", "climatena_adaptwest", "coastal_slr_baseline", "fallback_baseline"
+    "loca2", "climatena_adaptwest", "coastal_slr_baseline",
+    "ibtracs_cyclone", "fallback_baseline",
 ]
 
 HAZARD_UNIT_LABELS = {
@@ -498,6 +505,45 @@ if sel_asset_obj and st.session_state.hazard_data.get(sel_asset_detail):
                         f"Use the override panel below to enter site-specific data, or set "
                         f"ISIMIP3b as the preferred source for 0.5° gridded extraction."
                     )
+
+                # Cyclone exposure info for wind hazard
+                if hazard == "wind":
+                    tc_info = hd.get("cyclone_basin")
+                    if tc_info is None:
+                        try:
+                            from engine.tropical_cyclone import get_cyclone_exposure_summary
+                            tc_info = get_cyclone_exposure_summary(sel_asset_obj.lat, sel_asset_obj.lon)
+                        except Exception:
+                            pass
+                    if tc_info:
+                        with st.container(border=True):
+                            st.markdown(f"**Tropical Cyclone Exposure — {tc_info['full_name']}**")
+                            tc_cols = st.columns(4)
+                            with tc_cols[0]:
+                                st.metric("Basin", tc_info["basin_code"])
+                            with tc_cols[1]:
+                                st.metric("Avg Storms/yr", tc_info["avg_annual_storms"])
+                            with tc_cols[2]:
+                                st.metric("Avg Hurricanes/yr", tc_info["avg_annual_hurricanes"])
+                            with tc_cols[3]:
+                                st.metric("Wind Amplification", f"{tc_info['amplification_factor']:.0%}")
+                            st.caption(
+                                f"**Season:** {tc_info['season']} (peak: {tc_info['peak']}). "
+                                f"Wind intensities at RP100+ are amplified by "
+                                f"{tc_info['amplification_factor']:.0%} to account for tropical cyclone "
+                                f"contribution. Source: IBTrACS (Knapp et al. 2010); "
+                                f"Knutson et al. (2020) BAMS."
+                            )
+                            # Show nearest historical tracks
+                            nearest = tc_info.get("nearest_tracks", [])
+                            if nearest:
+                                st.markdown("**Nearest historical cyclone tracks:**")
+                                for t in nearest[:3]:
+                                    st.caption(
+                                        f"  {t['name']} ({t['year']}) — {t['category']} "
+                                        f"(max {t['max_wind_kt']} kt) — "
+                                        f"{t['distance_km']:.0f} km from asset"
+                                    )
 else:
     if not st.session_state.hazard_data:
         st.info("Fetch hazard data first to inspect intensity values.")
