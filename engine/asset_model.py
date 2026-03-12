@@ -16,7 +16,7 @@ class Asset:
     stories: int
     basement: bool
     roof_type: str                   # flat | gable | hip
-    elevation_m: float               # above local base flood elevation
+    first_floor_height_m: float       # first-floor height above local ground (NOT ASL elevation)
     floor_area_m2: float
     region: str                      # iso3 country code
 
@@ -45,7 +45,7 @@ class Asset:
             stories=int(d.get("stories", 1)),
             basement=bool(d.get("basement", False)),
             roof_type=str(d.get("roof_type", "gable")),
-            elevation_m=float(d.get("elevation_m", 0.0)),
+            first_floor_height_m=float(d.get("first_floor_height_m", d.get("elevation_m", 0.0))),
             floor_area_m2=float(d.get("floor_area_m2", 200.0)),
             region=str(d.get("region", "GBR")),
         )

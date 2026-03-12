@@ -96,15 +96,15 @@ def climate_exposure_score(ead: float, asset_value: float, hazard: str = "defaul
 
 def climate_var_pct(ead: float, asset_value: float) -> float:
     """
-    Physical Climate Value-at-Risk (%) — EAD expressed as % of asset value.
+    Expected Annual Loss Ratio (EALR %) — EAD expressed as % of asset value.
 
-    This is the primary cross-portfolio comparison metric. A Climate VaR of 1%
+    This is the primary cross-portfolio comparison metric. An EALR of 1%
     means the asset incurs on average 1% of its replacement value annually in
     climate-related damage under the chosen scenario.
 
-    Note: This is distinct from financial-market VaR (which measures tail loss
-    at a confidence level). Climate VaR here follows the TCFD/MSCI convention
-    of expressing expected annual physical loss as a % of asset value.
+    Note: This is an expected loss ratio, not Value-at-Risk in the financial
+    sense (which would measure tail loss at a confidence level). The function
+    name is retained for backward compatibility.
 
     Source framing: TCFD (2017) Recommendations of the Task Force on
     Climate-related Financial Disclosures, p.12.
@@ -219,16 +219,16 @@ def portfolio_climate_var(
     scenario_id: Optional[str] = None,
 ) -> Dict[str, float]:
     """
-    Aggregate Physical Climate VaR at portfolio level.
+    Aggregate Expected Annual Loss Ratio (EALR) at portfolio level.
 
     Returns
     -------
     Dict with:
       portfolio_ead        : total EAD across all assets and hazards
       portfolio_value      : total replacement value
-      portfolio_var_pct    : portfolio-level Physical Climate VaR (%)
-      var_by_hazard        : {hazard: (ead, var_pct)} breakdown
-      var_by_asset         : {asset_id: (ead, var_pct)} breakdown
+      portfolio_var_pct    : portfolio-level EALR (%) — retained name for compat
+      var_by_hazard        : {hazard: (ead, ealr_pct)} breakdown
+      var_by_asset         : {asset_id: (ead, ealr_pct)} breakdown
     """
     asset_map = {a.id: a for a in assets}
     total_value = sum(a.replacement_value for a in assets)

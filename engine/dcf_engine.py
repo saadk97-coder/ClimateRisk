@@ -148,6 +148,7 @@ def compute_climate_dcf(
     # Build annual detail table
     rows = []
     years = sorted(damage_by_year.index)
+    is_proxy_mode = not inputs.cashflows and inputs.asset_value > 0
     base_cfs = list(inputs.cashflows) if inputs.cashflows else [0.0] * inputs.forecast_years
 
     npv_base = compute_base_dcf(inputs)
@@ -179,13 +180,19 @@ def compute_climate_dcf(
             "pv_adjusted_cf": round(pv_adj, 2),
         })
 
-    # Add terminal value to climate-adjusted NPV
-    if rows:
+    if is_proxy_mode:
+        # Asset-value proxy mode: NPV_climate = asset_value − PV(damages)
+        # Do NOT compute terminal value from negative adjusted CFs — there are no
+        # real cashflows; damage is a value impairment, not an operating cost.
+        npv_climate = inputs.asset_value - pv_damages_total
+        npv_climate_adapted = inputs.asset_value - pv_damages_total + pv_avoided_total
+    elif rows:
+        # Standard DCF mode: compute terminal value from last adjusted CF
         last_adj_cf = rows[-1]["adjusted_cf"]
         tv_adj = _terminal_value(last_adj_cf, inputs.terminal_growth_rate, wacc_adj)
         t_final = inputs.forecast_years
         npv_climate = pv_adj_cf_total + tv_adj / (1.0 + wacc_adj) ** t_final
-        npv_climate_adapted = npv_climate  # same — savings already included in adj_cf
+        npv_climate_adapted = npv_climate  # savings already included in adj_cf
     else:
         npv_climate = npv_base - pv_damages_total
         npv_climate_adapted = npv_climate + pv_avoided_total

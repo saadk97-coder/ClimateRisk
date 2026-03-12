@@ -80,8 +80,9 @@ def aggregate_portfolio(
         eads = np.array([r.total_ead for r in subset])
         sigmas = eads * CV_LOSS  # per-asset loss standard deviation
 
-        # Build correlation matrix using region from asset_id prefix
-        asset_regions = [r.asset_id.split('_')[0] if '_' in r.asset_id else r.asset_id for r in subset]
+        # Build correlation matrix using region zone (ISO3 → zone key)
+        from engine.hazard_fetcher import _get_region_key
+        asset_regions = [_get_region_key(getattr(r, 'region', 'global')) for r in subset]
         corr_matrix = np.full((n, n), DIFF_REGION_CORR)
         for i in range(n):
             corr_matrix[i, i] = 1.0

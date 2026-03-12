@@ -69,12 +69,20 @@ def compute_annual_damages(
 
         for year in years:
             warming_c = get_warming(scenario_id, year)
-            mult = get_scenario_multipliers(scenario_id, year, hazard)
 
-            # Adjust intensity — elevation correction for flood and coastal flood
+            # Scenario multiplier — skip if data is already SSP-specific (ISIMIP)
+            # to avoid double-counting the climate signal
+            if source.startswith("isimip"):
+                mult = 1.0
+            else:
+                from engine.hazard_fetcher import _get_region_key
+                region_zone = _get_region_key(asset.region) if hasattr(asset, 'region') else "global"
+                mult = get_scenario_multipliers(scenario_id, year, hazard, region_zone)
+
+            # Adjust intensity — first-floor height correction for flood and coastal flood
             intens = base_intens.copy()
             if hazard in ("flood", "coastal_flood"):
-                intens = np.clip(intens - asset.elevation_m, 0.0, None)
+                intens = np.clip(intens - asset.first_floor_height_m, 0.0, None)
 
             ead, damage_fracs = calc_ead_from_intensities(
                 rp, intens, asset.asset_type, hazard, asset.replacement_value, mult

@@ -459,7 +459,7 @@ def distance_to_coast_km(lat: float, lon: float) -> float:
 
     Uses a simplified global coastline (~600 reference points).
     Accuracy: ±20 km for most locations; sufficient for screening-level
-    coastal zone classification (within/outside 50 km threshold).
+    coastal zone classification (within/outside 10 km threshold).
     """
     coast = _build_coastline()
 

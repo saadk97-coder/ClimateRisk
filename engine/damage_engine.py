@@ -40,6 +40,7 @@ class AssetResult:
     total_ead: float
     total_ead_pct: float
     hazard_results: Dict[str, AssetHazardResult] = field(default_factory=dict)
+    region: str = "global"  # ISO3 country code for correlation grouping
 
 
 def _get_hazards_for_asset(asset: Asset) -> List[str]:
@@ -115,14 +116,16 @@ def run_asset_scenario(
 
         # Elevation correction for flood and coastal flood
         if hazard in ("flood", "coastal_flood"):
-            intens = np.clip(intens - asset.elevation_m, 0.0, None)
+            intens = np.clip(intens - asset.first_floor_height_m, 0.0, None)
 
         # Scenario hazard multiplier — skip if data is already SSP-specific (ISIMIP)
         # to avoid double-counting the climate signal
         if source.startswith("isimip"):
             mult = 1.0
         else:
-            mult = get_scenario_multipliers(scenario_id, year, hazard, asset.region)
+            from engine.hazard_fetcher import _get_region_key
+            region_zone = _get_region_key(asset.region)
+            mult = get_scenario_multipliers(scenario_id, year, hazard, region_zone)
 
         ead, damage_fracs = calc_ead_from_intensities(
             rp, intens, asset.asset_type, hazard, asset.replacement_value, mult
@@ -152,6 +155,7 @@ def run_asset_scenario(
         total_ead=total_ead,
         total_ead_pct=total_ead / asset.replacement_value if asset.replacement_value > 0 else 0.0,
         hazard_results=hazard_results,
+        region=asset.region,
     )
 
 

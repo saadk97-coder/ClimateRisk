@@ -80,8 +80,8 @@ def portfolio_health_check(assets: list) -> list[dict]:
             })
 
     # ── Low-elevation flood exposure ─────────────────────────────────────────
-    low_elev = [a for a in assets if a.elevation_m <= _LOW_ELEVATION_M]
-    below_sea = [a for a in assets if a.elevation_m < _VERY_LOW_ELEV_M]
+    low_elev = [a for a in assets if a.first_floor_height_m <= _LOW_ELEVATION_M]
+    below_sea = [a for a in assets if a.first_floor_height_m < _VERY_LOW_ELEV_M]
 
     if below_sea:
         names = ", ".join(a.name for a in below_sea[:3])

@@ -28,8 +28,10 @@ DATA_SOURCE_REGISTRY = {
         "name": "ISIMIP3b (Flood + Heat + Wind + Wildfire)",
         "description": (
             "Inter-Sectoral Impact Model Intercomparison Project Phase 3b. "
-            "Flood: flooded area fraction (fldfrc) from CaMa-Flood multi-GHM ensemble at 0.25°, "
-            "GEV-fitted to annual maxima to derive return period depths. "
+            "Flood: derived from annual maximum daily precipitation (Rx1day) at 0.5°, "
+            "GEV-fitted, then converted to inundation depth via regional empirical scaling "
+            "(JRC-calibrated drainage threshold + depth factor). This is a precipitation-proxy "
+            "approach, not a floodplain hydraulic model. "
             "Heat/Wind: bias-adjusted tasmax and sfcWind at 0.5° from CMIP6 GCMs (GFDL-ESM4, "
             "MPI-ESM1-2-HR, IPSL-CM6A-LR, MRI-ESM2-0), GEV-fitted annual maxima. "
             "Wildfire: multi-variable extraction (tasmax + pr + hurs + sfcWind) combined with "
@@ -47,7 +49,7 @@ DATA_SOURCE_REGISTRY = {
         "url": "https://www.isimip.org/",
         "doi": "https://doi.org/10.1029/2020EF001901",
         "resolution": "0.25–0.5° (~28–55 km)",
-        "variables": ["fldfrc", "tasmax", "sfcWind", "pr", "hurs"],
+        "variables": ["pr", "tasmax", "sfcWind", "hurs"],
         "hazards": ["flood", "heat", "wind", "wildfire"],
     },
     "nasa_nex_gddp_cmip6": {
@@ -118,7 +120,7 @@ DATA_SOURCE_REGISTRY = {
             "Storm surge return-period intensities from GTSM global tide and surge reanalysis "
             "(Muis et al. 2020) and probabilistic extreme sea levels (Vousdoukas et al. 2018). "
             "Sea-level rise amplification via IPCC AR6 WG1 Ch.9 projections (Fox-Kemper et al. 2021). "
-            "Coastal proximity screening at 50 km threshold using simplified global coastline."
+            "Coastal proximity screening at 10 km threshold using simplified global coastline."
         ),
         "citation": (
             "Muis et al. (2020) Nature Commun. 11, 3806; "

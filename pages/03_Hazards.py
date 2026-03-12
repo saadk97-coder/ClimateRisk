@@ -48,7 +48,7 @@ st.subheader("Available Data Sources")
 st.caption(
     "Sources are tried in priority order: ISIMIP3b → NASA NEX-GDDP → CHELSA → Regional Baseline. "
     "ISIMIP3b is active for **all five hazards** (Flood, Heat, Wind, Wildfire + Coastal Flood for coastal assets). "
-    "Coastal Flood is auto-detected for assets within 50 km of a coastline, adding storm surge + SLR risk. "
+    "Coastal Flood is auto-detected for assets within 10 km of a coastline, adding storm surge + SLR risk. "
     "**Tropical cyclone** wind amplification is auto-applied for assets within TC basins (IBTrACS + Holland 1980). "
     "Wildfire uses the full Canadian FWI system (Van Wagner 1987) from multi-variable extraction."
 )
@@ -86,7 +86,7 @@ SOURCE_STATUS = {
     "coastal_slr_baseline": {
         "status": "active",
         "badge": "🟢 Active — Coastal Flood",
-        "note": "Auto-enabled for assets within 50 km of coast; storm surge + IPCC AR6 SLR projections",
+        "note": "Auto-enabled for assets within 10 km of coast; storm surge + IPCC AR6 SLR projections",
     },
     "ibtracs_cyclone": {
         "status": "active",
@@ -153,7 +153,7 @@ with st.expander("📊 Comparative Source Guide — which source should you use?
 | **CHELSA CMIP6** | 30 arc-sec (~1 km) | Global (land) | Heat, Precipitation | Climatologies (30-yr means) | **Highest resolution** for temperature-based hazards; ideal for topographically complex terrain |
 | **LOCA2** | 1/16° (~6 km) | N. America | Heat, Flood | 1950–2100 | Best resolution for North American assets; daily data enables extreme event analysis |
 | **ClimateNA / AdaptWest** | ~1 km | N. America | Heat | Bioclimatic periods | High-res North American temperature and bioclimatic variables |
-| **Coastal Flood Baseline** | Regional + distance decay | Global (coastal) | Coastal Flood | IPCC AR6 SLR projections | Auto-enabled for assets ≤50 km from coast; storm surge + sea-level rise |
+| **Coastal Flood Baseline** | Regional + distance decay | Global (coastal) | Coastal Flood | IPCC AR6 SLR projections | Auto-enabled for assets ≤10 km from coast; storm surge + sea-level rise |
 | **Built-in Regional Baseline** | Continental (~7 zones) | Global | All four | 1981–2010 climatology | Instant fallback; no API calls needed; very coarse |
 
 ### Key Trade-offs
@@ -251,6 +251,10 @@ with col_info:
 
 if fetch_btn:
     progress = st.progress(0, text="Fetching hazard data...")
+    # Fetch baseline hazard data (used for display on this page and as fallback input
+    # to the damage engine). The damage engine will re-fetch per scenario/horizon
+    # when running the full calculation, so this fetch is for inspection only.
+    # Use the first scenario's SSP for the preview, but note this in the UI.
     scenario_id = selected_scenarios[0] if selected_scenarios else "current_policies"
     ssp = SCENARIOS.get(scenario_id, {}).get("ssp", "SSP2-4.5")
     for i, asset in enumerate(assets):
@@ -272,7 +276,13 @@ if fetch_btn:
         data = fetch_all_hazards(asset.lat, asset.lon, region, hazards, ssp, "2041_2060")
         st.session_state.hazard_data[asset.id] = data
         progress.progress((i + 1) / len(assets), text=f"✅ {asset.name}")
-    st.success(f"Loaded hazard data for {len(assets)} asset(s).")
+    sc_label = SCENARIOS.get(scenario_id, {}).get("label", scenario_id)
+    st.success(f"Loaded hazard data for {len(assets)} asset(s) using **{sc_label}** ({ssp}) baseline.")
+    st.caption(
+        "Note: These are baseline intensities for inspection. The Results page runs the "
+        "damage engine per scenario/horizon, fetching scenario-specific data where available "
+        "and applying multipliers only to non-ISIMIP sources to avoid double-counting."
+    )
     progress.empty()
 
 # ── Data Status Table ──────────────────────────────────────────────────────
