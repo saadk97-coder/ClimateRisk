@@ -131,7 +131,7 @@ STEPS = [
         "icon": "📊",
         "title": "EAD + Scores",
         "subtitle": "Financial quantification",
-        "desc": "Trapezoidal integration of Loss EP curve gives EAD. Climate Exposure Scores, Physical VaR, stranded-asset flags.",
+        "desc": "Trapezoidal integration of Loss EP curve gives EAD. Climate Exposure Scores, EALR, stranded-asset flags.",
         "color": BSR["red"],
     },
     {
@@ -222,7 +222,7 @@ _NODE_DATA = [
     dict(id=15, x=4.4, y=4.0, label="Annual EAD 2025–50",    cat="Output",
          desc="Per-asset · per-hazard · per-scenario. Discounted to present value. Scenario comparison charts."),
     dict(id=16, x=4.4, y=2.8, label="Exposure Scores",       cat="Output",
-         desc="Climate Exposure Score 1–10 per asset × hazard. Physical Climate VaR (%). Stranded-asset flags."),
+         desc="Climate Exposure Score 1–10 per asset × hazard. EALR (%). Stranded-asset flags."),
     dict(id=17, x=4.4, y=1.6, label="Adaptation ROI",        cat="Output",
          desc="NPV of avoided EAD for 19+ measures. Cost-benefit ratio, payback period, investment frontier."),
     dict(id=18, x=4.4, y=0.4, label="DCF Impairment",        cat="Output",
@@ -509,7 +509,8 @@ score = 1 + 9 × log(1 + raw_pct / midpoint) / log(1 + max_pct / midpoint)
 ```
 Log-normalised so all scores use the full 1–10 range even when one asset dominates.
 
-**Physical Climate VaR:**  `VaR% = EAD_2050 / replacement_value × 100`
+**Expected Annual Loss Ratio (EALR):**  `EALR% = EAD_2050 / replacement_value × 100`
+(Note: This is an expected-loss ratio, not a tail Value-at-Risk measure.)
 
 **Monte Carlo uncertainty:** 1,000 draws at ±20% vulnerability curve CoV → 5th/95th CI.
         """)

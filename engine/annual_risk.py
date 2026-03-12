@@ -75,8 +75,8 @@ def compute_annual_damages(
             if source.startswith("isimip"):
                 mult = 1.0
             else:
-                from engine.hazard_fetcher import _get_region_key
-                region_zone = _get_region_key(asset.region) if hasattr(asset, 'region') else "global"
+                from engine.hazard_fetcher import get_region_zone
+                region_zone = get_region_zone(asset.region) if hasattr(asset, 'region') else "global"
                 mult = get_scenario_multipliers(scenario_id, year, hazard, region_zone)
 
             # Adjust intensity — first-floor height correction for flood and coastal flood
@@ -101,7 +101,7 @@ def compute_annual_damages(
                 "pv": round(pv, 2),
                 "ead_pct_value": round(ead / asset.replacement_value * 100, 5) if asset.replacement_value > 0 else 0.0,
                 "baseline_intensity_rp100": round(float(base_intens[rp100_idx]), 4),
-                "adjusted_intensity_rp100": round(float(base_intens[rp100_idx] * mult), 4),
+                "adjusted_intensity_rp100": round(float(intens[rp100_idx] * mult), 4),
                 "damage_fraction_rp100": round(float(damage_fracs[rp100_idx]), 5),
                 "data_source": source,
             })
@@ -117,9 +117,20 @@ def compute_portfolio_annual_damages(
     years: Optional[List[int]] = None,
     base_year: int = BASE_YEAR,
     progress_callback=None,
+    hazard_data_by_scenario: Optional[Dict[str, Dict[str, dict]]] = None,
 ) -> pd.DataFrame:
     """
     Run annual damage computation for all assets × scenarios.
+
+    Parameters
+    ----------
+    hazard_data_all         : {asset_id: {hazard: data}} — shared across scenarios (legacy)
+    hazard_data_by_scenario : {scenario_id: {asset_id: {hazard: data}}} — per-scenario
+                              If provided, takes precedence over hazard_data_all for each
+                              scenario that has data.  This ensures ISIMIP data (which
+                              already embeds the SSP climate signal) uses the correct
+                              SSP-specific baseline per scenario.
+
     Returns a single tidy DataFrame.
     """
     all_rows = []
@@ -127,12 +138,19 @@ def compute_portfolio_annual_damages(
     done = 0
 
     for asset in assets:
-        hdata = hazard_data_all.get(asset.id, {})
-        if not hdata:
-            done += len(scenario_ids)
-            continue
-
         for scenario_id in scenario_ids:
+            # Pick scenario-specific hazard data if available, else shared
+            if hazard_data_by_scenario and scenario_id in hazard_data_by_scenario:
+                hdata = hazard_data_by_scenario[scenario_id].get(asset.id, {})
+            else:
+                hdata = hazard_data_all.get(asset.id, {})
+
+            if not hdata:
+                done += 1
+                if progress_callback:
+                    progress_callback(done / total)
+                continue
+
             df = compute_annual_damages(asset, scenario_id, hdata, discount_rate, years, base_year)
             all_rows.append(df)
             done += 1

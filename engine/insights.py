@@ -18,8 +18,8 @@ if TYPE_CHECKING:
 
 
 # ── Thresholds ──────────────────────────────────────────────────────────────
-_LOW_ELEVATION_M    = 3.0    # assets at or below this flag flood exposure
-_VERY_LOW_ELEV_M   = 0.0    # below sea level
+_LOW_ELEVATION_M    = 3.0    # terrain ASL: assets at or below this flag flood exposure
+_VERY_LOW_ELEV_M   = 0.0    # terrain ASL: below sea level
 _OLD_STOCK_YEAR     = 1980   # assets built before this are pre-modern codes
 _CONCENTRATION_PCT  = 0.5    # single asset > 50% portfolio value → concentration risk
 _COUNTRY_CONC_PCT   = 0.7    # single country > 70% portfolio value
@@ -79,9 +79,9 @@ def portfolio_health_check(assets: list) -> list[dict]:
                 ),
             })
 
-    # ── Low-elevation flood exposure ─────────────────────────────────────────
-    low_elev = [a for a in assets if a.first_floor_height_m <= _LOW_ELEVATION_M]
-    below_sea = [a for a in assets if a.first_floor_height_m < _VERY_LOW_ELEV_M]
+    # ── Low-elevation flood exposure (uses terrain elevation ASL, not freeboard) ─
+    low_elev = [a for a in assets if getattr(a, 'terrain_elevation_asl_m', 0.0) <= _LOW_ELEVATION_M]
+    below_sea = [a for a in assets if getattr(a, 'terrain_elevation_asl_m', 0.0) < _VERY_LOW_ELEV_M]
 
     if below_sea:
         names = ", ".join(a.name for a in below_sea[:3])
@@ -90,11 +90,11 @@ def portfolio_health_check(assets: list) -> list[dict]:
         insights.append({
             "level": "error",
             "icon": "🌊",
-            "title": f"{len(below_sea)} asset(s) below sea level",
+            "title": f"{len(below_sea)} asset(s) below sea level (terrain elevation)",
             "body": (
-                f"**{names}** sit at negative elevation and face acute flood and storm surge exposure. "
-                f"These assets are particularly vulnerable under accelerating sea-level rise projections "
-                f"in high-emission scenarios."
+                f"**{names}** sit at negative terrain elevation (below sea level) and face acute "
+                f"flood and storm surge exposure. These assets are particularly vulnerable under "
+                f"accelerating sea-level rise projections in high-emission scenarios."
             ),
         })
     elif low_elev:
@@ -104,9 +104,9 @@ def portfolio_health_check(assets: list) -> list[dict]:
         insights.append({
             "level": "warning",
             "icon": "🌊",
-            "title": f"{len(low_elev)} asset(s) at low elevation (≤{_LOW_ELEVATION_M:.0f}m)",
+            "title": f"{len(low_elev)} asset(s) at low terrain elevation (≤{_LOW_ELEVATION_M:.0f}m ASL)",
             "body": (
-                f"**{names}** are at or near ground level and may face increased inundation risk "
+                f"**{names}** are at low terrain elevation and may face increased inundation risk "
                 f"as climate change intensifies precipitation extremes and raises sea levels."
             ),
         })

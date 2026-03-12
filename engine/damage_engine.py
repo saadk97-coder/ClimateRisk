@@ -12,7 +12,7 @@ from engine.hazard_fetcher import fetch_all_hazards
 from engine.ead_calculator import calc_ead_from_intensities, calc_ead, STANDARD_RETURN_PERIODS
 from engine.impact_functions import get_damage_fraction
 
-SUPPORTED_HAZARDS = ["flood", "wind", "wildfire", "heat", "coastal_flood"]
+SUPPORTED_HAZARDS = ["flood", "wind", "wildfire", "heat", "coastal_flood", "water_stress"]
 
 
 @dataclass
@@ -123,8 +123,8 @@ def run_asset_scenario(
         if source.startswith("isimip"):
             mult = 1.0
         else:
-            from engine.hazard_fetcher import _get_region_key
-            region_zone = _get_region_key(asset.region)
+            from engine.hazard_fetcher import get_region_zone
+            region_zone = get_region_zone(asset.region)
             mult = get_scenario_multipliers(scenario_id, year, hazard, region_zone)
 
         ead, damage_fracs = calc_ead_from_intensities(
@@ -165,10 +165,16 @@ def run_portfolio(
     years: List[int],
     hazard_overrides: Optional[Dict[str, Dict[str, dict]]] = None,
     progress_callback=None,
+    hazard_overrides_by_scenario: Optional[Dict[str, Dict[str, Dict[str, dict]]]] = None,
 ) -> List[AssetResult]:
     """
     Run full portfolio calculation across all scenarios and years.
-    Returns list of AssetResult objects.
+
+    Parameters
+    ----------
+    hazard_overrides            : {asset_id: {hazard: data}} — shared across scenarios (legacy)
+    hazard_overrides_by_scenario: {scenario_id: {asset_id: {hazard: data}}} — per-scenario
+                                  Takes precedence when available.
     """
     results = []
     total = len(assets) * len(scenario_ids) * len(years)
@@ -181,7 +187,12 @@ def run_portfolio(
         for scenario_id in scenario_ids:
             for year in years:
                 overrides = None
-                if hazard_overrides and asset.id in hazard_overrides:
+                # Prefer scenario-specific overrides
+                if hazard_overrides_by_scenario and scenario_id in hazard_overrides_by_scenario:
+                    sc_overrides = hazard_overrides_by_scenario[scenario_id]
+                    if asset.id in sc_overrides:
+                        overrides = sc_overrides[asset.id]
+                elif hazard_overrides and asset.id in hazard_overrides:
                     overrides = hazard_overrides[asset.id]
 
                 result = run_asset_scenario(asset, scenario_id, year, overrides)

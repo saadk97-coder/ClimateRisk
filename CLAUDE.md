@@ -29,7 +29,7 @@ pages/
   01_Portfolio.py             # Asset entry (CSV upload or manual)
   02_Scenarios.py             # Climate scenario selection
   03_Hazards.py               # Hazard data fetch + display
-  04_Results.py               # Scores, EAD, VaR, stranded asset flags
+  04_Results.py               # Scores, EAD, EALR, stranded asset flags
   05_Map.py                   # Interactive risk map (folium + pydeck)
   06_Adaptation.py            # Adaptation ROI / cost-benefit
   07_DCF.py                   # Climate-adjusted DCF valuation
@@ -81,14 +81,14 @@ Three separate channels per draw:
 - `portfolio_ead = sum(eads)` — means add linearly
 - `sigma_i = ead_i × CV_LOSS (2.0)` — derive volatility from EAD
 - Correlation matrix: `SAME_REGION_CORR=0.60`, `DIFF_REGION_CORR=0.15`
-- Region grouping uses `_get_region_key(asset.region)` — NOT asset_id parsing
+- Region grouping uses `get_region_zone(asset.region)` — NOT asset_id parsing
 - `var_portfolio = sigmas @ corr_matrix @ sigmas`
 - Diversification benefit = undiversified sigma − portfolio sigma
 
 ### Climate Signal (damage_engine.py + annual_risk.py)
 - If ISIMIP data used → `mult = 1.0` (SSP signal already in data, no double-count)
 - If fallback data → `mult = get_scenario_multipliers(scenario_id, year, hazard, region_zone)`
-- Region zone conversion: `_get_region_key(asset.region)` converts ISO3 → zone key (EUR, USA, etc.)
+- Region zone conversion: `get_region_zone(asset.region)` converts ISO3 → zone key (EUR, USA, etc.)
 - Both `damage_engine.py` AND `annual_risk.py` now apply the ISIMIP source check
 
 ### First-Floor Height Adjustment (freeboard)
@@ -153,6 +153,51 @@ Typical values: 0.0–1.5m. Old `elevation_m` field was ASL (meaningless for dep
 | `engine/insights.py` | All `a.elevation_m` → `a.first_floor_height_m` |
 | `data/sample_portfolio.csv` | Header + values updated for first_floor_height_m |
 
+## Fixes Applied in Session 3 (second code review response)
+
+### P0 — Correctness (changes numbers)
+| File | Fix |
+|------|-----|
+| `pages/04_Results.py` | Hazard data fetched per scenario (SSP-keyed), not just first scenario |
+| `engine/annual_risk.py` | `hazard_data_by_scenario` parameter: use correct SSP baseline per scenario |
+| `engine/damage_engine.py` | `hazard_overrides_by_scenario` parameter: per-scenario overrides in run_portfolio |
+| `engine/annual_risk.py` | `adjusted_intensity_rp100` now includes first-floor height reduction |
+| `pages/08_Audit.py` | Audit uses engine's exact logic: ISIMIP skip, regional multipliers, flood+coastal_flood freeboard |
+| `engine/impact_functions.py` | `water_stress` handler: passes through pre-computed damage fractions (was returning 0.0) |
+| `engine/damage_engine.py` | `water_stress` added to `SUPPORTED_HAZARDS` |
+
+### P1 — Architecture / methodology
+| File | Fix |
+|------|-----|
+| `engine/asset_model.py` | Added `terrain_elevation_asl_m` field (separate from `first_floor_height_m`) |
+| `engine/asset_model.py` | Old CSV `elevation_m` → `terrain_elevation_asl_m`, NOT freeboard |
+| `engine/asset_model.py` | Negative `first_floor_height_m` clamped to 0.0 in `__post_init__` |
+| `engine/insights.py` | Uses `terrain_elevation_asl_m` for "below sea level" / "low elevation" checks |
+| `engine/*.py` | `_get_region_key()` → `get_region_zone()` (use public API everywhere) |
+
+### UI labels
+| File | Fix |
+|------|-----|
+| `pages/04_Results.py` | "Physical Climate VaR" → "EALR" / "Expected Annual Loss Ratio" throughout |
+| `pages/05_Map.py` | "Physical Climate VaR" / "Physical VaR" → "EALR" |
+| `pages/00_Methodology.py` | "Physical VaR" → "EALR" with disclaimer "not tail VaR" |
+
+### Engineering hygiene
+| File | Fix |
+|------|-----|
+| `.gitignore` | Added `.pytest_cache/` |
+| `engine/__pycache__/` | Removed from git tracking |
+| `tests/test_regression.py` | 10 regression tests covering scenario invariance, freeboard, region mapping, water stress |
+
+### Hazard data flow (after Session 3)
+```
+pages/04_Results.py
+  → fetch per SSP (grouped: same SSP shared across scenarios)
+  → hazard_data_by_scenario = {scenario_id: {asset_id: {hazard: data}}}
+  → compute_portfolio_annual_damages(hazard_data_by_scenario=...)
+  → run_portfolio(hazard_overrides_by_scenario=...)
+```
+
 ## Session State Keys (app.py)
 - `assets` — list of `Asset` objects (may be serialized to dicts by Streamlit Cloud)
 - `selected_scenarios` — list of scenario_id strings
@@ -160,6 +205,8 @@ Typical values: 0.0–1.5m. Old `elevation_m` field was ASL (meaningless for dep
 - `discount_rate` — float (default 0.035)
 - `results` — list of `AssetResult` objects
 - `currency_code` — ISO currency code string (default "USD")
+- `hazard_data` — `{asset_id: {hazard: data}}` — flat reference for Audit/Hazards preview
+- `hazard_data_by_scenario` — `{scenario_id: {asset_id: {hazard: data}}}` — per-scenario data
 
 ## Important Gotchas
 1. **Streamlit Cloud serialises dataclasses to dicts** — always handle both:
@@ -191,7 +238,8 @@ Typical values: 0.0–1.5m. Old `elevation_m` field was ASL (meaningless for dep
 - **ISIMIP flood is a precipitation proxy** — uses Rx1day → empirical depth scaling, NOT a hydraulic model
 - **ISIMIP time chunks** — hardcoded to 2021-2050 chunk; not horizon-specific
 - **Heat modelled as return-period EAD** — acute framing; should be chronic annual cost
-- **Water stress** — not yet integrated as chronic annual cost (P0-6 pending)
 - **GEV extrapolation** — fits 1000-year RP from ~30 annual samples (fragile tail)
 - **Unused asset attributes** — basement, roof_type, year_built defined but not used in damage functions
-- **VaR naming** — function name `climate_var_pct` retained for backward compat; docstrings corrected to EALR
+- **VaR naming** — function name `climate_var_pct` retained for backward compat; UI + docstrings → EALR
+- **Coastal zone accuracy** — coastline distance accuracy ~±20km vs 10km threshold; many assets borderline
+- **Provenance mismatch** — ngfs_hazard_baseline.json heat uses wet-bulb °C; ISIMIP uses tasmax °C

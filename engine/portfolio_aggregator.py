@@ -81,8 +81,8 @@ def aggregate_portfolio(
         sigmas = eads * CV_LOSS  # per-asset loss standard deviation
 
         # Build correlation matrix using region zone (ISO3 → zone key)
-        from engine.hazard_fetcher import _get_region_key
-        asset_regions = [_get_region_key(getattr(r, 'region', 'global')) for r in subset]
+        from engine.hazard_fetcher import get_region_zone
+        asset_regions = [get_region_zone(getattr(r, 'region', 'global')) for r in subset]
         corr_matrix = np.full((n, n), DIFF_REGION_CORR)
         for i in range(n):
             corr_matrix[i, i] = 1.0
