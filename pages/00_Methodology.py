@@ -448,9 +448,9 @@ with st.expander(_step_header("4", "📉", "Vulnerability Functions", "#8e44ad")
 
 **Interpolation:** Monotonic Pchip cubic spline — avoids oscillation artefacts.
 
-**Elevation adjustment for flood:**
+**First-floor height adjustment for flood:**
 ```python
-effective_depth = max(0.0, flood_depth_m - elevation_m)
+effective_depth = max(0.0, flood_depth_m - first_floor_height_m)
 damage_fraction = curve.evaluate(effective_depth)
 ```
 

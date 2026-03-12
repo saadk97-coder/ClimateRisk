@@ -46,7 +46,7 @@ engine/
   uncertainty.py              # Monte Carlo (1000 draws): intensity→curve→value channels
   portfolio_aggregator.py     # Portfolio variance with correlation matrix
   annual_risk.py              # 2025–2050 EAD timeline with PV discounting
-  risk_scorer.py              # Climate Exposure Score 1–10, Physical VaR %
+  risk_scorer.py              # Climate Exposure Score 1–10, EALR % (Expected Annual Loss Ratio)
   adaptation_engine.py        # NPV cost-benefit for 19+ measures, IRR solver
   dcf_engine.py               # Climate-adjusted DCF, terminal value, impairment %
   export_engine.py            # Multi-sheet XLSX export
@@ -80,22 +80,27 @@ Three separate channels per draw:
 ### Portfolio Aggregation (portfolio_aggregator.py)
 - `portfolio_ead = sum(eads)` — means add linearly
 - `sigma_i = ead_i × CV_LOSS (2.0)` — derive volatility from EAD
-- Correlation matrix: `SAME_REGION_CORR=0.75`, `DIFF_REGION_CORR=0.25`
+- Correlation matrix: `SAME_REGION_CORR=0.60`, `DIFF_REGION_CORR=0.15`
+- Region grouping uses `_get_region_key(asset.region)` — NOT asset_id parsing
 - `var_portfolio = sigmas @ corr_matrix @ sigmas`
 - Diversification benefit = undiversified sigma − portfolio sigma
 
-### Climate Signal (damage_engine.py)
+### Climate Signal (damage_engine.py + annual_risk.py)
 - If ISIMIP data used → `mult = 1.0` (SSP signal already in data, no double-count)
-- If fallback data → `mult = get_scenario_multipliers(scenario_id, year, hazard, region)`
+- If fallback data → `mult = get_scenario_multipliers(scenario_id, year, hazard, region_zone)`
+- Region zone conversion: `_get_region_key(asset.region)` converts ISO3 → zone key (EUR, USA, etc.)
+- Both `damage_engine.py` AND `annual_risk.py` now apply the ISIMIP source check
 
-### Flood Elevation Adjustment
+### First-Floor Height Adjustment (freeboard)
 Applied in both `damage_engine.py` and `annual_risk.py`:
 ```python
 if hazard in ("flood", "coastal_flood"):
-    intens = np.clip(intens - asset.elevation_m, 0.0, None)
+    intens = np.clip(intens - asset.first_floor_height_m, 0.0, None)
 ```
+**NOT ASL elevation** — `first_floor_height_m` is height above local ground (freeboard).
+Typical values: 0.0–1.5m. Old `elevation_m` field was ASL (meaningless for depth reduction).
 
-## Fixes Applied in Previous Session (all committed)
+## Fixes Applied in Session 1 (all committed)
 | File | Fix |
 |------|-----|
 | `portfolio_aggregator.py` | Portfolio variance: EAD≠sigma; use CV_LOSS=2.0; proper correlation matrix |
@@ -115,6 +120,38 @@ if hazard in ("flood", "coastal_flood"):
 | `export_engine.py` | Dynamic currency symbol from metadata |
 | `data_sources.py` | Remove dead LOCA2 code path, fix duplicate fetch_climatena call |
 | `pages/00_Methodology.py` | Step card text overflow: `height:200px` → `min-height:200px;overflow:hidden` |
+
+## Fixes Applied in Session 2 (code review integration)
+
+### P0 — Correctness fixes (produce wrong numbers)
+| File | Fix |
+|------|-----|
+| `asset_model.py` | `elevation_m` → `first_floor_height_m` (freeboard, NOT ASL elevation) |
+| `damage_engine.py` | Region mapping: `_get_region_key(asset.region)` before `get_scenario_multipliers` |
+| `damage_engine.py` | Added `region` field to `AssetResult` dataclass, populated from asset |
+| `annual_risk.py` | Added ISIMIP source check to prevent double-counting (was missing) |
+| `annual_risk.py` | Region mapping fix (same as damage_engine) |
+| `annual_risk.py` | `elevation_m` → `first_floor_height_m` |
+| `portfolio_aggregator.py` | Region grouping via `_get_region_key(asset.region)` instead of `asset_id.split('_')[0]` |
+| `dcf_engine.py` | Proxy mode fix: `NPV = asset_value - PV(damages)` instead of terminal value from negative CFs |
+
+### P1 — Methodology credibility
+| File | Fix |
+|------|-----|
+| `risk_scorer.py` | "Physical Climate VaR" → "Expected Annual Loss Ratio (EALR)" in docstrings |
+| `data_sources.py` | ISIMIP flood provenance: "fldfrc from CaMa-Flood" → "derived from Rx1day" |
+| `data_sources.py` | Coastal zone "50 km" → "10 km" |
+| `coastal.py` | Docstring "50 km" → "10 km" |
+
+### UI / page fixes
+| File | Fix |
+|------|-----|
+| `pages/01_Portfolio.py` | "Elevation above sea level" → "First-floor height above ground"; defaults 0.0–1.5m |
+| `pages/03_Hazards.py` | All "50 km" → "10 km" (3 occurrences) |
+| `pages/08_Audit.py` | `elevation_m` → `first_floor_height_m` |
+| `pages/00_Methodology.py` | "Elevation adjustment" → "First-floor height adjustment" |
+| `engine/insights.py` | All `a.elevation_m` → `a.first_floor_height_m` |
+| `data/sample_portfolio.csv` | Header + values updated for first_floor_height_m |
 
 ## Session State Keys (app.py)
 - `assets` — list of `Asset` objects (may be serialized to dicts by Streamlit Cloud)
@@ -147,5 +184,14 @@ if hazard in ("flood", "coastal_flood"):
 | Flood/Wind/Heat/Wildfire | ISIMIP3b API (isimip-client) | `data/ngfs_hazard_baseline.json` |
 | Water Stress | WRI Aqueduct 4.0 API | Built-in regional medians |
 | Coastal Flood | Derived from flood + SLR | Same fallback |
-| Elevation | OpenTopoData ASTER 30m DEM | Manual entry |
+| First-floor height | Manual entry (freeboard above ground) | Default 0.0m |
 | Country | BigDataCloud reverse geocode | Manual entry |
+
+## Known Limitations (acknowledged, not yet addressed)
+- **ISIMIP flood is a precipitation proxy** — uses Rx1day → empirical depth scaling, NOT a hydraulic model
+- **ISIMIP time chunks** — hardcoded to 2021-2050 chunk; not horizon-specific
+- **Heat modelled as return-period EAD** — acute framing; should be chronic annual cost
+- **Water stress** — not yet integrated as chronic annual cost (P0-6 pending)
+- **GEV extrapolation** — fits 1000-year RP from ~30 annual samples (fragile tail)
+- **Unused asset attributes** — basement, roof_type, year_built defined but not used in damage functions
+- **VaR naming** — function name `climate_var_pct` retained for backward compat; docstrings corrected to EALR

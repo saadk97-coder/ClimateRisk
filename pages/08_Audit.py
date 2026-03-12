@@ -74,7 +74,7 @@ mult = get_hazard_multiplier(sel_hazard, warming_c)
 adj_intens = base_intens.copy()
 elev_adj = 0.0
 if sel_hazard == "flood":
-    elev_adj = sel_asset.elevation_m
+    elev_adj = sel_asset.first_floor_height_m
     adj_intens = np.clip(base_intens - elev_adj, 0.0, None)
 
 scaled_intens = adj_intens * mult

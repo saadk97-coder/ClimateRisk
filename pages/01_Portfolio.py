@@ -171,27 +171,27 @@ tab_upload, tab_manual, tab_view = st.tabs(["📤 Upload CSV", "✏️ Add Manua
 with tab_upload:
     # ── Sample portfolio download — top of tab ────────────────────────────────
     _sample_csv = (
-        "id,name,lat,lon,asset_type,replacement_value,construction_material,year_built,stories,basement,roof_type,elevation_m,floor_area_m2,region\n"
-        "SAM001,Manhattan Financial Tower,40.7074,-74.0113,commercial_office,125000000,steel,2001,42,True,flat,3.5,32000,USA\n"
-        "SAM002,Miami Oceanfront Resort,25.7617,-80.1918,hotel_resort,48000000,concrete,1998,12,False,flat,1.5,9500,USA\n"
-        "SAM003,Houston Petrochemical Plant,29.7604,-95.3698,industrial_heavy,185000000,concrete,1982,4,False,flat,8.0,28000,USA\n"
-        "SAM004,Los Angeles Office Campus,34.0522,-118.2437,commercial_office,62000000,steel,2005,8,False,flat,84.0,18000,USA\n"
-        "SAM005,San Francisco Bay Area Data Centre,37.7749,-122.4194,data_center,95000000,concrete,2015,3,False,flat,12.0,6000,USA\n"
-        "SAM006,Amsterdam Polder Logistics Hub,52.3676,4.9041,commercial_warehouse,22000000,steel,2008,1,False,flat,-1.5,35000,NLD\n"
-        "SAM007,Rotterdam Port Terminal,51.9244,4.4777,infrastructure_port,75000000,concrete,1995,1,False,flat,-0.8,0,NLD\n"
-        "SAM008,London Canary Wharf Tower,51.5055,-0.0250,commercial_office,210000000,concrete,2002,50,True,flat,2.0,42000,GBR\n"
-        "SAM009,Thames Valley Residential Block,51.4607,-0.9238,residential_masonry,8500000,masonry,1968,5,False,flat,38.0,3200,GBR\n"
-        "SAM010,Paris La Defense Commercial Tower,48.8917,2.2360,commercial_concrete,145000000,concrete,2010,35,True,flat,28.0,30000,FRA\n"
-        "SAM011,Rhine Valley Industrial Factory,51.3397,6.8750,industrial_steel,31000000,steel,1990,2,False,flat,31.0,22000,DEU\n"
-        "SAM012,Singapore Marina Bay Office,1.2839,103.8607,commercial_office,88000000,steel,2012,38,True,flat,4.0,25000,SGP\n"
-        "SAM013,Mumbai Coastal Mixed-Use Tower,19.0760,72.8777,mixed_use,35000000,concrete,2008,25,True,flat,3.0,18000,IND\n"
-        "SAM014,Tokyo Shinjuku Office Block,35.6895,139.6917,commercial_office,92000000,concrete,2003,20,True,flat,45.0,16000,JPN\n"
-        "SAM015,Dubai Internet City Data Centre,25.0942,55.1533,data_center,120000000,concrete,2018,4,False,flat,5.0,8000,ARE\n"
-        "SAM016,Sydney Bush Interface Residential,33.7295,151.2862,residential_wood,1850000,wood_frame,1975,2,False,gable,65.0,180,AUS\n"
-        "SAM017,Melbourne CBD Commercial Tower,-37.8136,144.9631,commercial_concrete,67000000,concrete,1999,22,True,flat,25.0,18000,AUS\n"
-        "SAM018,Sao Paulo Industrial Complex,-23.5505,-46.6333,industrial_steel,28000000,steel,1985,2,False,flat,760.0,20000,BRA\n"
-        "SAM019,Jakarta Flood Pumping Station,-6.2088,106.8456,infrastructure_utility,18000000,steel,2005,1,False,flat,1.5,400,IDN\n"
-        "SAM020,Cape Town Mixed-Use Development,-33.9249,18.4241,mixed_use,42000000,concrete,2016,8,False,flat,22.0,12000,ZAF\n"
+        "id,name,lat,lon,asset_type,replacement_value,construction_material,year_built,stories,basement,roof_type,first_floor_height_m,floor_area_m2,region\n"
+        "SAM001,Manhattan Financial Tower,40.7074,-74.0113,commercial_office,125000000,steel,2001,42,True,flat,1.2,32000,USA\n"
+        "SAM002,Miami Oceanfront Resort,25.7617,-80.1918,hotel_resort,48000000,concrete,1998,12,False,flat,0.6,9500,USA\n"
+        "SAM003,Houston Petrochemical Plant,29.7604,-95.3698,industrial_heavy,185000000,concrete,1982,4,False,flat,1.5,28000,USA\n"
+        "SAM004,Los Angeles Office Campus,34.0522,-118.2437,commercial_office,62000000,steel,2005,8,False,flat,0.3,18000,USA\n"
+        "SAM005,San Francisco Bay Area Data Centre,37.7749,-122.4194,data_center,95000000,concrete,2015,3,False,flat,0.6,6000,USA\n"
+        "SAM006,Amsterdam Polder Logistics Hub,52.3676,4.9041,commercial_warehouse,22000000,steel,2008,1,False,flat,0.0,35000,NLD\n"
+        "SAM007,Rotterdam Port Terminal,51.9244,4.4777,infrastructure_port,75000000,concrete,1995,1,False,flat,0.0,0,NLD\n"
+        "SAM008,London Canary Wharf Tower,51.5055,-0.0250,commercial_office,210000000,concrete,2002,50,True,flat,1.0,42000,GBR\n"
+        "SAM009,Thames Valley Residential Block,51.4607,-0.9238,residential_masonry,8500000,masonry,1968,5,False,flat,0.3,3200,GBR\n"
+        "SAM010,Paris La Defense Commercial Tower,48.8917,2.2360,commercial_concrete,145000000,concrete,2010,35,True,flat,0.8,30000,FRA\n"
+        "SAM011,Rhine Valley Industrial Factory,51.3397,6.8750,industrial_steel,31000000,steel,1990,2,False,flat,0.5,22000,DEU\n"
+        "SAM012,Singapore Marina Bay Office,1.2839,103.8607,commercial_office,88000000,steel,2012,38,True,flat,1.5,25000,SGP\n"
+        "SAM013,Mumbai Coastal Mixed-Use Tower,19.0760,72.8777,mixed_use,35000000,concrete,2008,25,True,flat,0.5,18000,IND\n"
+        "SAM014,Tokyo Shinjuku Office Block,35.6895,139.6917,commercial_office,92000000,concrete,2003,20,True,flat,0.8,16000,JPN\n"
+        "SAM015,Dubai Internet City Data Centre,25.0942,55.1533,data_center,120000000,concrete,2018,4,False,flat,1.0,8000,ARE\n"
+        "SAM016,Sydney Bush Interface Residential,33.7295,151.2862,residential_wood,1850000,wood_frame,1975,2,False,gable,0.3,180,AUS\n"
+        "SAM017,Melbourne CBD Commercial Tower,-37.8136,144.9631,commercial_concrete,67000000,concrete,1999,22,True,flat,0.5,18000,AUS\n"
+        "SAM018,Sao Paulo Industrial Complex,-23.5505,-46.6333,industrial_steel,28000000,steel,1985,2,False,flat,0.3,20000,BRA\n"
+        "SAM019,Jakarta Flood Pumping Station,-6.2088,106.8456,infrastructure_utility,18000000,steel,2005,1,False,flat,0.0,400,IDN\n"
+        "SAM020,Cape Town Mixed-Use Development,-33.9249,18.4241,mixed_use,42000000,concrete,2016,8,False,flat,0.5,12000,ZAF\n"
     )
     st.download_button(
         "🌍 Download Sample Portfolio (20 global assets)",
@@ -216,7 +216,7 @@ with tab_upload:
         "stories": 20,
         "basement": False,
         "roof_type": "flat",
-        "elevation_m": 10.0,
+        "first_floor_height_m": 0.3,
         "floor_area_m2": 15000,
         "region": "USA",
     }, {
@@ -230,7 +230,7 @@ with tab_upload:
         "stories": 1,
         "basement": False,
         "roof_type": "flat",
-        "elevation_m": 178.0,
+        "first_floor_height_m": 0.0,
         "floor_area_m2": 25000,
         "region": "USA",
     }, {
@@ -244,7 +244,7 @@ with tab_upload:
         "stories": 3,
         "basement": True,
         "roof_type": "flat",
-        "elevation_m": 11.0,
+        "first_floor_height_m": 0.5,
         "floor_area_m2": 5000,
         "region": "GBR",
     }])
@@ -389,16 +389,17 @@ with tab_manual:
                 format_func=lambda k: f"{k} — {ISO3_COUNTRIES.get(k, k)}",
                 help="Pre-filled from Auto-detect. Override if needed.",
             )
-            # Elevation — pre-filled from auto-detect
+            # First-floor height above ground (freeboard)
             elevation_m = st.number_input(
-                "Elevation above sea level (m)",
-                value=_def_elev,
-                step=0.5,
+                "First-floor height above ground (m)",
+                value=0.0,
+                min_value=0.0,
+                step=0.1,
                 format="%.1f",
                 help=(
-                    "Pre-filled from ASTER DEM via Auto-detect. "
-                    "For flood risk, this is the site elevation — the engine "
-                    "computes flood exposure as (flood_depth − site_elevation)."
+                    "Height of the lowest occupied floor above local ground level (freeboard). "
+                    "NOT the site's ASL elevation. Enter 0 for slab-on-grade buildings. "
+                    "The engine computes flood exposure as (flood_depth − first_floor_height)."
                 ),
             )
             basement = st.checkbox("Has Basement", help="Basements significantly increase flood damage exposure.")
@@ -443,7 +444,7 @@ with tab_manual:
                     stories=stories,
                     basement=basement,
                     roof_type=roof_type,
-                    elevation_m=elevation_m,
+                    first_floor_height_m=elevation_m,
                     floor_area_m2=float(floor_area),
                     region=region,
                 )
@@ -464,11 +465,12 @@ with tab_view:
         # Add a human-readable type label column
         df["type_label"] = df["asset_type"].map(lambda k: asset_types.get(k, {}).get("label", k))
 
-        disp = df[["id", "name", "type_label", "replacement_value", "region", "lat", "lon", "elevation_m"]].copy()
+        ffh_col = "first_floor_height_m" if "first_floor_height_m" in df.columns else "elevation_m"
+        disp = df[["id", "name", "type_label", "replacement_value", "region", "lat", "lon", ffh_col]].copy()
         disp = disp.rename(columns={
             "id": "ID", "name": "Name", "type_label": "Type",
             "replacement_value": f"Value ({_sym})", "region": "Country",
-            "lat": "Lat", "lon": "Lon", "elevation_m": "Elev (m)",
+            "lat": "Lat", "lon": "Lon", ffh_col: "FFH (m)",
         })
         disp[f"Value ({_sym})"] = disp[f"Value ({_sym})"].apply(lambda x: _fmt(x, _cur))
 
