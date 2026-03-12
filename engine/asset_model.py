@@ -16,7 +16,8 @@ class Asset:
     stories: int
     basement: bool
     roof_type: str                   # flat | gable | hip
-    first_floor_height_m: float       # first-floor height above local ground (NOT ASL elevation)
+    first_floor_height_m: float       # first-floor height above local ground (freeboard, NOT ASL)
+    terrain_elevation_asl_m: float   # terrain elevation above sea level (auto-detected or manual)
     floor_area_m2: float
     region: str                      # iso3 country code
 
@@ -30,6 +31,9 @@ class Asset:
             raise ValueError(f"lon must be in [-180, 180], got {self.lon}")
         if self.replacement_value < 0:
             raise ValueError(f"replacement_value must be >= 0, got {self.replacement_value}")
+        # Negative freeboard would increase flood intensity — clamp to 0
+        if self.first_floor_height_m < 0:
+            self.first_floor_height_m = 0.0
 
     @classmethod
     def from_dict(cls, d: dict) -> "Asset":
@@ -45,7 +49,8 @@ class Asset:
             stories=int(d.get("stories", 1)),
             basement=bool(d.get("basement", False)),
             roof_type=str(d.get("roof_type", "gable")),
-            first_floor_height_m=float(d.get("first_floor_height_m", d.get("elevation_m", 0.0))),
+            first_floor_height_m=float(d.get("first_floor_height_m", 0.0)),
+            terrain_elevation_asl_m=float(d.get("terrain_elevation_asl_m", d.get("elevation_m", 0.0))),
             floor_area_m2=float(d.get("floor_area_m2", 200.0)),
             region=str(d.get("region", "GBR")),
         )

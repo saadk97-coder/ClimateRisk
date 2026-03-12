@@ -303,7 +303,7 @@ try:
           <b>Region:</b> {row.get('region','')}<br>
           <b>Value:</b> £{row['value']:,.0f}<br>
           <hr style="margin:4px 0">
-          <b>Physical Climate VaR:</b> {row.get('ead_pct',0):.3f}% of value/yr<br>
+          <b>EALR:</b> {row.get('ead_pct',0):.3f}% of value/yr<br>
           <b>Total EAD ({map_year}):</b> £{row.get('total_ead',0):,.0f}<br>
           <b>Flood EAD:</b> £{row.get('ead_flood',0):,.0f}<br>
           <b>Wind EAD:</b> £{row.get('ead_wind',0):,.0f}<br>
@@ -477,18 +477,18 @@ if not map_df.empty and "ead_pct" in map_df.columns:
     rank_df.index += 1
     _cur_map = st.session_state.get("currency_code", "GBP")
     _sym_map = _currency_symbol(_cur_map)
-    col_names = ["Asset", "Type", "Region", f"Value ({_sym_map})", f"Climate VaR EAD ({_sym_map})", "Physical VaR (%)"]
+    col_names = ["Asset", "Type", "Region", f"Value ({_sym_map})", f"EAD ({_sym_map})", "EALR (%)"]
     if show_water_stress and "water_stress_score" in map_df.columns:
         col_names.append("Water Stress (BWS 0–5)")
     rank_df.columns = col_names
     rank_df[f"Value ({_sym_map})"] = rank_df[f"Value ({_sym_map})"].apply(lambda x: _fmt_cur(x, _cur_map))
-    rank_df[f"Climate VaR EAD ({_sym_map})"] = rank_df[f"Climate VaR EAD ({_sym_map})"].apply(lambda x: _fmt_cur(x, _cur_map))
-    rank_df["Physical VaR (%)"] = rank_df["Physical VaR (%)"].apply(lambda x: f"{x:.3f}%")
+    rank_df[f"EAD ({_sym_map})"] = rank_df[f"EAD ({_sym_map})"].apply(lambda x: _fmt_cur(x, _cur_map))
+    rank_df["EALR (%)"] = rank_df["EALR (%)"].apply(lambda x: f"{x:.3f}%")
     if "Water Stress (BWS 0–5)" in rank_df.columns:
         rank_df["Water Stress (BWS 0–5)"] = rank_df["Water Stress (BWS 0–5)"].apply(lambda x: f"{x:.1f}")
     st.dataframe(rank_df, use_container_width=True, hide_index=False)
     st.caption(
-        "**Physical VaR (%)** = Expected Annual Damage as % of replacement value. "
+        "**EALR (%)** = Expected Annual Loss Ratio (EAD as % of replacement value). "
         "**Water Stress (BWS)**: 0–1 Low · 1–2 Low-Medium · 2–3 Medium-High · 3–4 High · 4–5 Extremely High. "
         "Source: [WRI Aqueduct 4.0](https://doi.org/10.46830/writn.23.00061)"
     )

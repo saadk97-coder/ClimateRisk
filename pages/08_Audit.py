@@ -8,8 +8,8 @@ import pandas as pd
 import numpy as np
 
 from engine.asset_model import Asset as _Asset
-from engine.scenario_model import SCENARIOS, get_warming, get_hazard_multiplier, HAZARD_SCALING_SOURCES
-from engine.hazard_fetcher import _load_baseline
+from engine.scenario_model import SCENARIOS, get_warming, get_hazard_multiplier, get_scenario_multipliers, HAZARD_SCALING_SOURCES
+from engine.hazard_fetcher import _load_baseline, get_region_zone
 from engine.impact_functions import get_damage_fraction, HAZARD_UNITS
 from engine.ead_calculator import calc_ead
 from engine.data_sources import DATA_SOURCE_REGISTRY
@@ -32,6 +32,7 @@ assets = [_Asset.from_dict(a) if isinstance(a, dict) else a
           for a in st.session_state.get("assets", [])]
 annual_df = st.session_state.get("annual_damages", pd.DataFrame())
 hazard_data_all = st.session_state.get("hazard_data", {})
+hazard_data_by_scenario = st.session_state.get("hazard_data_by_scenario", {})
 selected_scenarios = st.session_state.get("selected_scenarios", list(SCENARIOS.keys())[:1])
 discount_rate = st.session_state.get("discount_rate", 0.035)
 
@@ -57,7 +58,11 @@ if not sel_asset:
     st.stop()
 
 # ── Step-by-step audit ────────────────────────────────────────────────────
-hdata = hazard_data_all.get(sel_asset.id, {}).get(sel_hazard)
+# Use scenario-specific hazard data if available (matches engine behavior)
+if hazard_data_by_scenario and sel_scenario in hazard_data_by_scenario:
+    hdata = hazard_data_by_scenario[sel_scenario].get(sel_asset.id, {}).get(sel_hazard)
+else:
+    hdata = hazard_data_all.get(sel_asset.id, {}).get(sel_hazard)
 
 if not hdata:
     st.info("No hazard data fetched yet. Go to the Hazards page first.")
@@ -69,11 +74,21 @@ source_key = hdata.get("source", "fallback_baseline")
 src_info = DATA_SOURCE_REGISTRY.get(source_key, {})
 
 warming_c = get_warming(sel_scenario, sel_year)
-mult = get_hazard_multiplier(sel_hazard, warming_c)
 
+# Match engine logic: skip multiplier for ISIMIP data (already SSP-conditioned),
+# use regional zone key for fallback multipliers
+if source_key.startswith("isimip"):
+    mult = 1.0
+    mult_note = "Multiplier = 1.0 (ISIMIP data already contains SSP climate signal)"
+else:
+    region_zone = get_region_zone(sel_asset.region)
+    mult = get_scenario_multipliers(sel_scenario, sel_year, sel_hazard, region_zone)
+    mult_note = f"Region zone: {region_zone} (from {sel_asset.region})"
+
+# Match engine logic: first-floor height adjustment for flood AND coastal_flood
 adj_intens = base_intens.copy()
 elev_adj = 0.0
-if sel_hazard == "flood":
+if sel_hazard in ("flood", "coastal_flood"):
     elev_adj = sel_asset.first_floor_height_m
     adj_intens = np.clip(base_intens - elev_adj, 0.0, None)
 
@@ -109,6 +124,7 @@ steps = [
     ("4", "Hazard intensity multiplier",
      f"**Multiplier:** {mult:.4f}× (baseline intensities scaled by this factor)\n\n"
      f"**Derivation:** {warming_c:.2f} °C warming → {mult:.4f}× {sel_hazard} intensity\n\n"
+     f"**{mult_note}**\n\n"
      f"**Citation:** {hazard_src.get('citation', '')}\n\n"
      f"**URL:** [{hazard_src.get('url', '')}]({hazard_src.get('url', '')})\n\n"
      f"**Method:** Linear interpolation between IPCC AR6 benchmark warming levels "
@@ -116,8 +132,8 @@ steps = [
 
     ("5", "Asset-specific adjustments",
      f"**Hazard:** {sel_hazard}\n\n" +
-     (f"**Floor elevation above flood plain:** {elev_adj:.2f} m → intensities reduced by {elev_adj:.2f} m before multiplication\n\n"
-      if sel_hazard == "flood" and elev_adj > 0 else "No adjustments applied for this hazard type.\n\n") +
+     (f"**First-floor height above ground:** {elev_adj:.2f} m → intensities reduced by {elev_adj:.2f} m before multiplication\n\n"
+      if sel_hazard in ("flood", "coastal_flood") and elev_adj > 0 else "No adjustments applied for this hazard type.\n\n") +
      f"**Asset type:** {sel_asset.asset_type} | **Material:** {sel_asset.construction_material}"),
 
     ("6", "Vulnerability curve applied",

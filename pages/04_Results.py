@@ -72,23 +72,56 @@ with col_info:
     )
 
 if run_btn:
-    hazard_data_all = st.session_state.get("hazard_data", {})
+    # Fetch hazard data separately per scenario so that SSP-conditioned sources
+    # (e.g. ISIMIP3b) use the correct climate signal for each scenario.
+    # This prevents the structural bug where all scenarios shared one SSP's data.
+    hazard_data_by_scenario: dict = {}
+    unique_ssps = {}
+    for sc_id in selected_scenarios:
+        ssp = SCENARIOS.get(sc_id, {}).get("ssp", "SSP2-4.5")
+        unique_ssps[sc_id] = ssp
 
-    # Auto-fetch hazard data if missing for any asset
-    assets_needing_data = [a for a in assets if a.id not in hazard_data_all]
-    if assets_needing_data:
-        with st.status(f"Fetching hazard data for {len(assets_needing_data)} asset(s)…", expanded=False) as fetch_status:
-            scenario_id = selected_scenarios[0]
-            ssp = SCENARIOS.get(scenario_id, {}).get("ssp", "SSP2-4.5")
-            for asset in assets_needing_data:
-                hazards = asset_types_catalog.get(asset.asset_type, {}).get(
-                    "hazards", ["flood", "wind", "wildfire", "heat"]
-                )
-                data = fetch_all_hazards(asset.lat, asset.lon, asset.region, hazards, ssp, "2041_2060")
-                hazard_data_all[asset.id] = data
-                fetch_status.write(f"✅ {asset.name}")
-            st.session_state.hazard_data = hazard_data_all
+    # Group scenarios that share the same SSP — avoid redundant fetches
+    ssp_to_scenarios = {}
+    for sc_id, ssp in unique_ssps.items():
+        ssp_to_scenarios.setdefault(ssp, []).append(sc_id)
+
+    ssps_to_fetch = list(ssp_to_scenarios.keys())
+    total_fetches = len(assets) * len(ssps_to_fetch)
+    if total_fetches > 0:
+        with st.status(f"Fetching hazard data for {len(assets)} asset(s) × {len(ssps_to_fetch)} SSP(s)…", expanded=False) as fetch_status:
+            done_fetch = 0
+            ssp_data_cache = {}  # {ssp: {asset_id: {hazard: data}}}
+            for ssp in ssps_to_fetch:
+                ssp_data_cache[ssp] = {}
+                for asset in assets:
+                    hazards = list(asset_types_catalog.get(asset.asset_type, {}).get(
+                        "hazards", ["flood", "wind", "wildfire", "heat"]
+                    ))
+                    # Add coastal_flood dynamically
+                    if "coastal_flood" not in hazards:
+                        try:
+                            from engine.coastal import is_coastal
+                            if is_coastal(asset.lat, asset.lon):
+                                hazards.append("coastal_flood")
+                        except Exception:
+                            pass
+                    data = fetch_all_hazards(asset.lat, asset.lon, asset.region, hazards, ssp, "2041_2060")
+                    ssp_data_cache[ssp][asset.id] = data
+                    done_fetch += 1
+                    fetch_status.write(f"✅ {asset.name} ({ssp})")
+                # Map this SSP's data to all scenarios that use it
+                for sc_id in ssp_to_scenarios[ssp]:
+                    hazard_data_by_scenario[sc_id] = ssp_data_cache[ssp]
+
             fetch_status.update(label="Hazard data ready.", state="complete")
+
+    # Also keep a flat reference for backward-compat pages (Audit, Hazards preview)
+    # Use the first scenario's data as the preview set
+    first_ssp = unique_ssps.get(selected_scenarios[0], "SSP2-4.5")
+    hazard_data_flat = ssp_data_cache.get(first_ssp, {}) if total_fetches > 0 else {}
+    st.session_state.hazard_data = hazard_data_flat
+    st.session_state.hazard_data_by_scenario = hazard_data_by_scenario
 
     prog = st.progress(0, text="Computing EAD for each asset / scenario / year…")
 
@@ -99,17 +132,17 @@ if run_btn:
         # Annual computation (primary — 2025–2050)
         ann_df = compute_portfolio_annual_damages(
             assets, selected_scenarios,
-            hazard_data_all,
+            hazard_data_flat,
             discount_rate, years,
             progress_callback=cb,
+            hazard_data_by_scenario=hazard_data_by_scenario,
         )
 
         # Coarse horizon results for EP curves / adaptation page
         coarse_years = [2030, 2040, 2050]
-        overrides = {aid: hd for aid, hd in hazard_data_all.items()} if hazard_data_all else None
         coarse_results = run_portfolio(
             assets, selected_scenarios, coarse_years,
-            hazard_overrides=overrides,
+            hazard_overrides_by_scenario=hazard_data_by_scenario,
         )
 
     st.session_state.annual_damages = ann_df
@@ -578,7 +611,7 @@ _HAZARD_COLORS_BSR = dict(
     water_stress="#E9C46A",
 )
 
-# ── Portfolio-level Physical Climate VaR metric ────────────────────────────
+# ── Portfolio-level EALR metric ────────────────────────────────────────────
 _pf_var = portfolio_climate_var(annual_df, assets, year=2050, scenario_id=view_scenario)
 _port_var_pct  = _pf_var["portfolio_var_pct"]
 _port_ead_total = _pf_var["portfolio_ead"]
@@ -586,11 +619,11 @@ _port_ead_total = _pf_var["portfolio_ead"]
 _var_col, _info_col = st.columns([2, 5])
 with _var_col:
     st.metric(
-        label="Portfolio Physical Climate VaR (2050)",
+        label="Portfolio EALR (2050)",
         value=f"{_port_var_pct:.3f}%",
         help=(
-            "Expected Annual Damage as a percentage of total portfolio replacement value "
-            "under the selected scenario at 2050. Follows TCFD / MSCI Climate VaR framing."
+            "Expected Annual Loss Ratio: EAD as a percentage of total portfolio replacement value "
+            "under the selected scenario at 2050. This is an expected-loss metric, not a tail VaR."
         ),
     )
     st.caption(
@@ -603,7 +636,7 @@ with _info_col:
 **Climate Exposure Score — Methodology**
 
 Each asset × hazard cell is scored on a **1–10 scale** derived from the asset's
-Physical Climate VaR (EAD ÷ replacement value × 100%).
+Expected Annual Loss Ratio (EALR = EAD ÷ replacement value × 100%).
 
 A log-normalised transformation is applied so that the full score range is used
 even when a few assets dominate portfolio EAD:
@@ -683,9 +716,9 @@ else:
     st.info("Run the damage calculation to generate exposure scores.")
 
 # ══════════════════════════════════════════════════════════════════════════════
-# SECTION 6 — Physical Climate VaR Waterfall
+# SECTION 6 — EALR Waterfall
 # ══════════════════════════════════════════════════════════════════════════════
-st.subheader("Physical Climate VaR — Asset Contribution")
+st.subheader("Expected Annual Loss Ratio — Asset Contribution")
 
 _var_by_asset = _pf_var.get("var_by_asset", {})
 
@@ -723,16 +756,16 @@ if _var_by_asset:
         textposition="outside",
         hovertemplate=(
             "<b>%{y}</b><br>"
-            "Climate VaR: %{x:.3f}%<br>"
+            "EALR: %{x:.3f}%<br>"
             f"EAD 2050: {_sym}%{{customdata:,.0f}}"
             "<extra></extra>"
         ),
         customdata=_var_asset_df["ead"],
     ))
     _fig_waterfall.update_layout(
-        title=f"Physical Climate VaR by Asset (2050) — "
+        title=f"EALR by Asset (2050) — "
               f"{SCENARIOS.get(view_scenario, {}).get('label', view_scenario)}",
-        xaxis_title="Physical Climate VaR (%)",
+        xaxis_title="Expected Annual Loss Ratio (%)",
         yaxis_title="",
         height=max(320, 40 * len(_var_rows) + 100),
         margin=dict(l=20, r=90, t=50, b=30),
@@ -752,12 +785,13 @@ if _var_by_asset:
     )
     st.plotly_chart(_fig_waterfall, use_container_width=True)
     st.caption(
-        "Physical Climate VaR = asset EAD as % of its own replacement value. "
+        "EALR = Expected Annual Loss Ratio = asset EAD as % of its own replacement value. "
+        "This is an expected-loss metric (not tail VaR). "
         "Colour follows the same exposure score bands as the heatmap above. "
         "Dashed line = portfolio mean."
     )
 else:
-    st.info("Run the damage calculation to see the VaR waterfall.")
+    st.info("Run the damage calculation to see the EALR waterfall.")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SECTION 7 — Stranded Asset Analysis

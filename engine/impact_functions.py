@@ -136,6 +136,12 @@ def get_damage_fraction(hazard: str, asset_type: str, intensity: float) -> float
         curve = curves.get(key, curves.get(asset_type, curves["_default"]))
         return _interpolate(curve["depth_m"], curve["damage_fraction"], intensity)
 
+    elif hazard == "water_stress":
+        # Water stress pipeline (water_stress.py / hazard_fetcher.py) returns
+        # pre-computed damage fractions as "intensities". Pass through directly,
+        # clamped to [0, 1].
+        return float(np.clip(intensity, 0.0, 1.0))
+
     return 0.0
 
 
@@ -177,4 +183,5 @@ HAZARD_UNITS = {
     "wildfire": "Flame length (m)",
     "heat": "Max temperature (°C)",
     "coastal_flood": "Storm surge depth (m)",
+    "water_stress": "Damage fraction (0–1)",
 }
