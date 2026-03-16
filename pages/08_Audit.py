@@ -97,7 +97,16 @@ if sel_hazard == "coastal_flood":
 
 scaled_intens = adj_intens * mult
 damage_fracs = np.array([get_damage_fraction(sel_hazard, sel_asset.asset_type, i) for i in scaled_intens])
-ead = calc_ead(rp, damage_fracs, sel_asset.replacement_value)
+
+# Use the same pathway as the engine: chronic hazards (water_stress) use
+# median damage fraction × value, not trapezoidal EP-curve integration.
+from engine.ead_calculator import CHRONIC_HAZARDS
+if sel_hazard in CHRONIC_HAZARDS:
+    rp50_idx = int(np.argmin(np.abs(rp - 50)))
+    median_frac = float(damage_fracs[rp50_idx])
+    ead = median_frac * sel_asset.replacement_value
+else:
+    ead = calc_ead(rp, damage_fracs, sel_asset.replacement_value)
 pv = ead / (1.0 + discount_rate) ** (sel_year - 2025)
 
 hazard_src = HAZARD_SCALING_SOURCES.get(sel_hazard, {})

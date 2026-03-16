@@ -206,7 +206,7 @@ pages/04_Results.py
 - `results` — list of `AssetResult` objects
 - `currency_code` — ISO currency code string (default "USD")
 - `hazard_data` — `{asset_id: {hazard: data}}` — flat reference for Audit/Hazards preview
-- `hazard_data_by_scenario` — `{scenario_id: {asset_id: {hazard: data}}}` — per-scenario data
+- `hazard_data_by_scenario` — REMOVED in Session 5 (baseline is now scenario-agnostic)
 
 ## Important Gotchas
 1. **Streamlit Cloud serialises dataclasses to dicts** — always handle both:
@@ -316,7 +316,7 @@ final_intensity = (depth_above_floor + SLR_effect) × storminess_multiplier
 
 ## Known Limitations (acknowledged, not yet addressed)
 - **ISIMIP flood is a precipitation proxy** — uses Rx1day → empirical depth scaling, NOT a hydraulic model
-- **ISIMIP time chunks** — hardcoded to 2021-2050 chunk; not horizon-specific
+- **ISIMIP time chunks** — hardcoded to historical 1991-2014; fewer years (~24) than ideal for GEV
 - **Heat modelled as return-period EAD** — acute framing; should be chronic annual cost
 - **GEV extrapolation** — fits 1000-year RP from ~30 annual samples (fragile tail)
 - **Unused asset attributes** — basement, roof_type, year_built defined but not used in damage functions
@@ -324,3 +324,61 @@ final_intensity = (depth_above_floor + SLR_effect) × storminess_multiplier
 - **Coastal zone accuracy** — coastline distance accuracy ~±20km vs 10km threshold; many assets borderline
 - **Provenance mismatch** — ngfs_hazard_baseline.json heat uses wet-bulb °C; ISIMIP uses tasmax °C
 - **Coastal datum assumption** — MHWS ≈ 0m ASL is approximate; varies by tidal regime
+
+## Fixes Applied in Session 5 (fifth code review — architecture standardisation)
+
+### P0 — Climate signal double-counting (baseline + multipliers standardisation)
+| File | Fix |
+|------|-----|
+| `engine/isimip_fetcher.py` | `_BASELINE_SSP = "historical"`, `_TIME_CHUNKS` → `["1991_2000", "2001_2010", "2011_2014"]`. All 4 fetch functions ignore SSP parameter — scenario-agnostic baseline |
+| `engine/hazard_fetcher.py` | Removed `scenario_ssp` from ISIMIP calls; added `asset_type` parameter for water stress threading |
+| `pages/04_Results.py` | Removed per-SSP fetch grouping; fetches baseline ONCE for all scenarios; removed `hazard_data_by_scenario` |
+| `pages/03_Hazards.py` | Updated ISIMIP comparison table: "2021–2050 (SSP projections)" → "Historical (1991–2014)" |
+| `pages/00_Methodology.py` | "5-GCM ensemble" → "4-GCM ensemble median"; "2021–2050 projections" → "historical experiment" |
+
+### P0 — Water stress fixes
+| File | Fix |
+|------|-----|
+| `engine/water_stress.py` | `"data_centre"` → `"data_center"` in `_ASSET_TYPE_WATER_SENSITIVITY` (match asset_types.json) |
+| `engine/water_stress.py` | Removed embedded `_interp_scenario()` multiplier from fetch — engine handles temporal evolution |
+| `engine/water_stress.py` | `_get_region_key` → `get_region_zone` (public API) |
+| `engine/hazard_fetcher.py` | `asset_type` threaded through `fetch_all_hazards` → `fetch_hazard_intensities` → `fetch_water_stress_profile` |
+| `pages/08_Audit.py` | Chronic pathway for water_stress EAD: `median_frac × value` instead of `calc_ead()` |
+
+### P0 — Coastal SLR regional factor double-counting
+| File | Fix |
+|------|-----|
+| `engine/scenario_model.py` | `get_slr_additive()` returns raw global SLR — no regional factor (handled by `get_scenario_multipliers`) |
+
+### P0 — Negative terrain ignored
+| File | Fix |
+|------|-----|
+| `engine/coastal.py` | `if terrain_elevation_asl_m > 0:` → unconditional `surge = np.clip(surge - terrain_elevation_asl_m, 0.0, None)` |
+| `pages/03_Hazards.py` | Added `terrain_elevation_asl_m` to `fetch_all_hazards` call |
+
+### P0 — CHELSA/NASA mapping errors
+| File | Fix |
+|------|-----|
+| `engine/data_sources.py` | `_CHELSA_SSP_MAP`: `"SSP2-4.5": "ssp370"` → `"ssp245"`; added `"SSP3-7.0": "ssp370"` |
+| `engine/data_sources.py` | `fetch_best_available`: wind support (`"heat"` → `("heat", "wind")`); CHELSA uses `tasmax` |
+
+### P1 — Documentation / UI consistency
+| File | Fix |
+|------|-----|
+| `pages/05_Map.py` | BWS label: "Water Stress (BWS):" → "Water Stress (raw BWS indicator):"; `_get_region_key` → `get_region_zone` |
+| `engine/coastal.py` | `_get_region_key` → `get_region_zone` |
+
+### Test coverage (20 tests)
+| File | Fix |
+|------|-----|
+| `tests/test_regression.py` | Added 7 new tests (14–20): SLR no regional factor, ISIMIP historical baseline, data_center spelling, negative terrain, CHELSA mapping, water stress sensitivity, wind in fetch_best_available |
+
+### Hazard data flow (after Session 5)
+```
+pages/04_Results.py
+  → fetch baseline ONCE (scenario-agnostic)
+  → hazard_data = {asset_id: {hazard: data}}  (flat, no per-scenario keys)
+  → compute_portfolio_annual_damages(hazard_data=...)
+  → run_portfolio(hazard_overrides=hazard_data)
+  → engine applies IPCC AR6 multipliers for scenario/year differentiation
+```

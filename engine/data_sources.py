@@ -28,10 +28,11 @@ DATA_SOURCE_REGISTRY = {
         "name": "ISIMIP3b (Flood + Heat + Wind + Wildfire)",
         "description": (
             "Inter-Sectoral Impact Model Intercomparison Project Phase 3b. "
-            "Flood: derived from annual maximum daily precipitation (Rx1day) at 0.5°, "
-            "GEV-fitted, then converted to inundation depth via regional empirical scaling "
-            "(JRC-calibrated drainage threshold + depth factor). This is a precipitation-proxy "
-            "approach, not a floodplain hydraulic model. "
+            "Flood: SCREENING-LEVEL PROXY — derived from annual maximum daily precipitation "
+            "(Rx1day) at 0.5°, GEV-fitted, then converted to indicative inundation depth via "
+            "regional empirical scaling (JRC-calibrated drainage threshold + depth factor). "
+            "This is NOT a floodplain hydraulic model — it does not account for local topography, "
+            "drainage networks, or soil properties. Suitable for portfolio screening, not site-specific design. "
             "Heat/Wind: bias-adjusted tasmax and sfcWind at 0.5° from CMIP6 GCMs (GFDL-ESM4, "
             "MPI-ESM1-2-HR, IPSL-CM6A-LR, MRI-ESM2-0), GEV-fitted annual maxima. "
             "Wildfire: multi-variable extraction (tasmax + pr + hurs + sfcWind) combined with "
@@ -233,8 +234,9 @@ def _has_scipy() -> bool:
 _CHELSA_BASE = "https://os.zhdk.cloud.switch.ch/envicloud/chelsa/chelsa_V2/GLOBAL/climatologies"
 
 _CHELSA_SSP_MAP = {
-    "SSP1-2.6": "ssp126", "SSP2-4.5": "ssp370",
-    "SSP5-8.5": "ssp585", "SSP1-1.9": "ssp126",
+    "SSP1-1.9": "ssp126", "SSP1-2.6": "ssp126",
+    "SSP2-4.5": "ssp245", "SSP3-7.0": "ssp370",
+    "SSP5-8.5": "ssp585",
 }
 
 
@@ -351,20 +353,25 @@ def fetch_best_available(
     """
     Try data sources in priority order and return (source_key, value).
     Falls back to regional baseline if all fail.
+
+    NOTE: These are secondary fallback sources. The ssp/year parameters
+    are accepted for API compatibility but ideally these would also fetch
+    baseline/historical data. The primary fix is in isimip_fetcher.py.
     """
-    # 1. NASA NEX-GDDP-CMIP6 (global)
-    if hazard == "heat":
-        val = fetch_nasa_nex(lat, lon, variable="tasmax", ssp=ssp, year=year)
+    # 1. NASA NEX-GDDP-CMIP6 (global) — heat and wind
+    if hazard in ("heat", "wind"):
+        variable = "tasmax" if hazard == "heat" else "sfcWind"
+        val = fetch_nasa_nex(lat, lon, variable=variable, ssp=ssp, year=year)
         if val is not None:
             return "nasa_nex_gddp_cmip6", val
 
-    # 2. CHELSA (global, high-res)
+    # 2. CHELSA (global, high-res) — heat only (uses tasmax not tas)
     if hazard == "heat":
-        val = fetch_chelsa_temp(lat, lon, ssp=ssp)
+        val = fetch_chelsa_temp(lat, lon, ssp=ssp, variable="tasmax")
         if val is not None:
             return "chelsa_cmip6", val
 
-    # 3. ClimateNA (North America)
+    # 3. ClimateNA (North America) — heat only
     if hazard == "heat":
         val = fetch_climatena(lat, lon, scenario=ssp.lower().replace("-", ""))
         if val is not None:

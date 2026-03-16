@@ -530,8 +530,8 @@ def get_coastal_flood_intensities(
     }
 
     # Map ISO3 → zone using same mapping as fluvial flood
-    from engine.hazard_fetcher import _get_region_key
-    zone = _get_region_key(region_iso3)
+    from engine.hazard_fetcher import get_region_zone
+    zone = get_region_zone(region_iso3)
     surge = _SURGE_BASELINES.get(zone, _SURGE_BASELINES["global"]).copy()
 
     # Distance attenuation: surge depth decays inland
@@ -546,7 +546,8 @@ def get_coastal_flood_intensities(
     # of the surge actually inundates the site.
     # Assumption: MHWS ≈ 0 m ASL (reasonable for many tidal datums).
     # depth_above_ground = max(0, surge_level - terrain_elevation)
-    if terrain_elevation_asl_m > 0:
-        surge = np.clip(surge - terrain_elevation_asl_m, 0.0, None)
+    # For below-sea-level terrain (e.g. polders, deltas), negative elevation
+    # INCREASES the effective surge depth (the site is already below MHWS).
+    surge = np.clip(surge - terrain_elevation_asl_m, 0.0, None)
 
     return rps, surge

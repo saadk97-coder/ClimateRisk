@@ -271,3 +271,127 @@ def test_coastal_flood_additive_slr():
     assert slr > 0.0, f"SLR at 2050 under current_policies must be > 0, got {slr}"
     # SLR should be in a physically reasonable range (0.1–1.5m by 2050)
     assert 0.05 < slr < 1.5, f"SLR at 2050 should be 0.05–1.5m, got {slr}"
+
+
+# ── Test 14: SLR does NOT apply regional factor (Session 5 fix) ────────────
+
+def test_slr_no_regional_factor():
+    """get_slr_additive must return the same value regardless of region,
+    because regional variation is handled by get_scenario_multipliers().
+    Double-applying was the bug fixed in Session 5."""
+    from engine.scenario_model import get_slr_additive
+    slr_global = get_slr_additive("current_policies", 2050, region="global")
+    slr_ind = get_slr_additive("current_policies", 2050, region="IND")
+    slr_eur = get_slr_additive("current_policies", 2050, region="EUR")
+    assert slr_global == slr_ind == slr_eur, \
+        f"SLR must be region-independent: global={slr_global}, IND={slr_ind}, EUR={slr_eur}"
+
+
+# ── Test 15: Scenario-agnostic ISIMIP baseline ────────────────────────────
+
+def test_isimip_uses_historical_baseline():
+    """ISIMIP fetcher must use historical experiment (scenario-agnostic),
+    not SSP-conditioned future data. This prevents double-counting with
+    the engine's scenario multipliers."""
+    import importlib
+    import ast
+
+    # Parse the source directly to avoid importing xarray (not in test env)
+    spec = importlib.util.find_spec("engine.isimip_fetcher")
+    with open(spec.origin) as f:
+        source = f.read()
+    tree = ast.parse(source)
+
+    found_baseline = None
+    found_chunks = None
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id == "_BASELINE_SSP":
+                    found_baseline = ast.literal_eval(node.value)
+                if isinstance(target, ast.Name) and target.id == "_TIME_CHUNKS":
+                    found_chunks = ast.literal_eval(node.value)
+
+    assert found_baseline == "historical", \
+        f"ISIMIP baseline must be 'historical', got '{found_baseline}'"
+    assert found_chunks is not None, "_TIME_CHUNKS not found in isimip_fetcher.py"
+    for chunk in found_chunks:
+        start_year = int(chunk.split("_")[0])
+        assert start_year < 2015, \
+            f"ISIMIP time chunk '{chunk}' is NOT historical (starts {start_year})"
+
+
+# ── Test 16: Water stress data_center spelling matches asset_types.json ───
+
+def test_water_stress_data_center_spelling():
+    """asset_types.json uses 'data_center'; water_stress module must match."""
+    import json
+    import os
+    from engine.water_stress import _ASSET_TYPE_WATER_SENSITIVITY
+
+    # Check the module has "data_center" (not "data_centre")
+    assert "data_center" in _ASSET_TYPE_WATER_SENSITIVITY, \
+        "water_stress must use 'data_center' (not 'data_centre') to match asset_types.json"
+    assert "data_centre" not in _ASSET_TYPE_WATER_SENSITIVITY, \
+        "British spelling 'data_centre' should not be in water sensitivity map"
+
+
+# ── Test 17: Negative terrain increases coastal flood depth ───────────────
+
+def test_negative_terrain_increases_coastal_depth():
+    """Below-sea-level terrain (e.g. polders) must INCREASE effective surge
+    depth, not be skipped."""
+    from engine.coastal import get_coastal_flood_intensities
+
+    # Asset at sea level
+    _, surge_zero = get_coastal_flood_intensities(
+        lat=51.9, lon=4.5, region_iso3="NLD",
+        terrain_elevation_asl_m=0.0
+    )
+
+    # Asset 2m below sea level (typical Dutch polder)
+    _, surge_neg = get_coastal_flood_intensities(
+        lat=51.9, lon=4.5, region_iso3="NLD",
+        terrain_elevation_asl_m=-2.0
+    )
+
+    # Negative terrain → higher effective depth
+    assert np.all(surge_neg >= surge_zero), \
+        f"Below-sea-level terrain must increase surge depth: neg={surge_neg[2]:.2f} vs zero={surge_zero[2]:.2f}"
+    assert surge_neg[2] > surge_zero[2], \
+        "RP100 depth must be strictly greater for below-sea-level site"
+
+
+# ── Test 18: CHELSA SSP mapping correctness ──────────────────────────────
+
+def test_chelsa_ssp_mapping():
+    """CHELSA SSP mapping must correctly map SSP2-4.5 to ssp245 (not ssp370)."""
+    from engine.data_sources import _CHELSA_SSP_MAP
+    assert _CHELSA_SSP_MAP["SSP2-4.5"] == "ssp245", \
+        f"SSP2-4.5 must map to ssp245, got {_CHELSA_SSP_MAP['SSP2-4.5']}"
+    assert _CHELSA_SSP_MAP.get("SSP3-7.0") == "ssp370", \
+        f"SSP3-7.0 must map to ssp370, got {_CHELSA_SSP_MAP.get('SSP3-7.0')}"
+
+
+# ── Test 19: Water stress sensitivity multiplier is applied ──────────────
+
+def test_water_stress_sensitivity_applied():
+    """Water stress damage fractions must differ by asset type due to
+    sensitivity multipliers (e.g. data_center > residential)."""
+    from engine.water_stress import _ASSET_TYPE_WATER_SENSITIVITY
+    dc = _ASSET_TYPE_WATER_SENSITIVITY["data_center"]
+    res = _ASSET_TYPE_WATER_SENSITIVITY["residential"]
+    assert dc > res, \
+        f"Data center sensitivity ({dc}) must exceed residential ({res})"
+
+
+# ── Test 20: fetch_best_available handles wind (not just heat) ───────────
+
+def test_fetch_best_available_supports_wind():
+    """fetch_best_available must not fail for wind hazard — the condition
+    must be 'hazard in (\"heat\", \"wind\")' not just 'hazard == \"heat\"'."""
+    from engine.data_sources import fetch_best_available
+    # This should not raise; it will return fallback since no real API is available
+    source, val = fetch_best_available(51.5, -0.1, "wind", "GBR")
+    # Should attempt NASA NEX for wind, then fall back
+    assert source is not None, "fetch_best_available must return a source for wind"

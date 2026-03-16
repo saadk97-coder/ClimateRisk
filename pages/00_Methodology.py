@@ -190,13 +190,13 @@ _NODE_DATA = [
 
     # Hazard
     dict(id=3,  x=1.1, y=4.2, label="ISIMIP3b API",          cat="Hazard",
-         desc="GSWP3-W5E5 bias-adjusted climate data. Variables: tasmax, sfcwind, pr, hurs. 5-GCM ensemble · GEV fitting."),
+         desc="GSWP3-W5E5 bias-adjusted climate data (historical experiment). Variables: tasmax, sfcwind, pr, hurs. 4-GCM ensemble median · GEV fitting."),
     dict(id=4,  x=1.1, y=2.8, label="WRI Aqueduct 4.0",      cat="Hazard",
          desc="Water stress projections 2030–2080 under SSP1/2/3/5. Basin-level baseline water stress and variability."),
     dict(id=5,  x=1.1, y=1.4, label="Hazard Multipliers",    cat="Hazard",
          desc="IPCC AR6 scaling: flood +5–8%/°C (Tabari 2020) · wind +5%/2°C (Knutson 2020) · wildfire FWI season (Jolly 2015)"),
     dict(id=6,  x=1.1, y=0.0, label="Regional Fallback",     cat="Hazard",
-         desc="Built-in regional median intensities by scenario and return period. Used when ISIMIP API unavailable."),
+         desc="Built-in regional median intensities by return period. Scenario-agnostic baseline; multipliers applied for each scenario/year."),
 
     # Vulnerability
     dict(id=7,  x=2.2, y=4.2, label="HAZUS 6.0 Flood DDFs",  cat="Vulnerability",
@@ -367,7 +367,7 @@ with st.expander(_step_header("2", "🌡️", "Climate Scenario Selection", BSR[
 | Heat | Zhao et al. (2021) | Super-linear above 2°C |
 | Water Stress | WRI Aqueduct (2023) | ~4%/°C freshwater reduction |
 
-Hazard data extracted from ISIMIP3b 2021–2050 projections (bias-adjusted against 1995–2014 W5E5 reanalysis). IPCC AR6 scaling applied to all sources for temporal evolution.
+Hazard data extracted from ISIMIP3b historical experiment (bias-adjusted against 1979–2014 W5E5 reanalysis). IPCC AR6 hazard scaling multipliers applied to this scenario-agnostic baseline for temporal and scenario evolution.
         """)
     with col_b:
         _sc_df = pd.DataFrame([
@@ -421,8 +421,8 @@ with st.expander(_step_header("3", "🌊", "Hazard Data Retrieval", BSR["orange"
 | Flood | `pr` (precipitation) | Rx1day annual maxima → JRC scaling: `depth = max(0, (Rx1day − 25mm) × 0.012 m/mm)` |
 | Wildfire | `tasmax`, `pr`, `hurs`, `sfcwind` | Full Canadian FWI pipeline (Van Wagner 1987) |
 
-**GCMs used:** GFDL-ESM4, IPSL-CM6A-LR, MPI-ESM1-2-HR, MRI-ESM2-0, UKESM1-0-LL
-(5-model ensemble, bias-adjusted to W5E5 observational baseline)
+**GCMs used:** GFDL-ESM4, MPI-ESM1-2-HR, IPSL-CM6A-LR, MRI-ESM2-0
+(4-model ensemble median, bias-adjusted to W5E5 observational baseline)
 
 **GEV fitting:**
 ```python
