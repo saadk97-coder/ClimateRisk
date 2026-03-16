@@ -234,6 +234,86 @@ pages/04_Results.py
 | First-floor height | Manual entry (freeboard above ground) | Default 0.0m |
 | Country | BigDataCloud reverse geocode | Manual entry |
 
+## Fixes Applied in Session 4 (fourth code review response)
+
+### P0 — Structural correctness (climate signal coherence)
+| File | Fix |
+|------|-----|
+| `engine/damage_engine.py` | Removed ISIMIP multiplier skip; ALL sources now use IPCC AR6 multipliers (Option 1: baseline + multipliers) |
+| `engine/annual_risk.py` | Same: removed `if source.startswith("isimip"): mult = 1.0` — multipliers apply uniformly |
+| `pages/04_Results.py` | Changed hazard fetch period from "2041_2060" to "2021_2040" (near-term baseline, not mid-century) |
+| `engine/hazard_fetcher.py` | Default `time_period` changed from "2041_2060" to "2021_2040" |
+| `pages/08_Audit.py` | Audit logic updated to match: multipliers applied to all sources, additive SLR for coastal_flood |
+
+### P0 — Zone key mapping
+| File | Fix |
+|------|-----|
+| `engine/hazard_fetcher.py` | `get_region_zone()` now accepts zone keys directly (EUR, MEA, etc.) — not just ISO3 |
+| `data/ngfs_hazard_baseline.json` | Added MEA zone data (all hazards) + MEA ISO3 mappings (SAU, ARE, QAT, etc.) |
+
+### P0 — Water stress (chronic hazard pathway)
+| File | Fix |
+|------|-----|
+| `engine/ead_calculator.py` | Added `CHRONIC_HAZARDS` set; water stress uses `EAD = median_frac × value` (not EP-curve integration) |
+| `engine/water_stress.py` | Fixed scenario mapping: accepts both SSP labels ("SSP2-4.5") and scenario_ids ("ndcs_only") |
+| `engine/water_stress.py` | `_interp_scenario()` now actually called — applies Aqueduct future projection multiplier |
+
+### P0 — Coastal flood physics
+| File | Fix |
+|------|-----|
+| `engine/coastal.py` | `get_coastal_flood_intensities()` now accepts `terrain_elevation_asl_m` and converts surge to depth above ground |
+| `engine/scenario_model.py` | Added `COASTAL_SLR_ADDITIVE_M` table + `get_slr_additive()` — SLR is additive, not multiplicative |
+| `engine/scenario_model.py` | Coastal flood multiplicative scaling reduced (now represents storminess only, not SLR) |
+| `engine/damage_engine.py` | Coastal flood: additive SLR + small multiplicative storminess term |
+| `engine/annual_risk.py` | Same additive SLR treatment |
+| `engine/hazard_fetcher.py` | `terrain_elevation_asl_m` threaded through fetch pipeline to coastal module |
+
+### P1 — ISIMIP ensemble median
+| File | Fix |
+|------|-----|
+| `engine/isimip_fetcher.py` | All 4 fetch functions (heat, wind, flood, wildfire) now query ALL GCMs and return ensemble median |
+| `engine/isimip_fetcher.py` | Added `_ensemble_median()` helper |
+
+### P1 — Test suite
+| File | Fix |
+|------|-----|
+| `tests/test_regression.py` | Rewrote with 13 tests covering: SSP differentiation, multiplier application, zone pass-through, chronic water stress, additive SLR |
+| `tests/test_regression.py` | Former test_scenario_order_invariance used same scenario twice — now separate test with different SSPs |
+
+### P1 — Documentation / terminology
+| File | Fix |
+|------|-----|
+| `app.py` | "Physical Climate VaR" → "Expected Annual Loss Ratio (EALR %)" |
+| `engine/risk_scorer.py` | Docstring "Physical Climate VaR" → "EALR" |
+| `engine/scenario_model.py` | Narrative "Climate VaR and Physical VaR" → "EALR, climate exposure scores" |
+| `pages/00_Methodology.py` | Baseline period clarified: "ISIMIP3b 2021–2050 projections (bias-adjusted against 1995–2014 W5E5)" |
+
+### P1 — Hazard fetch provenance
+| File | Fix |
+|------|-----|
+| `engine/hazard_fetcher.py` | Added `logging` throughout — all `except Exception: pass` → logged warnings |
+| `engine/hazard_fetcher.py` | `fetch_all_hazards()` logs per-location provenance summary and warns on fallback usage |
+
+### Climate signal strategy (after Session 4)
+```
+Option 1 (Baseline + Multipliers) — CHOSEN
+  - ALL sources (ISIMIP, NEX-GDDP, fallback) treated as near-term baseline
+  - IPCC AR6 hazard scaling applied uniformly for temporal evolution 2025–2050
+  - Annual timeline is meaningful: multiplier grows with warming
+  - Scenario comparisons are internally consistent
+  - Coastal flood: additive SLR + residual multiplicative storminess
+  - Water stress: chronic pathway (EAD = median_frac × value), no EP integration
+```
+
+### Coastal flood depth computation (after Session 4)
+```
+water_level_asl = storm_surge_above_MHWS  (regional baseline, distance-attenuated)
+depth_above_ground = max(0, water_level_asl - terrain_elevation_asl_m)
+depth_above_floor = max(0, depth_above_ground - first_floor_height_m)
+SLR_effect = additive_slr_m  (from COASTAL_SLR_ADDITIVE_M table)
+final_intensity = (depth_above_floor + SLR_effect) × storminess_multiplier
+```
+
 ## Known Limitations (acknowledged, not yet addressed)
 - **ISIMIP flood is a precipitation proxy** — uses Rx1day → empirical depth scaling, NOT a hydraulic model
 - **ISIMIP time chunks** — hardcoded to 2021-2050 chunk; not horizon-specific
@@ -243,3 +323,4 @@ pages/04_Results.py
 - **VaR naming** — function name `climate_var_pct` retained for backward compat; UI + docstrings → EALR
 - **Coastal zone accuracy** — coastline distance accuracy ~±20km vs 10km threshold; many assets borderline
 - **Provenance mismatch** — ngfs_hazard_baseline.json heat uses wet-bulb °C; ISIMIP uses tasmax °C
+- **Coastal datum assumption** — MHWS ≈ 0m ASL is approximate; varies by tidal regime

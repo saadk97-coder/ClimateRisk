@@ -8,7 +8,7 @@ import pandas as pd
 import numpy as np
 
 from engine.asset_model import Asset as _Asset
-from engine.scenario_model import SCENARIOS, get_warming, get_hazard_multiplier, get_scenario_multipliers, HAZARD_SCALING_SOURCES
+from engine.scenario_model import SCENARIOS, get_warming, get_hazard_multiplier, get_scenario_multipliers, get_slr_additive, HAZARD_SCALING_SOURCES
 from engine.hazard_fetcher import _load_baseline, get_region_zone
 from engine.impact_functions import get_damage_fraction, HAZARD_UNITS
 from engine.ead_calculator import calc_ead
@@ -75,22 +75,25 @@ src_info = DATA_SOURCE_REGISTRY.get(source_key, {})
 
 warming_c = get_warming(sel_scenario, sel_year)
 
-# Match engine logic: skip multiplier for ISIMIP data (already SSP-conditioned),
-# use regional zone key for fallback multipliers
-if source_key.startswith("isimip"):
-    mult = 1.0
-    mult_note = "Multiplier = 1.0 (ISIMIP data already contains SSP climate signal)"
-else:
-    region_zone = get_region_zone(sel_asset.region)
-    mult = get_scenario_multipliers(sel_scenario, sel_year, sel_hazard, region_zone)
-    mult_note = f"Region zone: {region_zone} (from {sel_asset.region})"
+# Match engine logic: multiplier applied uniformly to ALL sources.
+# Fetched data is treated as a near-term baseline; IPCC AR6 scaling
+# provides temporal evolution for the annual curve.
+region_zone = get_region_zone(sel_asset.region)
+mult = get_scenario_multipliers(sel_scenario, sel_year, sel_hazard, region_zone)
+mult_note = f"Region zone: {region_zone} (from {sel_asset.region})"
 
 # Match engine logic: first-floor height adjustment for flood AND coastal_flood
 adj_intens = base_intens.copy()
 elev_adj = 0.0
+slr_m = 0.0
 if sel_hazard in ("flood", "coastal_flood"):
     elev_adj = sel_asset.first_floor_height_m
     adj_intens = np.clip(base_intens - elev_adj, 0.0, None)
+
+# Additive SLR for coastal_flood (SLR is fundamentally additive, not multiplicative)
+if sel_hazard == "coastal_flood":
+    slr_m = get_slr_additive(sel_scenario, sel_year, region_zone)
+    adj_intens = adj_intens + slr_m
 
 scaled_intens = adj_intens * mult
 damage_fracs = np.array([get_damage_fraction(sel_hazard, sel_asset.asset_type, i) for i in scaled_intens])

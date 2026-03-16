@@ -77,6 +77,13 @@ def build_ep_curve(
     return aep[order], losses[order]
 
 
+# Hazards that represent chronic annual costs rather than acute return-period
+# shocks.  For these, "intensities" are pre-computed damage fractions and
+# the EAD is simply the median (RP50) damage fraction × asset value, without
+# trapezoidal EP-curve integration.
+CHRONIC_HAZARDS = {"water_stress"}
+
+
 def calc_ead_from_intensities(
     return_periods: np.ndarray,
     intensities: np.ndarray,
@@ -88,6 +95,10 @@ def calc_ead_from_intensities(
     """
     Full pipeline: intensities → damage fractions → EAD.
 
+    For chronic hazards (water_stress), the "intensities" are already
+    pre-computed damage fractions.  EAD = median_damage_fraction × value.
+    For acute hazards, standard EP-curve trapezoidal integration is used.
+
     Returns (ead, damage_fractions)
     """
     from engine.impact_functions import get_damage_fraction
@@ -96,5 +107,17 @@ def calc_ead_from_intensities(
     damage_fractions = np.array([
         get_damage_fraction(hazard, asset_type, i) for i in scaled
     ])
-    ead = calc_ead(return_periods, damage_fractions, asset_value)
+
+    if hazard in CHRONIC_HAZARDS:
+        # Chronic pathway: use median damage fraction (RP50 equivalent, index 1
+        # in standard [10,50,100,250,500,1000] grid) as expected annual cost.
+        # No EP-curve integration — water stress is an annual condition, not
+        # a return-period event.
+        rp_arr = np.asarray(return_periods, dtype=float)
+        rp50_idx = int(np.argmin(np.abs(rp_arr - 50)))
+        median_frac = float(damage_fractions[rp50_idx])
+        ead = median_frac * asset_value
+    else:
+        ead = calc_ead(return_periods, damage_fractions, asset_value)
+
     return ead, damage_fractions

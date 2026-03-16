@@ -111,8 +111,10 @@ _BWS_FUTURE_MULTIPLIER: Dict[str, Dict[int, float]] = {
     "pessimistic":          {2020: 1.0, 2030: 1.15, 2040: 1.32, 2050: 1.52, 2080: 1.90},
 }
 
-# Map NGFS scenario keys to Aqueduct scenario
+# Map NGFS scenario keys to Aqueduct scenario.
+# Accepts both scenario_id (e.g. "net_zero_2050") and SSP label (e.g. "SSP2-4.5").
 _NGFS_TO_AQUEDUCT: Dict[str, str] = {
+    # Scenario IDs
     "net_zero_2050":      "optimistic",
     "below_2c":           "optimistic",
     "divergent_net_zero": "optimistic",
@@ -128,6 +130,12 @@ _NGFS_TO_AQUEDUCT: Dict[str, str] = {
     "fragmented_world":   "pessimistic",
     "ssp5_85":            "pessimistic",
     "ssp3_70":            "pessimistic",
+    # SSP labels (passed by hazard_fetcher via scenario_ssp)
+    "SSP1-1.9":           "optimistic",
+    "SSP1-2.6":           "optimistic",
+    "SSP2-4.5":           "business_as_usual",
+    "SSP3-7.0":           "pessimistic",
+    "SSP5-8.5":           "pessimistic",
 }
 
 STANDARD_RETURN_PERIODS = np.array([10, 50, 100, 250, 500, 1000], dtype=float)
@@ -321,13 +329,17 @@ def fetch_water_stress_profile(
         bws_baseline = _REGIONAL_BWS_BASELINE.get(zone, _REGIONAL_BWS_BASELINE["global"])
         source = "regional_baseline"
 
+    # Apply scenario-specific future multiplier (was previously unused).
+    # Interpolates BWS growth for the given Aqueduct scenario at mid-period (2035).
+    scenario_mult = _interp_scenario(aqueduct_scenario, 2035)
+
     # Apply return-period stress scale and future scenario multiplier
     # RP scale makes higher return periods represent more severe stress conditions
     damages = []
     for rp in return_periods:
         rp_scale = _BWS_RP_SCALE.get(float(rp), 1.0)
-        # Scale BWS by RP factor (higher RP = more severe drought/scarcity)
-        bws_rp = bws_baseline * rp_scale
+        # Scale BWS by RP factor and scenario projection
+        bws_rp = bws_baseline * rp_scale * scenario_mult
         # Clip to realistic range (>5 = extreme scarcity beyond Aqueduct scale)
         bws_rp = min(bws_rp, 6.0)
         damage_frac = _interp_damage_curve(bws_rp) * sensitivity

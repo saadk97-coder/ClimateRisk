@@ -120,7 +120,7 @@ st.markdown("""
 | 1 | **Portfolio** | Upload assets via CSV or add them manually |
 | 2 | **Scenarios** | Select scenarios — BSR 2025, NGFS Phase V, IEA WEO or IPCC AR6, with regional narrative insights |
 | 3 | **Hazards** | Fetch hazard data (ISIMIP3b, NASA NEX-GDDP, CHELSA, WRI Aqueduct, fallback) |
-| 4 | **Results** | Climate Exposure Scores, Physical Climate VaR, annual EAD 2025–2050, stranded asset flags |
+| 4 | **Results** | Climate Exposure Scores, EALR (Expected Annual Loss Ratio), annual EAD 2025–2050, stranded asset flags |
 | 5 | **Map** | Interactive risk map with water stress overlay, satellite imagery & building footprints |
 | 6 | **Adaptation** | Adaptation Return on Investment (ROI) and cost-benefit for 20+ measures |
 | 7 | **DCF** | Climate-adjusted NPV valuation with stranded asset analysis |
@@ -136,7 +136,7 @@ with col1:
     st.markdown("### 📊 Risk Analytics")
     st.markdown("""
 - **Climate Exposure Score** (1–10) per hazard per asset — normalised, comparable across portfolio
-- **Physical Climate VaR (%)** — expected damage as % of asset value
+- **Expected Annual Loss Ratio (EALR %)** — expected damage as % of asset value
 - **Stranded asset flags** — where cumulative climate costs exceed value thresholds
 - **30-year forward risk projection** per scenario
     """)

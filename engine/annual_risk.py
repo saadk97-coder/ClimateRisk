@@ -6,12 +6,12 @@ multiplier to pre-fetched baseline intensities, runs the vulnerability curve
 and EAD integration, then discounts to a base year.
 
 Calculation trace (auditable step by step):
-  1. baseline_intensity[rp]          ← from ISIMIP API or regional fallback
+  1. baseline_intensity[rp]          ← from ISIMIP API or regional fallback (near-term baseline)
   2. warming_c                        ← scenario warming trajectory (interpolated)
-  3. hazard_multiplier                ← IPCC AR6 hazard scaling (see scenario_model.py)
-  4. adjusted_intensity[rp]           ← baseline × multiplier (flood: minus elevation)
+  3. hazard_multiplier                ← IPCC AR6 hazard scaling, applied to ALL sources
+  4. adjusted_intensity[rp]           ← baseline × multiplier (flood/coastal: minus freeboard; coastal: +SLR)
   5. damage_fraction[rp]              ← vulnerability curve (HAZUS/JRC/Syphard/IEA)
-  6. EAD                              ← ∫ damage(aep) d(aep) via trapezoidal rule
+  6. EAD                              ← ∫ damage(aep) d(aep) via trapezoidal rule (or chronic pathway for water_stress)
   7. PV                               ← EAD / (1 + r)^(year - base_year)
 """
 
@@ -20,7 +20,7 @@ import pandas as pd
 from typing import List, Dict, Optional
 
 from engine.asset_model import Asset
-from engine.scenario_model import get_scenario_multipliers, get_warming
+from engine.scenario_model import get_scenario_multipliers, get_warming, get_slr_additive
 from engine.ead_calculator import calc_ead_from_intensities
 
 
@@ -70,19 +70,22 @@ def compute_annual_damages(
         for year in years:
             warming_c = get_warming(scenario_id, year)
 
-            # Scenario multiplier — skip if data is already SSP-specific (ISIMIP)
-            # to avoid double-counting the climate signal
-            if source.startswith("isimip"):
-                mult = 1.0
-            else:
-                from engine.hazard_fetcher import get_region_zone
-                region_zone = get_region_zone(asset.region) if hasattr(asset, 'region') else "global"
-                mult = get_scenario_multipliers(scenario_id, year, hazard, region_zone)
+            # Scenario multiplier — applied uniformly to ALL sources.
+            from engine.hazard_fetcher import get_region_zone
+            region_zone = get_region_zone(asset.region) if hasattr(asset, 'region') else "global"
 
             # Adjust intensity — first-floor height correction for flood and coastal flood
             intens = base_intens.copy()
             if hazard in ("flood", "coastal_flood"):
                 intens = np.clip(intens - asset.first_floor_height_m, 0.0, None)
+
+            if hazard == "coastal_flood":
+                # Additive SLR + small multiplicative storminess term
+                slr_m = get_slr_additive(scenario_id, year, region_zone)
+                intens = intens + slr_m
+                mult = get_scenario_multipliers(scenario_id, year, hazard, region_zone)
+            else:
+                mult = get_scenario_multipliers(scenario_id, year, hazard, region_zone)
 
             ead, damage_fracs = calc_ead_from_intensities(
                 rp, intens, asset.asset_type, hazard, asset.replacement_value, mult

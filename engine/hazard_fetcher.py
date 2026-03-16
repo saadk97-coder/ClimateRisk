@@ -21,12 +21,15 @@ Built-in fallback values are compiled from:
 """
 
 import json
+import logging
 import os
 import requests
 import numpy as np
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from engine.data_sources import fetch_best_available, DATA_SOURCE_REGISTRY
+
+logger = logging.getLogger(__name__)
 
 BASE_URL = "https://api.isimip.org/v2"
 REQUEST_TIMEOUT = 10
@@ -45,14 +48,29 @@ def _load_baseline() -> dict:
     return _BASELINE
 
 
+# Zone keys that are first-class identifiers (not ISO3 codes).
+# If the input is already one of these, return it directly.
+_VALID_ZONE_KEYS = {"EUR", "USA", "CHN", "IND", "AUS", "BRA", "MEA", "global"}
+
+
 def _get_region_key(iso3: str) -> str:
+    key = iso3.upper().strip()
+    # If the input is already a valid zone key, return it directly.
+    # This ensures zone overrides (e.g. "EUR", "MEA") work without
+    # being mapped through ISO3 → zone lookup.
+    if key in _VALID_ZONE_KEYS:
+        return key
     bl = _load_baseline()
     mapping = bl.get("region_iso3_map", {})
-    return mapping.get(iso3.upper(), "global")
+    return mapping.get(key, "global")
 
 
 def get_region_zone(region_iso3: str) -> str:
-    """Return the zone key used by the baseline for this ISO3 country code."""
+    """Return the zone key used by the baseline for this ISO3 country code.
+
+    Accepts either an ISO3 country code (e.g. "GBR" → "EUR") or a zone key
+    directly (e.g. "EUR" → "EUR", "MEA" → "MEA").
+    """
     return _get_region_key(region_iso3)
 
 
@@ -170,7 +188,8 @@ def fetch_hazard_intensities(
     hazard: str,
     region_iso3: str,
     scenario_ssp: str = "SSP2-4.5",
-    time_period: str = "2041_2060",
+    time_period: str = "2021_2040",
+    terrain_elevation_asl_m: float = 0.0,
 ) -> Tuple[np.ndarray, np.ndarray, str]:
     """
     Fetch hazard return-period intensity profile for a location.
@@ -180,6 +199,9 @@ def fetch_hazard_intensities(
       2. NASA NEX-GDDP-CMIP6 — S3 NetCDF point extraction (heat, wind) [0.25°]
       3. CHELSA CMIP6 — GeoTIFF point extraction (heat) [30 arc-sec]
       4. Regional baseline — compiled medians from IPCC AR6 / ISIMIP [continental]
+
+    The returned intensities represent a near-term baseline; temporal evolution
+    (2025–2050) is handled by scenario multipliers in the damage engine.
 
     Returns
     -------
@@ -193,11 +215,12 @@ def fetch_hazard_intensities(
             if is_coastal(lat, lon):
                 rp, intensities = get_coastal_flood_intensities(
                     lat, lon, region_iso3,
-                    elevation_m=0.0,  # elevation applied in damage_engine
+                    elevation_m=0.0,  # first_floor_height applied in damage_engine
+                    terrain_elevation_asl_m=terrain_elevation_asl_m,
                 )
                 return rp, intensities, "coastal_slr_baseline"
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Coastal flood fetch failed ({lat},{lon}): {e}")
         # Non-coastal or error: return zero intensities
         rps = np.array([10, 50, 100, 250, 500, 1000], dtype=float)
         return rps, np.zeros(len(rps)), "coastal_slr_baseline"
@@ -213,8 +236,8 @@ def fetch_hazard_intensities(
             # Map source key to DATA_SOURCE_REGISTRY key
             src_key = "aqueduct" if ws_source == "aqueduct" else "fallback_baseline"
             return rp, damages, src_key
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Water stress fetch failed ({lat},{lon}): {e}")
         # Minimal fallback for water stress if everything fails
         rps = np.array([10, 50, 100, 250, 500, 1000], dtype=float)
         return rps, np.zeros(len(rps)), "fallback_baseline"
@@ -237,20 +260,18 @@ def fetch_hazard_intensities(
             result = fetch_isimip3b_wind(lat, lon, ssp=scenario_ssp)
             if result is not None:
                 rp_w, int_w = result[0], result[1]
-                # Apply cyclone amplification for TC-exposed locations
                 try:
                     from engine.tropical_cyclone import get_cyclone_wind_intensities
                     rp_w, int_w, _basin = get_cyclone_wind_intensities(lat, lon, rp_w, int_w)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Cyclone amplification skipped: {e}")
                 return rp_w, int_w, "isimip3b"
         elif hazard == "wildfire":
-            # Multi-variable FWI pipeline: tasmax + pr + hurs + sfcWind → FWI → flame length
             result = fetch_isimip3b_wildfire(lat, lon, ssp=scenario_ssp)
             if result is not None:
                 return result[0], result[1], "isimip3b"
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"ISIMIP3b {hazard} fetch failed ({lat},{lon}): {e}")
 
     # ── 2. NASA NEX-GDDP-CMIP6 (heat, wind) ───────────────────────────────
     if hazard in ("heat", "wind"):
@@ -258,22 +279,19 @@ def fetch_hazard_intensities(
             from engine.data_sources import fetch_best_available
             src_key, val = fetch_best_available(lat, lon, hazard, region_iso3, scenario_ssp)
             if src_key not in ("fallback_baseline",) and val is not None:
-                # Build simple intensities from single value (scaled across return periods)
                 rp_base, base_intens = _fallback_intensities(hazard, region_iso3)
-                # Scale baseline to match the API value at RP100 (index 2)
                 rp100_idx = 2
                 scale_factor = val / base_intens[rp100_idx] if base_intens[rp100_idx] > 0 else 1.0
                 rp_out, int_out = rp_base, base_intens * scale_factor
-                # Apply cyclone amplification for wind
                 if hazard == "wind":
                     try:
                         from engine.tropical_cyclone import get_cyclone_wind_intensities
                         rp_out, int_out, _basin = get_cyclone_wind_intensities(lat, lon, rp_out, int_out)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"Cyclone amplification skipped: {e}")
                 return rp_out, int_out, src_key
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"NEX-GDDP {hazard} fetch failed ({lat},{lon}): {e}")
 
     # ── 3. Built-in regional baseline (always available) ───────────────────
     rp, intensities = _fallback_intensities(hazard, region_iso3)
@@ -300,13 +318,19 @@ def fetch_all_hazards(
     region_iso3: str,
     hazards: list,
     scenario_ssp: str = "SSP2-4.5",
-    time_period: str = "2041_2060",
+    time_period: str = "2021_2040",
+    terrain_elevation_asl_m: float = 0.0,
 ) -> Dict[str, dict]:
-    """Fetch intensity profiles for multiple hazards. Returns {hazard: {return_periods, intensities, source, citation}}."""
+    """Fetch intensity profiles for multiple hazards. Returns {hazard: {return_periods, intensities, source, citation}}.
+
+    Logs a per-location provenance summary showing which source was used for each hazard.
+    """
     results = {}
+    source_summary: List[str] = []
     for hazard in hazards:
         rp, intensities, source = fetch_hazard_intensities(
-            lat, lon, hazard, region_iso3, scenario_ssp, time_period
+            lat, lon, hazard, region_iso3, scenario_ssp, time_period,
+            terrain_elevation_asl_m=terrain_elevation_asl_m,
         )
         src_info = DATA_SOURCE_REGISTRY.get(source, {})
         entry = {
@@ -327,4 +351,12 @@ def fetch_all_hazards(
             except Exception:
                 pass
         results[hazard] = entry
+        source_summary.append(f"{hazard}={source}")
+
+    # Log provenance summary per location
+    logger.info(f"Hazard sources ({lat:.2f},{lon:.2f} {region_iso3}): {', '.join(source_summary)}")
+    fallback_count = sum(1 for h, d in results.items() if d["source"] == "fallback_baseline")
+    if fallback_count > 0:
+        logger.warning(f"  {fallback_count}/{len(results)} hazards used fallback baseline")
+
     return results
