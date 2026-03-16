@@ -564,7 +564,7 @@ BSR_NARRATIVES: Dict[str, Dict[str, Dict[str, Dict[str, str]]]] = {
             "2040s": {
                 "physical": "Global warming approaches 2.2°C; physical risks track near the upper end of IPCC AR6 intermediate scenarios. Climate tipping point risks increase.",
                 "transition": "Peak dual-risk moment globally: transition costs front-loaded in regulated markets while physical damages accumulate everywhere.",
-                "financial": "Climate VaR and Physical VaR metrics become standard for credit ratings and corporate valuations. The cost of capital for high-dual-risk assets rises sharply.",
+                "financial": "Climate risk metrics (EALR, climate exposure scores) become standard for credit ratings and corporate valuations. The cost of capital for high-dual-risk assets rises sharply.",
             },
             "2050s": {
                 "physical": "2.8°C warming produces severe global physical consequences: sea level rise commits major coastal cities to managed retreat or massive infrastructure investment; agricultural zones shift; water stress intensifies across most subtropical regions.",
@@ -720,11 +720,18 @@ HAZARD_SCALING = {
         1.0: 1.03, 1.5: 1.06, 2.0: 1.10, 2.5: 1.15, 3.0: 1.20, 4.0: 1.32, 4.4: 1.40,
     },
     "coastal_flood": {
-        # Sea-level rise amplifies storm surge. Combines SLR + storminess changes.
+        # Coastal flood uses ADDITIVE SLR (metres) rather than a multiplier.
+        # The values here are still consumed by get_hazard_multiplier() which
+        # returns a multiplicative factor, but the damage engine converts this
+        # to an additive offset for coastal_flood (see damage_engine.py).
+        # To keep backward compatibility, the scaling is calibrated so that
+        # at typical RP100 surge (~2m), the multiplier approximates the
+        # additive SLR effect.  See COASTAL_SLR_ADDITIVE_M below.
+        #
         # Source: IPCC AR6 WG1 Ch.9 Table 9.9 (Fox-Kemper et al. 2021);
         # Vousdoukas et al. (2018) Nature Communications — extreme sea levels.
         # https://doi.org/10.1038/s41467-018-04692-w
-        1.0: 1.08, 1.5: 1.15, 2.0: 1.30, 2.5: 1.50, 3.0: 1.75, 4.0: 2.30, 4.4: 2.60,
+        1.0: 1.05, 1.5: 1.08, 2.0: 1.12, 2.5: 1.18, 3.0: 1.25, 4.0: 1.40, 4.4: 1.50,
     },
     "water_stress": {
         # Chronic water scarcity intensification per °C.
@@ -780,6 +787,35 @@ HAZARD_SCALING_SOURCES = {
         "url": "https://www.wri.org/data/aqueduct-water-risk-atlas",
     },
 }
+
+
+# Additive sea level rise (metres above present-day MHWS) by warming level.
+# Source: IPCC AR6 WG1 Ch.9 Table 9.9; Fox-Kemper et al. (2021).
+# Regional variation handled via REGIONAL_HAZARD_SCALING_FACTOR coastal_flood entry.
+COASTAL_SLR_ADDITIVE_M: Dict[float, float] = {
+    0.0: 0.00,
+    1.0: 0.10,   # ~2030 under most SSPs
+    1.5: 0.18,   # ~2040 SSP2-4.5
+    2.0: 0.28,   # ~2050 SSP2-4.5
+    2.5: 0.40,   # ~2060 SSP3-7.0
+    3.0: 0.55,   # ~2070 SSP5-8.5
+    4.0: 0.85,   # late century high emission
+    4.4: 1.00,   # upper bound AR6 median
+}
+
+
+def get_slr_additive(scenario_id: str, year: int, region: str = "global") -> float:
+    """Return additive sea level rise (m) for a scenario/year/region.
+
+    SLR is fundamentally additive to surge levels, unlike other hazards
+    where multiplicative scaling is appropriate.
+    """
+    delta_t = get_warming(scenario_id, year)
+    slr = _interp(COASTAL_SLR_ADDITIVE_M, delta_t)
+    # Apply regional factor (coastal_flood entry from REGIONAL_HAZARD_SCALING_FACTOR)
+    regional_factors = REGIONAL_HAZARD_SCALING_FACTOR.get(region, REGIONAL_HAZARD_SCALING_FACTOR["global"])
+    regional_adj = regional_factors.get("coastal_flood", 1.0)
+    return slr * regional_adj
 
 
 def _interp(mapping: dict, x: float) -> float:

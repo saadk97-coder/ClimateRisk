@@ -18,7 +18,7 @@ Provides:
 
 Scoring methodology
 -------------------
-The Climate Exposure Score is derived from the asset's Physical Climate VaR (EAD/value)
+The Climate Exposure Score is derived from the asset's EALR (Expected Annual Loss Ratio = EAD/value)
 using a log-transformed normalisation to spread scores across the 1–10 range:
 
     raw_pct = EAD / replacement_value × 100

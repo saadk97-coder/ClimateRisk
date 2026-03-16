@@ -491,21 +491,28 @@ def get_coastal_flood_intensities(
     lon: float,
     region_iso3: str,
     elevation_m: float = 0.0,
+    terrain_elevation_asl_m: float = 0.0,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
-    Return (return_periods, storm_surge_depth_m) for a coastal location.
+    Return (return_periods, inundation_depth_m) for a coastal location.
 
     Storm surge baseline intensities are region-dependent and derived from:
       • Muis et al. (2020) — GTSM global tide and surge reanalysis
       • Vousdoukas et al. (2018) — probabilistic extreme sea levels
 
-    The returned intensities represent *still water level above MHWS*
-    (mean high water springs), i.e. the surge component only.
-    SLR is added on top via scenario multipliers in the damage engine.
+    The returned intensities represent **water depth above ground**, computed as:
+      depth = max(0, water_level_above_sea_level - terrain_elevation_asl_m)
+
+    where water_level_above_sea_level = MHWS + storm_surge.
+    Terrain elevation converts the vertical datum (MHWS) to a ground-relative
+    depth that is comparable to flood vulnerability curves.
+
+    Note: first_floor_height (freeboard) is NOT subtracted here — that is done
+    in the damage engine, consistently with fluvial flood.
 
     Intensities are adjusted by:
       1. Distance from coast (linear decay beyond 5 km)
-      2. Elevation (freeboard reduction)
+      2. Terrain elevation (converts water level to depth above ground)
     """
     rps = np.array([10, 50, 100, 250, 500, 1000], dtype=float)
 
@@ -518,6 +525,7 @@ def get_coastal_flood_intensities(
         "IND": np.array([1.5, 2.5, 3.2, 4.0, 4.8, 5.6]),   # Bay of Bengal (highest)
         "AUS": np.array([0.7, 1.2, 1.6, 2.1, 2.5, 3.0]),   # Tropical cyclone + E coast
         "BRA": np.array([0.5, 0.9, 1.2, 1.6, 2.0, 2.4]),   # South Atlantic (lower)
+        "MEA": np.array([0.6, 1.0, 1.4, 1.8, 2.2, 2.7]),   # Red Sea / Persian Gulf
         "global": np.array([0.8, 1.4, 1.8, 2.4, 2.9, 3.5]),
     }
 
@@ -533,7 +541,12 @@ def get_coastal_flood_intensities(
         attenuation = max(0.0, 1.0 - (dist - 5.0) / (COASTAL_ZONE_KM - 5.0))
         surge *= attenuation
 
-    # Elevation reduction: freeboard above surge
-    surge = np.clip(surge - elevation_m, 0.0, None)
+    # Convert water level (above MHWS) to depth above ground.
+    # For low-lying coastal assets, terrain elevation determines how much
+    # of the surge actually inundates the site.
+    # Assumption: MHWS ≈ 0 m ASL (reasonable for many tidal datums).
+    # depth_above_ground = max(0, surge_level - terrain_elevation)
+    if terrain_elevation_asl_m > 0:
+        surge = np.clip(surge - terrain_elevation_asl_m, 0.0, None)
 
     return rps, surge

@@ -7,7 +7,7 @@ from typing import Dict, List, Optional
 from dataclasses import dataclass, field
 
 from engine.asset_model import Asset
-from engine.scenario_model import SCENARIOS, get_scenario_multipliers
+from engine.scenario_model import SCENARIOS, get_scenario_multipliers, get_slr_additive
 from engine.hazard_fetcher import fetch_all_hazards
 from engine.ead_calculator import calc_ead_from_intensities, calc_ead, STANDARD_RETURN_PERIODS
 from engine.impact_functions import get_damage_fraction
@@ -93,7 +93,8 @@ def run_asset_scenario(
             else:
                 from engine.hazard_fetcher import fetch_hazard_intensities
                 rp, intens, src = fetch_hazard_intensities(
-                    asset.lat, asset.lon, h, asset.region, ssp, time_period
+                    asset.lat, asset.lon, h, asset.region, ssp, time_period,
+                    terrain_elevation_asl_m=getattr(asset, "terrain_elevation_asl_m", 0.0),
                 )
                 hazard_data[h] = {
                     "return_periods": rp.tolist(),
@@ -102,7 +103,8 @@ def run_asset_scenario(
                 }
     else:
         hazard_data = fetch_all_hazards(
-            asset.lat, asset.lon, asset.region, hazards, ssp, time_period
+            asset.lat, asset.lon, asset.region, hazards, ssp, time_period,
+            terrain_elevation_asl_m=getattr(asset, "terrain_elevation_asl_m", 0.0),
         )
 
     # Apply elevation adjustment to flood intensity
@@ -114,22 +116,30 @@ def run_asset_scenario(
         intens = np.array(hdata["intensities"], dtype=float)
         source = hdata["source"]
 
-        # Elevation correction for flood and coastal flood
+        # First-floor height correction for flood and coastal flood
         if hazard in ("flood", "coastal_flood"):
             intens = np.clip(intens - asset.first_floor_height_m, 0.0, None)
 
-        # Scenario hazard multiplier — skip if data is already SSP-specific (ISIMIP)
-        # to avoid double-counting the climate signal
-        if source.startswith("isimip"):
-            mult = 1.0
+        # Scenario hazard multiplier — applied uniformly to ALL sources.
+        from engine.hazard_fetcher import get_region_zone
+        region_zone = get_region_zone(asset.region)
+
+        if hazard == "coastal_flood":
+            # Coastal flood uses ADDITIVE SLR + small multiplicative storminess term.
+            # SLR is fundamentally additive to water levels.
+            slr_m = get_slr_additive(scenario_id, year, region_zone)
+            intens = intens + slr_m
+            # Small storminess multiplier (residual non-SLR change)
+            mult = get_scenario_multipliers(scenario_id, year, hazard, region_zone)
         else:
-            from engine.hazard_fetcher import get_region_zone
-            region_zone = get_region_zone(asset.region)
             mult = get_scenario_multipliers(scenario_id, year, hazard, region_zone)
 
         ead, damage_fracs = calc_ead_from_intensities(
             rp, intens, asset.asset_type, hazard, asset.replacement_value, mult
         )
+
+        # For coastal_flood, effective intensities include additive SLR
+        effective_intens = intens * mult
 
         hazard_results[hazard] = AssetHazardResult(
             asset_id=asset.id,
@@ -137,7 +147,7 @@ def run_asset_scenario(
             scenario_id=scenario_id,
             year=year,
             return_periods=rp.tolist(),
-            intensities=(intens * mult).tolist(),
+            intensities=effective_intens.tolist(),
             damage_fractions=damage_fracs.tolist(),
             ead=ead,
             ead_pct_value=ead / asset.replacement_value if asset.replacement_value > 0 else 0.0,

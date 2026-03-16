@@ -367,7 +367,7 @@ with st.expander(_step_header("2", "🌡️", "Climate Scenario Selection", BSR[
 | Heat | Zhao et al. (2021) | Super-linear above 2°C |
 | Water Stress | WRI Aqueduct (2023) | ~4%/°C freshwater reduction |
 
-All applied against the **1995–2014 historical baseline** (ISIMIP3b reference period).
+Hazard data extracted from ISIMIP3b 2021–2050 projections (bias-adjusted against 1995–2014 W5E5 reanalysis). IPCC AR6 scaling applied to all sources for temporal evolution.
         """)
     with col_b:
         _sc_df = pd.DataFrame([

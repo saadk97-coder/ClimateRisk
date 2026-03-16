@@ -106,7 +106,10 @@ if run_btn:
                                 hazards.append("coastal_flood")
                         except Exception:
                             pass
-                    data = fetch_all_hazards(asset.lat, asset.lon, asset.region, hazards, ssp, "2041_2060")
+                    data = fetch_all_hazards(
+                        asset.lat, asset.lon, asset.region, hazards, ssp, "2021_2040",
+                        terrain_elevation_asl_m=getattr(asset, "terrain_elevation_asl_m", 0.0),
+                    )
                     ssp_data_cache[ssp][asset.id] = data
                     done_fetch += 1
                     fetch_status.write(f"✅ {asset.name} ({ssp})")

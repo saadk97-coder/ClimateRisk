@@ -354,6 +354,24 @@ def _build_direct_paths(ssp_key: str, variable: str, gcm: str) -> List[str]:
 
 
 # ---------------------------------------------------------------------------
+# Ensemble median helper
+# ---------------------------------------------------------------------------
+
+def _ensemble_median(all_curves: List[np.ndarray]) -> Optional[np.ndarray]:
+    """Compute element-wise median across GCM curves.
+
+    Parameters
+    ----------
+    all_curves : list of 1-D arrays, all same length
+
+    Returns median curve or None if empty.
+    """
+    if not all_curves:
+        return None
+    return np.median(np.stack(all_curves), axis=0)
+
+
+# ---------------------------------------------------------------------------
 # Public fetch functions
 # ---------------------------------------------------------------------------
 
@@ -366,6 +384,10 @@ def fetch_isimip3b_heat(
     """
     Fetch heat (maximum temperature, °C) return-period curve from ISIMIP3b.
 
+    Queries all GCMs in _GCM_PRIORITY and returns the ensemble median curve
+    (element-wise median across successful GCM fits).  Falls back to single-GCM
+    if only one succeeds.
+
     Data: ISIMIP3b bias-adjusted tasmax (daily max near-surface temperature, K)
     Resolution: 0.5° (~55 km)
     Citation: Lange (2019) Earth Syst. Dynam. 10, 1321–1336
@@ -376,28 +398,37 @@ def fetch_isimip3b_heat(
         return_periods = STANDARD_RETURN_PERIODS
     ssp_key = _SSP_MAP.get(ssp, "ssp245")
 
+    gcm_curves: List[np.ndarray] = []
     for gcm in _GCM_PRIORITY:
-        paths = _query_isimip_paths("ISIMIP3b", "SecondaryInputData", ssp_key, "tasmax", gcm)
-        if not paths:
-            paths = _build_direct_paths(ssp_key, "tasmax", gcm)
+        try:
+            paths = _query_isimip_paths("ISIMIP3b", "SecondaryInputData", ssp_key, "tasmax", gcm)
+            if not paths:
+                paths = _build_direct_paths(ssp_key, "tasmax", gcm)
 
-        data = _isimip_select_point(paths, lat, lon)
-        if data is None:
+            data = _isimip_select_point(paths, lat, lon)
+            if data is None:
+                continue
+
+            annual_max = _open_isimip_nc(data, "tasmax")
+            if annual_max is None or len(annual_max) < 10:
+                continue
+
+            if annual_max.mean() > 200:
+                annual_max = annual_max - 273.15
+
+            temps = _fit_gev(annual_max, return_periods)
+            if temps is not None:
+                logger.info(f"ISIMIP3b heat: {gcm}/{ssp_key} → {len(annual_max)} yr, "
+                            f"RP100={temps[2]:.1f}°C")
+                gcm_curves.append(temps)
+        except Exception:
             continue
 
-        annual_max = _open_isimip_nc(data, "tasmax")
-        if annual_max is None or len(annual_max) < 10:
-            continue
-
-        if annual_max.mean() > 200:
-            annual_max = annual_max - 273.15
-
-        temps = _fit_gev(annual_max, return_periods)
-        if temps is not None:
-            logger.info(f"ISIMIP3b heat: {gcm}/{ssp_key} → {len(annual_max)} yr, "
-                        f"RP100={temps[2]:.1f}°C")
-            return return_periods, temps
-
+    median = _ensemble_median(gcm_curves)
+    if median is not None:
+        logger.info(f"ISIMIP3b heat ensemble: {len(gcm_curves)} GCMs, "
+                    f"median RP100={median[2]:.1f}°C")
+        return return_periods, median
     return None
 
 
@@ -408,10 +439,9 @@ def fetch_isimip3b_wind(
     return_periods: Optional[np.ndarray] = None,
 ) -> Optional[Tuple[np.ndarray, np.ndarray]]:
     """
-    Fetch wind speed return-period curve from ISIMIP3b.
+    Fetch wind speed return-period curve from ISIMIP3b (ensemble median).
 
     Data: ISIMIP3b bias-adjusted sfcwind (daily mean near-surface wind speed, m/s)
-    Note: ISIMIP uses lowercase 'sfcwind', not 'sfcWind'.
     Conversion: Mean wind → 3-s gust using gust factor 1.5 (WMO-No.8, open terrain)
     Resolution: 0.5°
 
@@ -421,30 +451,37 @@ def fetch_isimip3b_wind(
         return_periods = STANDARD_RETURN_PERIODS
     ssp_key = _SSP_MAP.get(ssp, "ssp245")
 
+    gcm_curves: List[np.ndarray] = []
     for gcm in _GCM_PRIORITY:
-        paths = _query_isimip_paths("ISIMIP3b", "SecondaryInputData", ssp_key, "sfcwind", gcm)
-        if not paths:
-            paths = _build_direct_paths(ssp_key, "sfcwind", gcm)
+        try:
+            paths = _query_isimip_paths("ISIMIP3b", "SecondaryInputData", ssp_key, "sfcwind", gcm)
+            if not paths:
+                paths = _build_direct_paths(ssp_key, "sfcwind", gcm)
 
-        data = _isimip_select_point(paths, lat, lon)
-        if data is None:
+            data = _isimip_select_point(paths, lat, lon)
+            if data is None:
+                continue
+
+            annual_max = _open_isimip_nc(data, "sfcwind")
+            if annual_max is None or len(annual_max) < 10:
+                annual_max = _open_isimip_nc(data, "sfcWind")
+            if annual_max is None or len(annual_max) < 10:
+                continue
+
+            annual_max_gust = annual_max * 1.5
+            speeds = _fit_gev(annual_max_gust, return_periods)
+            if speeds is not None:
+                logger.info(f"ISIMIP3b wind: {gcm}/{ssp_key} → {len(annual_max)} yr, "
+                            f"RP100={speeds[2]:.1f} m/s")
+                gcm_curves.append(speeds)
+        except Exception:
             continue
 
-        # Try 'sfcwind' (lowercase) first, then 'sfcWind'
-        annual_max = _open_isimip_nc(data, "sfcwind")
-        if annual_max is None or len(annual_max) < 10:
-            annual_max = _open_isimip_nc(data, "sfcWind")
-        if annual_max is None or len(annual_max) < 10:
-            continue
-
-        # Daily mean → 3-s gust (WMO gust factor, open terrain)
-        annual_max_gust = annual_max * 1.5
-        speeds = _fit_gev(annual_max_gust, return_periods)
-        if speeds is not None:
-            logger.info(f"ISIMIP3b wind: {gcm}/{ssp_key} → {len(annual_max)} yr, "
-                        f"RP100={speeds[2]:.1f} m/s")
-            return return_periods, speeds
-
+    median = _ensemble_median(gcm_curves)
+    if median is not None:
+        logger.info(f"ISIMIP3b wind ensemble: {len(gcm_curves)} GCMs, "
+                    f"median RP100={median[2]:.1f} m/s")
+        return return_periods, median
     return None
 
 
@@ -518,33 +555,40 @@ def fetch_isimip3b_flood(
 
     DRAINAGE_THRESHOLD_MM, DEPTH_FACTOR = _REGIONAL_FLOOD_PARAMS.get(zone, _REGIONAL_FLOOD_PARAMS["global"])
 
+    gcm_curves: List[np.ndarray] = []
     for gcm in _GCM_PRIORITY:
-        paths = _query_isimip_paths("ISIMIP3b", "SecondaryInputData", ssp_key, "pr", gcm)
-        if not paths:
-            paths = _build_direct_paths(ssp_key, "pr", gcm)
+        try:
+            paths = _query_isimip_paths("ISIMIP3b", "SecondaryInputData", ssp_key, "pr", gcm)
+            if not paths:
+                paths = _build_direct_paths(ssp_key, "pr", gcm)
 
-        data = _isimip_select_point(paths, lat, lon)
-        if data is None:
+            data = _isimip_select_point(paths, lat, lon)
+            if data is None:
+                continue
+
+            annual_max_pr = _open_isimip_nc(data, "pr")
+            if annual_max_pr is None or len(annual_max_pr) < 10:
+                continue
+
+            if annual_max_pr.mean() < 1.0:
+                annual_max_pr = annual_max_pr * 86400.0
+
+            rx1day = _fit_gev(annual_max_pr, return_periods)
+            if rx1day is None:
+                continue
+
+            depths = np.clip((rx1day - DRAINAGE_THRESHOLD_MM) * DEPTH_FACTOR, 0.0, 8.0)
+            logger.info(f"ISIMIP3b flood (pr-derived, zone={zone}): {gcm}/{ssp_key} → {len(annual_max_pr)} yr, "
+                        f"RP100 Rx1day={rx1day[2]:.0f}mm → depth={depths[2]:.2f}m")
+            gcm_curves.append(depths)
+        except Exception:
             continue
 
-        annual_max_pr = _open_isimip_nc(data, "pr")
-        if annual_max_pr is None or len(annual_max_pr) < 10:
-            continue
-
-        # pr: kg m⁻² s⁻¹ → mm day⁻¹ (if not already converted)
-        if annual_max_pr.mean() < 1.0:
-            annual_max_pr = annual_max_pr * 86400.0
-
-        rx1day = _fit_gev(annual_max_pr, return_periods)
-        if rx1day is None:
-            continue
-
-        # Convert Rx1day → flood depth using regional parameters
-        depths = np.clip((rx1day - DRAINAGE_THRESHOLD_MM) * DEPTH_FACTOR, 0.0, 8.0)
-        logger.info(f"ISIMIP3b flood (pr-derived, zone={zone}): {gcm}/{ssp_key} → {len(annual_max_pr)} yr, "
-                    f"RP100 Rx1day={rx1day[2]:.0f}mm → depth={depths[2]:.2f}m")
-        return return_periods, depths
-
+    median = _ensemble_median(gcm_curves)
+    if median is not None:
+        logger.info(f"ISIMIP3b flood ensemble: {len(gcm_curves)} GCMs, "
+                    f"median RP100 depth={median[2]:.2f}m")
+        return return_periods, median
     return None
 
 
@@ -587,49 +631,56 @@ def fetch_isimip3b_wildfire(
 
     WILDFIRE_VARS = ["tasmax", "pr", "hurs", "sfcwind"]
 
+    gcm_curves: List[np.ndarray] = []
     for gcm in _GCM_PRIORITY:
-        # Collect paths for all 4 variables — submitted as one extraction job
-        all_paths: List[str] = []
-        for var in WILDFIRE_VARS:
-            paths = _query_isimip_paths("ISIMIP3b", "SecondaryInputData", ssp_key, var, gcm)
-            if not paths:
-                paths = _build_direct_paths(ssp_key, var, gcm)
-            all_paths.extend(paths[:2])   # 2 time chunks per variable
+        try:
+            all_paths: List[str] = []
+            for var in WILDFIRE_VARS:
+                paths = _query_isimip_paths("ISIMIP3b", "SecondaryInputData", ssp_key, var, gcm)
+                if not paths:
+                    paths = _build_direct_paths(ssp_key, var, gcm)
+                all_paths.extend(paths[:2])
 
-        if not all_paths:
+            if not all_paths:
+                continue
+
+            data = _isimip_select_point(all_paths, lat, lon)
+            if data is None:
+                continue
+
+            climate_arrays = _open_isimip_nc_wildfire(data)
+            if climate_arrays is None:
+                continue
+
+            T_arr, H_arr, W_arr, R_arr, years, months = climate_arrays
+
+            if len(T_arr) < 365 * 10:
+                continue
+
+            ann_fwi = annual_max_fwi(T_arr, H_arr, W_arr, R_arr, years, months, lat)
+            if len(ann_fwi) < 10:
+                continue
+
+            fwi_quantiles = _fit_gev(ann_fwi, return_periods)
+            if fwi_quantiles is None:
+                continue
+
+            flame_lengths = np.array([
+                fwi_to_flame_length(float(q), vegetation) for q in fwi_quantiles
+            ])
+
+            logger.info(
+                f"ISIMIP3b wildfire (FWI): {gcm}/{ssp_key} lat={lat:.2f} "
+                f"→ {len(ann_fwi)} yr, median FWI={np.median(ann_fwi):.1f}, "
+                f"RP100 flame={flame_lengths[2]:.2f}m"
+            )
+            gcm_curves.append(flame_lengths)
+        except Exception:
             continue
 
-        # Single job covering all 4 variables × 2 time chunks = up to 8 paths
-        data = _isimip_select_point(all_paths, lat, lon)
-        if data is None:
-            continue
-
-        climate_arrays = _open_isimip_nc_wildfire(data)
-        if climate_arrays is None:
-            continue
-
-        T_arr, H_arr, W_arr, R_arr, years, months = climate_arrays
-
-        if len(T_arr) < 365 * 10:
-            continue
-
-        ann_fwi = annual_max_fwi(T_arr, H_arr, W_arr, R_arr, years, months, lat)
-        if len(ann_fwi) < 10:
-            continue
-
-        fwi_quantiles = _fit_gev(ann_fwi, return_periods)
-        if fwi_quantiles is None:
-            continue
-
-        flame_lengths = np.array([
-            fwi_to_flame_length(float(q), vegetation) for q in fwi_quantiles
-        ])
-
-        logger.info(
-            f"ISIMIP3b wildfire (FWI): {gcm}/{ssp_key} lat={lat:.2f} "
-            f"→ {len(ann_fwi)} yr, median FWI={np.median(ann_fwi):.1f}, "
-            f"RP100 flame={flame_lengths[2]:.2f}m"
-        )
-        return return_periods, flame_lengths
-
+    median = _ensemble_median(gcm_curves)
+    if median is not None:
+        logger.info(f"ISIMIP3b wildfire ensemble: {len(gcm_curves)} GCMs, "
+                    f"median RP100 flame={median[2]:.2f}m")
+        return return_periods, median
     return None
