@@ -382,3 +382,98 @@ pages/04_Results.py
   → run_portfolio(hazard_overrides=hazard_data)
   → engine applies IPCC AR6 multipliers for scenario/year differentiation
 ```
+
+## Fixes Applied in Session 6 (sixth code review — numerical correctness)
+
+### P0 — Freeboard/SLR/multiplier ordering
+| File | Fix |
+|------|-----|
+| `engine/annual_risk.py` | `(base - freeboard) * mult` → `max(0, base * mult - freeboard)` for flood; `max(0, base * mult + SLR - freeboard)` for coastal_flood; pass `mult=1.0` to `calc_ead_from_intensities` for depth hazards |
+| `engine/damage_engine.py` | Same freeboard/multiplier ordering fix |
+| `pages/08_Audit.py` | Audit trace matched to new ordering |
+
+### P0 — Hybrid fallback architecture
+| File | Fix |
+|------|-----|
+| `engine/hazard_fetcher.py` | Removed NASA NEX-GDDP, CHELSA, ClimateNA from baseline fetch path (they require SSP/year — incompatible with baseline-plus-multipliers) |
+| `engine/hazard_fetcher.py` | Fallback chain now: ISIMIP historical → built-in regional baseline only |
+| `engine/hazard_fetcher.py` | Flood fallback provenance → "screening-level proxy" |
+
+### P0 — asset_type threading for water stress
+| File | Fix |
+|------|-----|
+| `engine/damage_engine.py` | Threaded `asset_type=asset.asset_type` through both fetch paths |
+
+### P1 — Placebo UI controls
+| File | Fix |
+|------|-----|
+| `pages/03_Hazards.py` | Removed `preferred_source` selectbox; replaced with info box about automatic source selection |
+| `pages/03_Hazards.py` | Zone overrides labeled "preview-only"; added water_stress to data status table and tabs |
+| `pages/09_Vulnerability.py` | Removed custom curve upload (was not wired to engine); replaced edit controls with read-only reference |
+
+### P1 — Documentation honesty
+| File | Fix |
+|------|-----|
+| `engine/risk_scorer.py` | "Physical Climate Value-at-Risk (Climate VaR %)" → "Expected Annual Loss Ratio (EALR %)" |
+| `engine/scenario_model.py` | "Climate VaR becomes standard disclosure metric" → "EALR-based climate risk scoring" |
+| `engine/coastal.py` | Screening accuracy claim downgraded to "SCREENING ONLY" |
+| `pages/00_Methodology.py` | Monte Carlo claims → "planned — not yet wired to UI outputs" |
+| `pages/09_Vulnerability.py` | Wet-bulb → dry-bulb in ILO reference |
+| `data/ngfs_hazard_baseline.json` | "max wet-bulb temp (°C)" → "max daily temperature (°C dry-bulb)" |
+| `data/vulnerability_curves/heat_curves.json` | Clarified "inputs are dry-bulb tasmax" |
+| `pages/04_Results.py` | Water stress added to stacked hazard chart; fixed "EAD (2025 baseline)" label |
+
+### Test coverage (26 tests after Session 6)
+| `tests/test_regression.py` | Added tests 21-26: freeboard ordering, fallback-only fetch, no preferred_source, no curve upload, water_stress in results chart, dry-bulb heat labels |
+
+## Fixes Applied in Session 7 (holistic professional-standard audit)
+
+### P0 — Currency consistency
+| File | Fix |
+|------|-----|
+| `pages/08_Audit.py` | All hardcoded £ → dynamic `_sym` from `engine.fmt.currency_symbol` |
+| `pages/05_Map.py` | All 11 hardcoded £ → dynamic `_sym` |
+| `pages/07_DCF.py` | All 5 hardcoded £ → dynamic `_sym` |
+
+### P0 — Manual hazard override data loss
+| File | Fix |
+|------|-----|
+| `pages/04_Results.py` | After baseline fetch, merge `st.session_state.hazard_overrides` into `hazard_data_flat` |
+
+### P0 — Marketing claims exceed capabilities
+| File | Fix |
+|------|-----|
+| `app.py` | "Insurance-grade EAD" → "EAD via trapezoidal EP curve integration (screening-level)" |
+| `app.py` | Source chain → "ISIMIP3b historical baseline → built-in regional fallback; WRI Aqueduct for water stress" |
+| `app.py` | Added explicit "screening-level tool" and "precipitation-derived proxies" disclaimers |
+| `app.py` | "insurance-grade catastrophe modelling" → "professional catastrophe modelling" |
+| `pages/04_Results.py` | TVaR/tail-risk marketing → honest EP curve explanation with limitations |
+
+### P1 — Session-state robustness
+| File | Fix |
+|------|-----|
+| `pages/02_Scenarios.py` | Dict-safe asset normalization |
+| `pages/04_Results.py` | Sidebar asset normalization for dict-safe access |
+
+### P1 — Adaptation double-counting
+| File | Fix |
+|------|-----|
+| `pages/06_Adaptation.py` | Added warning when multiple measures target same hazard |
+
+### P1 — Privacy disclosure
+| File | Fix |
+|------|-----|
+| `pages/01_Portfolio.py` | Added disclosure about BigDataCloud and OpenTopoData API calls |
+
+### P1 — BWS label honesty
+| File | Fix |
+|------|-----|
+| `pages/05_Map.py` | "Water Stress (BWS):" → "Water Stress (raw BWS indicator, not modelled loss)" |
+
+### P1 — Vulnerability page honesty
+| File | Fix |
+|------|-----|
+| `pages/09_Vulnerability.py` | Custom curve upload removed; edit controls → read-only reference table |
+
+### Test coverage (32 tests after Session 7)
+| `tests/test_regression.py` | Added tests 27-32: no TVaR claims, no hardcoded £ in map, no vulnerability upload, manual overrides merged, asset dict normalization, no insurance-grade claims |

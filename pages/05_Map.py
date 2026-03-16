@@ -30,6 +30,8 @@ assets = [_Asset.from_dict(a) if isinstance(a, dict) else a
           for a in st.session_state.get("assets", [])]
 results = st.session_state.get("results", [])
 annual_df = st.session_state.get("annual_damages", pd.DataFrame())
+_cur = st.session_state.get("currency_code", "GBP")
+_sym = _currency_symbol(_cur)
 
 if not assets:
     st.warning("No assets defined.")
@@ -45,7 +47,7 @@ with col2:
     map_year = st.selectbox("Year", [2025, 2030, 2040, 2050], index=2)
 with col3:
     colour_by = st.selectbox("Colour by",
-                             ["EAD %", "Total EAD (£)", "Flood EAD", "Wind EAD",
+                             [f"EAD %", f"Total EAD ({_sym})", "Flood EAD", "Wind EAD",
                               "Wildfire EAD", "Heat EAD", "Water Stress"])
 with col4:
     tile_layer = st.selectbox("Map layer",
@@ -85,7 +87,7 @@ with col_tc:
 
 # ── Build map dataframe ────────────────────────────────────────────────────
 colour_map = {
-    "EAD %": "ead_pct", "Total EAD (£)": "total_ead",
+    "EAD %": "ead_pct", f"Total EAD ({_sym})": "total_ead",
     "Flood EAD": "ead_flood", "Wind EAD": "ead_wind",
     "Wildfire EAD": "ead_wildfire", "Heat EAD": "ead_heat",
     "Water Stress": "water_stress_score",
@@ -291,7 +293,7 @@ try:
         coastal_row = ""
         cf_ead = row.get('ead_coastal_flood', 0)
         if cf_ead > 0:
-            coastal_row = f"<b>Coastal Flood EAD:</b> £{cf_ead:,.0f}<br>"
+            coastal_row = f"<b>Coastal Flood EAD:</b> {_sym}{cf_ead:,.0f}<br>"
 
         popup_html = f"""
         <div style="font-family:sans-serif;font-size:13px;min-width:240px">
@@ -301,14 +303,14 @@ try:
           <b>Material:</b> {row.get('material','')}<br>
           <b>Year built:</b> {row.get('year_built','')}<br>
           <b>Region:</b> {row.get('region','')}<br>
-          <b>Value:</b> £{row['value']:,.0f}<br>
+          <b>Value:</b> {_sym}{row['value']:,.0f}<br>
           <hr style="margin:4px 0">
           <b>EALR:</b> {row.get('ead_pct',0):.3f}% of value/yr<br>
-          <b>Total EAD ({map_year}):</b> £{row.get('total_ead',0):,.0f}<br>
-          <b>Flood EAD:</b> £{row.get('ead_flood',0):,.0f}<br>
-          <b>Wind EAD:</b> £{row.get('ead_wind',0):,.0f}<br>
-          <b>Wildfire EAD:</b> £{row.get('ead_wildfire',0):,.0f}<br>
-          <b>Heat EAD:</b> £{row.get('ead_heat',0):,.0f}<br>
+          <b>Total EAD ({map_year}):</b> {_sym}{row.get('total_ead',0):,.0f}<br>
+          <b>Flood EAD:</b> {_sym}{row.get('ead_flood',0):,.0f}<br>
+          <b>Wind EAD:</b> {_sym}{row.get('ead_wind',0):,.0f}<br>
+          <b>Wildfire EAD:</b> {_sym}{row.get('ead_wildfire',0):,.0f}<br>
+          <b>Heat EAD:</b> {_sym}{row.get('ead_heat',0):,.0f}<br>
           {coastal_row}
           {tc_row}
           {ws_row}
@@ -319,7 +321,7 @@ try:
             radius=radius, color=color,
             fill=True, fill_color=color, fill_opacity=0.75,
             popup=folium.Popup(popup_html, max_width=280),
-            tooltip=f"📍 {row['name']} | EAD: £{row.get('total_ead',0):,.0f}",
+            tooltip=f"📍 {row['name']} | EAD: {_sym}{row.get('total_ead',0):,.0f}",
         ).add_to(m)
 
     # OSM building footprints
@@ -489,6 +491,6 @@ if not map_df.empty and "ead_pct" in map_df.columns:
     st.dataframe(rank_df, use_container_width=True, hide_index=False)
     st.caption(
         "**EALR (%)** = Expected Annual Loss Ratio (EAD as % of replacement value). "
-        "**Water Stress (BWS)**: 0–1 Low · 1–2 Low-Medium · 2–3 Medium-High · 3–4 High · 4–5 Extremely High. "
+        "**Water Stress (raw BWS indicator, not modelled loss)**: 0–1 Low · 1–2 Low-Medium · 2–3 Medium-High · 3–4 High · 4–5 Extremely High. "
         "Source: [WRI Aqueduct 4.0](https://doi.org/10.46830/writn.23.00061)"
     )

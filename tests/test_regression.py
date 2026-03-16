@@ -565,3 +565,101 @@ def test_water_stress_in_results_chart():
     # The hazard loop for the stacked chart must include water_stress
     assert '"water_stress"' in source, \
         "Results page must include water_stress in hazard decomposition"
+
+
+# ── Test 27: No TVaR/tail-risk overclaims in Results ────────────────────
+
+def test_no_tvar_claims_in_results():
+    """Results page must not claim TVaR/CVaR computation since these are not
+    actually calculated. EP curve shows discrete RP points only."""
+    import importlib
+
+    spec = importlib.util.find_spec("pages.04_Results")
+    with open(spec.origin) as f:
+        source = f.read().lower()
+
+    # Should NOT contain claims about computing TVaR or 99th percentile losses
+    assert "tail value at risk (tvar)" not in source, \
+        "Results page must not claim TVaR is computed"
+    assert '"insurance-grade"' not in source, \
+        "Results page must not claim insurance-grade"
+
+
+# ── Test 28: No hardcoded £ in Map page popups ──────────────────────────
+
+def test_no_hardcoded_gbp_in_map():
+    """Map page must use currency symbol from session state, not hardcoded £."""
+    import importlib
+
+    spec = importlib.util.find_spec("pages.05_Map")
+    with open(spec.origin) as f:
+        source = f.read()
+
+    # Count £ occurrences — should be zero (all replaced with _sym)
+    gbp_count = source.count("£")
+    assert gbp_count == 0, \
+        f"Map page still has {gbp_count} hardcoded £ symbols — should use _sym from currency selector"
+
+
+# ── Test 29: Vulnerability page has no upload/custom curve false promises ─
+
+def test_no_vulnerability_false_promises():
+    """Vulnerability page must not contain upload controls or claims about
+    custom curves affecting calculations unless they are actually wired."""
+    import importlib
+
+    spec = importlib.util.find_spec("pages.09_Vulnerability")
+    with open(spec.origin) as f:
+        source = f.read()
+
+    assert "session restart to apply" not in source, \
+        "Vulnerability page must not claim custom curves apply after restart (they don't)"
+    assert "Upload Custom Curve" not in source, \
+        "Vulnerability page must not offer upload if not wired to engine"
+
+
+# ── Test 30: Manual hazard overrides are merged into Results run ─────────
+
+def test_manual_overrides_merged_in_results():
+    """Results page must merge hazard_overrides from session state into the
+    hazard data used for computation."""
+    import importlib
+
+    spec = importlib.util.find_spec("pages.04_Results")
+    with open(spec.origin) as f:
+        source = f.read()
+
+    assert "hazard_overrides" in source, \
+        "Results page must reference hazard_overrides from session state"
+
+
+# ── Test 31: Asset dict normalization in app.py ──────────────────────────
+
+def test_asset_dict_normalization():
+    """Asset.from_dict should produce the same attributes as direct construction."""
+    asset = _make_asset()
+    d = asset.to_dict()
+    rebuilt = Asset.from_dict(d)
+
+    assert rebuilt.id == asset.id
+    assert rebuilt.replacement_value == asset.replacement_value
+    assert rebuilt.first_floor_height_m == asset.first_floor_height_m
+    assert rebuilt.region == asset.region
+
+
+# ── Test 32: Marketing claims are screening-level ────────────────────────
+
+def test_no_insurance_grade_claim():
+    """app.py must not claim 'insurance-grade' since the platform is screening-level."""
+    import importlib
+
+    spec = importlib.util.find_spec("app")
+    with open(spec.origin) as f:
+        source = f.read().lower()
+
+    # Allow "not insurance-grade" disclaimers, but reject positive claims
+    for line in source.splitlines():
+        if "insurance-grade" in line and "not insurance-grade" not in line:
+            raise AssertionError(
+                f"app.py must not claim insurance-grade (platform is screening-level): {line.strip()}"
+            )

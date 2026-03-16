@@ -14,6 +14,7 @@ from engine.impact_functions import get_damage_fraction, HAZARD_UNITS
 from engine.ead_calculator import calc_ead
 from engine.data_sources import DATA_SOURCE_REGISTRY
 from engine.export_engine import export_audit_xlsx, df_to_xlsx
+from engine.fmt import currency_symbol as _currency_symbol
 
 st.set_page_config(page_title="Audit Trail", page_icon="🔍", layout="wide")
 
@@ -35,6 +36,7 @@ hazard_data_all = st.session_state.get("hazard_data", {})
 hazard_data_by_scenario = st.session_state.get("hazard_data_by_scenario", {})
 selected_scenarios = st.session_state.get("selected_scenarios", list(SCENARIOS.keys())[:1])
 discount_rate = st.session_state.get("discount_rate", 0.035)
+_sym = _currency_symbol(st.session_state.get("currency_code", "GBP"))
 
 if not assets:
     st.warning("No assets defined.")
@@ -159,14 +161,14 @@ steps = [
     ("7", "EAD integration",
      f"**Method:** Trapezoidal integration under the exceedance probability (EP) curve\n\n"
      f"**Formula:** EAD = ∫ damage(AEP) d(AEP) ≈ Σ (damage_i + damage_{'{i+1}'}) × |AEP_{'{i+1}'} − AEP_i| / 2\n\n"
-     f"**Result:** EAD = **£{ead:,.2f}** ({ead/sel_asset.replacement_value*100:.4f}% of replacement value)\n\n"
+     f"**Result:** EAD = **{_sym}{ead:,.2f}** ({ead/sel_asset.replacement_value*100:.4f}% of replacement value)\n\n"
      f"**Reference:** Standard catastrophe modelling methodology (Lloyd's, RMS, AIR Worldwide)"),
 
     ("8", "Present value discounting",
      f"**Formula:** PV = EAD / (1 + r)^(year − 2025)\n\n"
      f"**Discount rate:** {discount_rate*100:.1f}% "
      f"([HM Treasury Green Book](https://www.gov.uk/government/publications/the-green-book-appraisal-and-evaluation-in-central-government))\n\n"
-     f"**Calculation:** £{ead:,.2f} / (1 + {discount_rate:.3f})^{sel_year - 2025} = **£{pv:,.2f}**"),
+     f"**Calculation:** {_sym}{ead:,.2f} / (1 + {discount_rate:.3f})^{sel_year - 2025} = **{_sym}{pv:,.2f}**"),
 ]
 
 for step_num, step_title, step_text in steps:
@@ -186,7 +188,7 @@ for step_num, step_title, step_text in steps:
                 "Return Period (yr)": rp.astype(int),
                 f"Adjusted Intensity ({unit})": np.round(scaled_intens, 4),
                 "Damage Fraction": np.round(damage_fracs, 6),
-                "Loss (£)": np.round(damage_fracs * sel_asset.replacement_value, 2),
+                f"Loss ({_sym})": np.round(damage_fracs * sel_asset.replacement_value, 2),
             })
             st.dataframe(df_vul, use_container_width=True)
         elif step_num == "7":
@@ -195,10 +197,10 @@ for step_num, step_title, step_text in steps:
                 "Return Period (yr)": rp.astype(int),
                 "AEP": np.round(aep, 6),
                 "Damage Fraction": np.round(damage_fracs, 6),
-                "Loss (£)": np.round(damage_fracs * sel_asset.replacement_value, 2),
+                f"Loss ({_sym})": np.round(damage_fracs * sel_asset.replacement_value, 2),
             })
             st.dataframe(df_ead, use_container_width=True)
-            st.success(f"**EAD = £{ead:,.2f}** | EAD% = {ead/sel_asset.replacement_value*100:.4f}%")
+            st.success(f"**EAD = {_sym}{ead:,.2f}** | EAD% = {ead/sel_asset.replacement_value*100:.4f}%")
 
 # ── Full audit table ───────────────────────────────────────────────────────
 st.divider()
@@ -220,7 +222,7 @@ if not annual_df.empty:
         asset_audit_display.columns = [
             "Year", "Warming (°C)", "Hazard Multiplier",
             f"Baseline Intensity RP100 ({unit})", f"Adjusted Intensity RP100 ({unit})",
-            "Damage Fraction RP100", "EAD (£)", "PV (£)", "EAD % Value", "Data Source"
+            "Damage Fraction RP100", f"EAD ({_sym})", f"PV ({_sym})", "EAD % Value", "Data Source"
         ]
         st.dataframe(asset_audit_display, use_container_width=True)
 

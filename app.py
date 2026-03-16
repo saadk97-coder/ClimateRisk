@@ -96,19 +96,23 @@ st.markdown(
 )
 
 st.markdown(
-    "Physical climate risk quantification aligned with **BSR Climate Scenarios 2025** (NGFS Phase V). "
-    "Translates hazard exposure into asset-level financial damages with full source transparency, "
-    "audit trails, and TCFD/CSRD-ready outputs."
+    "Physical climate risk screening aligned with **BSR Climate Scenarios 2025** (NGFS Phase V). "
+    "Translates hazard exposure into asset-level financial damage estimates with source citations "
+    "and audit trails. Suitable for portfolio screening and risk triage — not a substitute for "
+    "site-specific engineering assessments or professional catastrophe modelling."
 )
 
 # ── Headline metrics strip ───────────────────────────────────────────────────
-total_val = sum(a.replacement_value for a in st.session_state.assets)
+total_val = sum(
+    (a.replacement_value if hasattr(a, 'replacement_value') else a.get('replacement_value', 0))
+    for a in st.session_state.assets
+)
 n_assets  = len(st.session_state.assets)
 col_m1, col_m2, col_m3, col_m4 = st.columns(4)
 col_m1.metric("Assets", n_assets)
 col_m2.metric("Portfolio Value", _fmt(total_val, _cur) if total_val > 0 else "—")
 col_m3.metric("Scenarios Available", "14", help="6 NGFS Phase V · 3 IEA WEO 2023 · 5 IPCC AR6")
-col_m4.metric("Hazards Covered", "5", help="Flood · Wind · Wildfire · Heat · Water Stress")
+col_m4.metric("Hazards Covered", "6", help="Flood · Wind · Wildfire · Heat · Coastal Flood · Water Stress")
 
 st.divider()
 
@@ -119,7 +123,7 @@ st.markdown("""
 |------|------|-------------|
 | 1 | **Portfolio** | Upload assets via CSV or add them manually |
 | 2 | **Scenarios** | Select scenarios — BSR 2025, NGFS Phase V, IEA WEO or IPCC AR6, with regional narrative insights |
-| 3 | **Hazards** | Fetch hazard data (ISIMIP3b, NASA NEX-GDDP, CHELSA, WRI Aqueduct, fallback) |
+| 3 | **Hazards** | Fetch hazard data (ISIMIP3b historical baseline → built-in regional fallback; WRI Aqueduct for water stress) |
 | 4 | **Results** | Climate Exposure Scores, EALR (Expected Annual Loss Ratio), annual EAD 2025–2050, stranded asset flags |
 | 5 | **Map** | Interactive risk map with water stress overlay, satellite imagery & building footprints |
 | 6 | **Adaptation** | Adaptation Return on Investment (ROI) and cost-benefit for 20+ measures |
@@ -151,7 +155,7 @@ with col2:
 with col3:
     st.markdown("### 📐 Financial Outputs")
     st.markdown("""
-- Insurance-grade EAD via trapezoidal EP curve integration
+- EAD via trapezoidal EP curve integration (screening-level)
 - Annual 2025–2050 timeline, discounted to PV
 - Adaptation Return on Investment (ROI %) with NPV benefits
 - Climate-adjusted DCF — scenario-weighted NPV impairment
@@ -168,9 +172,10 @@ with col_info:
     )
 with col_warn:
     st.warning(
-        "**Disclaimer**: Results are quantitative estimates based on published climate science and "
-        "open-source vulnerability functions. Consult licensed climate risk specialists for "
-        "regulatory disclosures (TCFD, CSRD, ISSB S2)."
+        "**Disclaimer**: This is a screening-level tool producing quantitative estimates based on "
+        "published climate science and open-source vulnerability functions. Results are indicative, "
+        "not insurance-grade. Flood uses precipitation-derived proxies, not hydraulic models. "
+        "Consult licensed climate risk specialists for regulatory disclosures (TCFD, CSRD, ISSB S2)."
     )
 
 st.caption(
