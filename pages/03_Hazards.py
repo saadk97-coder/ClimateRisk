@@ -148,7 +148,7 @@ with st.expander("📊 Comparative Source Guide — which source should you use?
 
 | Source | Resolution | Coverage | Hazards | Temporal Range | Best For |
 |--------|-----------|----------|---------|----------------|----------|
-| **ISIMIP3b** | 0.5° (~55 km) | Global | Flood, Heat, Wind, Wildfire | 2021–2050 (SSP projections) | **Default choice** — covers all hazards with GEV-fitted return periods from bias-adjusted GCM output |
+| **ISIMIP3b** | 0.5° (~55 km) | Global | Flood, Heat, Wind, Wildfire | Historical (1991–2014) | **Default choice** — scenario-agnostic baseline with GEV-fitted return periods from 4-GCM ensemble |
 | **NASA NEX-GDDP-CMIP6** | 0.25° (~25 km) | Global | Heat, Wind, (Flood via precip) | 1950–2100 | Higher spatial resolution than ISIMIP; 35 CMIP6 models; good for heat/wind analysis |
 | **CHELSA CMIP6** | 30 arc-sec (~1 km) | Global (land) | Heat, Precipitation | Climatologies (30-yr means) | **Highest resolution** for temperature-based hazards; ideal for topographically complex terrain |
 | **LOCA2** | 1/16° (~6 km) | N. America | Heat, Flood | 1950–2100 | Best resolution for North American assets; daily data enables extreme event analysis |
@@ -273,15 +273,19 @@ if fetch_btn:
         region = zone_overrides.get(asset.id, asset.region)
         if region == "AUTO":
             region = asset.region
-        data = fetch_all_hazards(asset.lat, asset.lon, region, hazards, ssp, "2041_2060")
+        data = fetch_all_hazards(
+            asset.lat, asset.lon, region, hazards, ssp, "2041_2060",
+            terrain_elevation_asl_m=getattr(asset, "terrain_elevation_asl_m", 0.0),
+            asset_type=asset.asset_type,
+        )
         st.session_state.hazard_data[asset.id] = data
         progress.progress((i + 1) / len(assets), text=f"✅ {asset.name}")
     sc_label = SCENARIOS.get(scenario_id, {}).get("label", scenario_id)
     st.success(f"Loaded hazard data for {len(assets)} asset(s) using **{sc_label}** ({ssp}) baseline.")
     st.caption(
-        "Note: These are baseline intensities for inspection. The Results page runs the "
-        "damage engine per scenario/horizon, fetching scenario-specific data where available "
-        "and applying multipliers only to non-ISIMIP sources to avoid double-counting."
+        "Note: These are scenario-agnostic baseline intensities (historical reference). "
+        "The Results page applies IPCC AR6 hazard multipliers per scenario/year "
+        "to model temporal evolution from 2025–2050."
     )
     progress.empty()
 

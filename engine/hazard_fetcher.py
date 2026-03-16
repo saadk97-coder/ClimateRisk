@@ -190,6 +190,7 @@ def fetch_hazard_intensities(
     scenario_ssp: str = "SSP2-4.5",
     time_period: str = "2021_2040",
     terrain_elevation_asl_m: float = 0.0,
+    asset_type: str = "default",
 ) -> Tuple[np.ndarray, np.ndarray, str]:
     """
     Fetch hazard return-period intensity profile for a location.
@@ -200,8 +201,11 @@ def fetch_hazard_intensities(
       3. CHELSA CMIP6 — GeoTIFF point extraction (heat) [30 arc-sec]
       4. Regional baseline — compiled medians from IPCC AR6 / ISIMIP [continental]
 
-    The returned intensities represent a near-term baseline; temporal evolution
-    (2025–2050) is handled by scenario multipliers in the damage engine.
+    The returned intensities represent a SCENARIO-AGNOSTIC baseline (historical
+    or present-day reference). Temporal evolution (2025–2050) is handled
+    entirely by scenario multipliers in the damage engine. The scenario_ssp
+    parameter is accepted for backward compatibility but is NOT used to
+    condition the fetched data.
 
     Returns
     -------
@@ -231,7 +235,7 @@ def fetch_hazard_intensities(
             from engine.water_stress import fetch_water_stress_profile
             rp, damages, ws_source = fetch_water_stress_profile(
                 lat, lon, region_iso3,
-                ngfs_scenario=scenario_ssp,
+                asset_type=asset_type,
             )
             # Map source key to DATA_SOURCE_REGISTRY key
             src_key = "aqueduct" if ws_source == "aqueduct" else "fallback_baseline"
@@ -243,21 +247,24 @@ def fetch_hazard_intensities(
         return rps, np.zeros(len(rps)), "fallback_baseline"
 
     # ── 1. ISIMIP3b (full extraction pipeline) ─────────────────────────────
+    # NOTE: ISIMIP fetchers always use the HISTORICAL experiment (scenario-agnostic).
+    # The scenario_ssp parameter is NOT passed — all scenario differentiation
+    # comes from IPCC AR6 multipliers applied in the damage engine.
     try:
         from engine.isimip_fetcher import (
             fetch_isimip3b_flood, fetch_isimip3b_heat,
             fetch_isimip3b_wind, fetch_isimip3b_wildfire,
         )
         if hazard == "flood":
-            result = fetch_isimip3b_flood(lat, lon, ssp=scenario_ssp)
+            result = fetch_isimip3b_flood(lat, lon)
             if result is not None:
                 return result[0], result[1], "isimip3b"
         elif hazard == "heat":
-            result = fetch_isimip3b_heat(lat, lon, ssp=scenario_ssp)
+            result = fetch_isimip3b_heat(lat, lon)
             if result is not None:
                 return result[0], result[1], "isimip3b"
         elif hazard == "wind":
-            result = fetch_isimip3b_wind(lat, lon, ssp=scenario_ssp)
+            result = fetch_isimip3b_wind(lat, lon)
             if result is not None:
                 rp_w, int_w = result[0], result[1]
                 try:
@@ -267,7 +274,7 @@ def fetch_hazard_intensities(
                     logger.debug(f"Cyclone amplification skipped: {e}")
                 return rp_w, int_w, "isimip3b"
         elif hazard == "wildfire":
-            result = fetch_isimip3b_wildfire(lat, lon, ssp=scenario_ssp)
+            result = fetch_isimip3b_wildfire(lat, lon)
             if result is not None:
                 return result[0], result[1], "isimip3b"
     except Exception as e:
@@ -320,9 +327,12 @@ def fetch_all_hazards(
     scenario_ssp: str = "SSP2-4.5",
     time_period: str = "2021_2040",
     terrain_elevation_asl_m: float = 0.0,
+    asset_type: str = "default",
 ) -> Dict[str, dict]:
     """Fetch intensity profiles for multiple hazards. Returns {hazard: {return_periods, intensities, source, citation}}.
 
+    All fetched data is scenario-agnostic (historical baseline). The scenario_ssp
+    parameter is accepted for backward compatibility but does NOT condition the data.
     Logs a per-location provenance summary showing which source was used for each hazard.
     """
     results = {}
@@ -331,6 +341,7 @@ def fetch_all_hazards(
         rp, intensities, source = fetch_hazard_intensities(
             lat, lon, hazard, region_iso3, scenario_ssp, time_period,
             terrain_elevation_asl_m=terrain_elevation_asl_m,
+            asset_type=asset_type,
         )
         src_info = DATA_SOURCE_REGISTRY.get(source, {})
         entry = {

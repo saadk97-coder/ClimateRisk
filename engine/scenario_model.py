@@ -809,13 +809,16 @@ def get_slr_additive(scenario_id: str, year: int, region: str = "global") -> flo
 
     SLR is fundamentally additive to surge levels, unlike other hazards
     where multiplicative scaling is appropriate.
+
+    NOTE: Regional adjustment is NOT applied here. The IPCC AR6 global median
+    SLR values are used directly. Regional variation in coastal flood risk
+    (e.g. higher surge in Bay of Bengal vs Mediterranean) is captured by
+    the regional factor in get_scenario_multipliers() for the storminess
+    component. Applying the regional factor in BOTH places would double-count.
     """
     delta_t = get_warming(scenario_id, year)
     slr = _interp(COASTAL_SLR_ADDITIVE_M, delta_t)
-    # Apply regional factor (coastal_flood entry from REGIONAL_HAZARD_SCALING_FACTOR)
-    regional_factors = REGIONAL_HAZARD_SCALING_FACTOR.get(region, REGIONAL_HAZARD_SCALING_FACTOR["global"])
-    regional_adj = regional_factors.get("coastal_flood", 1.0)
-    return slr * regional_adj
+    return slr
 
 
 def _interp(mapping: dict, x: float) -> float:

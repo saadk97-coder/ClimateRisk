@@ -72,59 +72,40 @@ with col_info:
     )
 
 if run_btn:
-    # Fetch hazard data separately per scenario so that SSP-conditioned sources
-    # (e.g. ISIMIP3b) use the correct climate signal for each scenario.
-    # This prevents the structural bug where all scenarios shared one SSP's data.
-    hazard_data_by_scenario: dict = {}
-    unique_ssps = {}
-    for sc_id in selected_scenarios:
-        ssp = SCENARIOS.get(sc_id, {}).get("ssp", "SSP2-4.5")
-        unique_ssps[sc_id] = ssp
-
-    # Group scenarios that share the same SSP — avoid redundant fetches
-    ssp_to_scenarios = {}
-    for sc_id, ssp in unique_ssps.items():
-        ssp_to_scenarios.setdefault(ssp, []).append(sc_id)
-
-    ssps_to_fetch = list(ssp_to_scenarios.keys())
-    total_fetches = len(assets) * len(ssps_to_fetch)
+    # Fetch hazard data ONCE — all data is scenario-agnostic (historical baseline).
+    # Scenario differentiation is handled entirely by IPCC AR6 multipliers
+    # in the damage engine (annual_risk.py / damage_engine.py).
+    hazard_data_flat: dict = {}
+    total_fetches = len(assets)
     if total_fetches > 0:
-        with st.status(f"Fetching hazard data for {len(assets)} asset(s) × {len(ssps_to_fetch)} SSP(s)…", expanded=False) as fetch_status:
+        with st.status(f"Fetching baseline hazard data for {len(assets)} asset(s)…", expanded=False) as fetch_status:
             done_fetch = 0
-            ssp_data_cache = {}  # {ssp: {asset_id: {hazard: data}}}
-            for ssp in ssps_to_fetch:
-                ssp_data_cache[ssp] = {}
-                for asset in assets:
-                    hazards = list(asset_types_catalog.get(asset.asset_type, {}).get(
-                        "hazards", ["flood", "wind", "wildfire", "heat"]
-                    ))
-                    # Add coastal_flood dynamically
-                    if "coastal_flood" not in hazards:
-                        try:
-                            from engine.coastal import is_coastal
-                            if is_coastal(asset.lat, asset.lon):
-                                hazards.append("coastal_flood")
-                        except Exception:
-                            pass
-                    data = fetch_all_hazards(
-                        asset.lat, asset.lon, asset.region, hazards, ssp, "2021_2040",
-                        terrain_elevation_asl_m=getattr(asset, "terrain_elevation_asl_m", 0.0),
-                    )
-                    ssp_data_cache[ssp][asset.id] = data
-                    done_fetch += 1
-                    fetch_status.write(f"✅ {asset.name} ({ssp})")
-                # Map this SSP's data to all scenarios that use it
-                for sc_id in ssp_to_scenarios[ssp]:
-                    hazard_data_by_scenario[sc_id] = ssp_data_cache[ssp]
+            for asset in assets:
+                hazards = list(asset_types_catalog.get(asset.asset_type, {}).get(
+                    "hazards", ["flood", "wind", "wildfire", "heat"]
+                ))
+                # Add coastal_flood dynamically
+                if "coastal_flood" not in hazards:
+                    try:
+                        from engine.coastal import is_coastal
+                        if is_coastal(asset.lat, asset.lon):
+                            hazards.append("coastal_flood")
+                    except Exception:
+                        pass
+                data = fetch_all_hazards(
+                    asset.lat, asset.lon, asset.region, hazards,
+                    terrain_elevation_asl_m=getattr(asset, "terrain_elevation_asl_m", 0.0),
+                    asset_type=asset.asset_type,
+                )
+                hazard_data_flat[asset.id] = data
+                done_fetch += 1
+                fetch_status.write(f"✅ {asset.name}")
 
             fetch_status.update(label="Hazard data ready.", state="complete")
 
-    # Also keep a flat reference for backward-compat pages (Audit, Hazards preview)
-    # Use the first scenario's data as the preview set
-    first_ssp = unique_ssps.get(selected_scenarios[0], "SSP2-4.5")
-    hazard_data_flat = ssp_data_cache.get(first_ssp, {}) if total_fetches > 0 else {}
     st.session_state.hazard_data = hazard_data_flat
-    st.session_state.hazard_data_by_scenario = hazard_data_by_scenario
+    # No per-scenario data needed — baseline is shared across all scenarios.
+    st.session_state.hazard_data_by_scenario = {}
 
     prog = st.progress(0, text="Computing EAD for each asset / scenario / year…")
 
@@ -133,19 +114,19 @@ if run_btn:
 
     with st.spinner("Running…"):
         # Annual computation (primary — 2025–2050)
+        # All scenarios share the same baseline data; multipliers differentiate.
         ann_df = compute_portfolio_annual_damages(
             assets, selected_scenarios,
             hazard_data_flat,
             discount_rate, years,
             progress_callback=cb,
-            hazard_data_by_scenario=hazard_data_by_scenario,
         )
 
         # Coarse horizon results for EP curves / adaptation page
         coarse_years = [2030, 2040, 2050]
         coarse_results = run_portfolio(
             assets, selected_scenarios, coarse_years,
-            hazard_overrides_by_scenario=hazard_data_by_scenario,
+            hazard_overrides=hazard_data_flat,
         )
 
     st.session_state.annual_damages = ann_df

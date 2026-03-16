@@ -47,8 +47,14 @@ _SSP_MAP = {
 # Preferred GCMs — good global data coverage, widely validated
 _GCM_PRIORITY = ["gfdl-esm4", "mpi-esm1-2-hr", "ipsl-cm6a-lr", "mri-esm2-0"]
 
-# Time chunks to request: focus on near-to-mid future
-_TIME_CHUNKS = ["2021_2030", "2031_2040", "2041_2050"]
+# Time chunks: use HISTORICAL experiment for scenario-agnostic baseline.
+# The damage engine applies IPCC AR6 multipliers for temporal/scenario evolution,
+# so fetched data must be a fixed reference — NOT SSP-conditioned future data.
+# Historical covers ~1991–2014 (bias-adjusted to W5E5 1979–2014 reanalysis).
+_TIME_CHUNKS = ["1991_2000", "2001_2010", "2011_2014"]
+
+# Fixed baseline experiment key — all fetches use this regardless of scenario.
+_BASELINE_SSP = "historical"
 
 
 # ---------------------------------------------------------------------------
@@ -389,6 +395,7 @@ def fetch_isimip3b_heat(
     if only one succeeds.
 
     Data: ISIMIP3b bias-adjusted tasmax (daily max near-surface temperature, K)
+    from the HISTORICAL experiment (scenario-agnostic baseline).
     Resolution: 0.5° (~55 km)
     Citation: Lange (2019) Earth Syst. Dynam. 10, 1321–1336
 
@@ -396,7 +403,9 @@ def fetch_isimip3b_heat(
     """
     if return_periods is None:
         return_periods = STANDARD_RETURN_PERIODS
-    ssp_key = _SSP_MAP.get(ssp, "ssp245")
+    # Always use historical baseline — ssp parameter ignored.
+    # Scenario differentiation is handled by multipliers in the damage engine.
+    ssp_key = _BASELINE_SSP
 
     gcm_curves: List[np.ndarray] = []
     for gcm in _GCM_PRIORITY:
@@ -449,7 +458,8 @@ def fetch_isimip3b_wind(
     """
     if return_periods is None:
         return_periods = STANDARD_RETURN_PERIODS
-    ssp_key = _SSP_MAP.get(ssp, "ssp245")
+    # Always use historical baseline — ssp parameter ignored.
+    ssp_key = _BASELINE_SSP
 
     gcm_curves: List[np.ndarray] = []
     for gcm in _GCM_PRIORITY:
@@ -513,7 +523,8 @@ def fetch_isimip3b_flood(
     """
     if return_periods is None:
         return_periods = STANDARD_RETURN_PERIODS
-    ssp_key = _SSP_MAP.get(ssp, "ssp245")
+    # Always use historical baseline — ssp parameter ignored.
+    ssp_key = _BASELINE_SSP
 
     # Regional drainage threshold and depth factor — accounts for regional variation
     # in drainage capacity, soil permeability, and terrain slope.
@@ -621,7 +632,8 @@ def fetch_isimip3b_wildfire(
     """
     if return_periods is None:
         return_periods = STANDARD_RETURN_PERIODS
-    ssp_key = _SSP_MAP.get(ssp, "ssp245")
+    # Always use historical baseline — ssp parameter ignored.
+    ssp_key = _BASELINE_SSP
 
     try:
         from engine.fire_weather import annual_max_fwi, fwi_to_flame_length

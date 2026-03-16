@@ -72,7 +72,7 @@ _BWS_DAMAGE_CURVE: list = [
 _ASSET_TYPE_WATER_SENSITIVITY: Dict[str, float] = {
     "industrial":         2.5,
     "manufacturing":      2.5,
-    "data_centre":        3.0,   # cooling-water intensive
+    "data_center":        3.0,   # cooling-water intensive
     "agricultural":       4.0,   # directly dependent on water availability
     "commercial":         0.8,
     "retail":             0.7,
@@ -311,7 +311,6 @@ def fetch_water_stress_profile(
     if return_periods is None:
         return_periods = STANDARD_RETURN_PERIODS
 
-    aqueduct_scenario = _NGFS_TO_AQUEDUCT.get(ngfs_scenario, "business_as_usual")
     # Try exact match, then prefix match (e.g. "commercial_office" → "commercial")
     sensitivity = _ASSET_TYPE_WATER_SENSITIVITY.get(asset_type)
     if sensitivity is None:
@@ -324,22 +323,21 @@ def fetch_water_stress_profile(
 
     if bws_baseline is None:
         # Fall back to regional baseline
-        from engine.hazard_fetcher import _get_region_key
-        zone = _get_region_key(region_iso3)
+        from engine.hazard_fetcher import get_region_zone
+        zone = get_region_zone(region_iso3)
         bws_baseline = _REGIONAL_BWS_BASELINE.get(zone, _REGIONAL_BWS_BASELINE["global"])
         source = "regional_baseline"
 
-    # Apply scenario-specific future multiplier (was previously unused).
-    # Interpolates BWS growth for the given Aqueduct scenario at mid-period (2035).
-    scenario_mult = _interp_scenario(aqueduct_scenario, 2035)
+    # NOTE: No scenario multiplier applied here. The fetched BWS is a present-day
+    # baseline. Temporal/scenario evolution is handled by the damage engine via
+    # get_scenario_multipliers(). This prevents double-counting the climate signal.
 
-    # Apply return-period stress scale and future scenario multiplier
-    # RP scale makes higher return periods represent more severe stress conditions
+    # Apply return-period stress scale (represents variability around baseline BWS)
     damages = []
     for rp in return_periods:
         rp_scale = _BWS_RP_SCALE.get(float(rp), 1.0)
-        # Scale BWS by RP factor and scenario projection
-        bws_rp = bws_baseline * rp_scale * scenario_mult
+        # Scale BWS by RP factor only (no scenario mult — engine handles that)
+        bws_rp = bws_baseline * rp_scale
         # Clip to realistic range (>5 = extreme scarcity beyond Aqueduct scale)
         bws_rp = min(bws_rp, 6.0)
         damage_frac = _interp_damage_curve(bws_rp) * sensitivity

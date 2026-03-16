@@ -119,8 +119,8 @@ if show_water_stress or colour_by == "Water Stress":
                 if bws is None:
                     # Regional fallback
                     from engine.water_stress import _REGIONAL_BWS_BASELINE
-                    from engine.hazard_fetcher import _get_region_key
-                    zone = _get_region_key(asset.region)
+                    from engine.hazard_fetcher import get_region_zone
+                    zone = get_region_zone(asset.region)
                     bws = _REGIONAL_BWS_BASELINE.get(zone, 2.0)
                 water_stress_scores[asset.id] = float(bws)
     ws_status.empty()
@@ -267,7 +267,7 @@ try:
             except Exception:
                 pass
         ws_row = (
-            f"<b>Water Stress (BWS):</b> {bws_val:.1f}/5{bws_cat}<br>"
+            f"<b>Water Stress (raw BWS indicator):</b> {bws_val:.1f}/5{bws_cat}<br>"
             if show_water_stress else ""
         )
 
