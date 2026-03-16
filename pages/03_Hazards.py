@@ -112,6 +112,7 @@ HAZARD_UNIT_LABELS = {
     "wildfire": "Flame length (m)",
     "heat": "Max daily temperature (°C)",
     "coastal_flood": "Storm surge depth (m)",
+    "water_stress": "Damage fraction (chronic)",
 }
 
 # ── Source cards ───────────────────────────────────────────────────────────
@@ -166,71 +167,58 @@ with st.expander("📊 Comparative Source Guide — which source should you use?
     """)
 
 
-# ── Source Preference ──────────────────────────────────────────────────────
+# ── Source Settings ──────────────────────────────────────────────────────
 st.divider()
 st.subheader("Source Settings")
 
-col_pref, col_zone = st.columns(2)
-with col_pref:
-    source_pref = st.selectbox(
-        "Preferred source",
-        options=PRIORITY_ORDER,
-        index=PRIORITY_ORDER.index(st.session_state.get("preferred_source", "isimip3b")),
-        format_func=lambda k: f"{DATA_SOURCE_REGISTRY[k]['name']} — {SOURCE_STATUS[k]['badge']}",
-        help=(
-            "When the preferred source is unavailable for a given hazard, the next available "
-            "source in the priority chain is used automatically. All sources ultimately fall back "
-            "to the Built-in Regional Baseline."
-        ),
-    )
-    st.session_state.preferred_source = source_pref
-    if source_pref != "fallback_baseline":
-        if SOURCE_STATUS[source_pref]["status"] in ("deps", "partial", "regional"):
-            st.info(
-                f"⚠️ **{DATA_SOURCE_REGISTRY[source_pref]['name']}** is not currently active "
-                f"({SOURCE_STATUS[source_pref]['note']}). "
-                f"Data will fall back through the priority chain until an active source is found.",
-                icon="ℹ️",
-            )
+st.info(
+    "**Data source selection is automatic in this release.** "
+    "The system tries ISIMIP3b (historical baseline) first; if unavailable, "
+    "it falls back to the Built-in Regional Baseline. "
+    "NASA NEX-GDDP, CHELSA, and ClimateNA are disabled as baseline sources "
+    "because they require SSP/future-year parameters incompatible with the "
+    "baseline-plus-multipliers architecture.",
+    icon="ℹ️",
+)
 
-with col_zone:
-    st.markdown("**Regional Zone Overrides** *(fallback baseline only)*")
-    st.caption(
-        "Zones only apply when data falls back to the Built-in Regional Baseline. "
-        "When ISIMIP3b or other gridded sources are active, data is extracted directly "
-        "at the asset's coordinates — zones are not used."
-    )
-    zone_overrides = st.session_state.get("zone_overrides", {})
-    zones = ["AUTO", "EUR", "USA", "CHN", "IND", "AUS", "BRA", "global"]
-    zone_desc = {
-        "AUTO": "Auto-detect from country code",
-        "EUR": "Europe (GBR, FRA, DEU, ITA, ESP...)",
-        "USA": "North America (USA, CAN, MEX)",
-        "CHN": "East Asia (CHN, JPN, KOR, TWN)",
-        "IND": "South Asia (IND, PAK, BGD, LKA)",
-        "AUS": "Oceania (AUS, NZL)",
-        "BRA": "South America (BRA, ARG, COL, PER)",
-        "global": "Global median (conservative)",
-    }
-    sel_asset_for_zone = st.selectbox(
-        "Asset to override zone",
-        options=[a.id for a in assets],
-        format_func=lambda i: next((a.name for a in assets if a.id == i), i),
-        key="zone_override_asset",
-    )
-    current_zone = zone_overrides.get(sel_asset_for_zone, "AUTO")
-    new_zone = st.selectbox(
-        "Zone",
-        options=zones,
-        index=zones.index(current_zone) if current_zone in zones else 0,
-        format_func=lambda z: f"{z} — {zone_desc.get(z, z)}",
-        key="zone_override_val",
-    )
-    if new_zone == "AUTO":
-        zone_overrides.pop(sel_asset_for_zone, None)
-    else:
-        zone_overrides[sel_asset_for_zone] = new_zone
-    st.session_state.zone_overrides = zone_overrides
+st.markdown("**Regional Zone Overrides** *(fallback baseline only — preview on this page)*")
+st.caption(
+    "Zone overrides affect **this page's preview** and the manual override reference values. "
+    "The Results page always uses the asset's country code for zone mapping. "
+    "Zones only apply when data falls back to the Built-in Regional Baseline."
+)
+zone_overrides = st.session_state.get("zone_overrides", {})
+zones = ["AUTO", "EUR", "USA", "CHN", "IND", "AUS", "BRA", "MEA", "global"]
+zone_desc = {
+    "AUTO": "Auto-detect from country code",
+    "EUR": "Europe (GBR, FRA, DEU, ITA, ESP...)",
+    "USA": "North America (USA, CAN, MEX)",
+    "CHN": "East Asia (CHN, JPN, KOR, TWN)",
+    "IND": "South Asia (IND, PAK, BGD, LKA)",
+    "AUS": "Oceania (AUS, NZL)",
+    "BRA": "South America (BRA, ARG, COL, PER)",
+    "MEA": "Middle East & Africa (SAU, ARE, QAT, ZAF...)",
+    "global": "Global median (conservative)",
+}
+sel_asset_for_zone = st.selectbox(
+    "Asset to override zone",
+    options=[a.id for a in assets],
+    format_func=lambda i: next((a.name for a in assets if a.id == i), i),
+    key="zone_override_asset",
+)
+current_zone = zone_overrides.get(sel_asset_for_zone, "AUTO")
+new_zone = st.selectbox(
+    "Zone",
+    options=zones,
+    index=zones.index(current_zone) if current_zone in zones else 0,
+    format_func=lambda z: f"{z} — {zone_desc.get(z, z)}",
+    key="zone_override_val",
+)
+if new_zone == "AUTO":
+    zone_overrides.pop(sel_asset_for_zone, None)
+else:
+    zone_overrides[sel_asset_for_zone] = new_zone
+st.session_state.zone_overrides = zone_overrides
 
 # ── Fetch ──────────────────────────────────────────────────────────────────
 st.divider()
@@ -251,12 +239,8 @@ with col_info:
 
 if fetch_btn:
     progress = st.progress(0, text="Fetching hazard data...")
-    # Fetch baseline hazard data (used for display on this page and as fallback input
-    # to the damage engine). The damage engine will re-fetch per scenario/horizon
-    # when running the full calculation, so this fetch is for inspection only.
-    # Use the first scenario's SSP for the preview, but note this in the UI.
-    scenario_id = selected_scenarios[0] if selected_scenarios else "current_policies"
-    ssp = SCENARIOS.get(scenario_id, {}).get("ssp", "SSP2-4.5")
+    # Fetch scenario-agnostic baseline hazard data for preview on this page.
+    # The Results page fetches its own baseline independently; this is for inspection only.
     for i, asset in enumerate(assets):
         hazards = list(asset_types_catalog.get(asset.asset_type, {}).get(
             "hazards", ["flood", "wind", "wildfire", "heat"]
@@ -274,14 +258,13 @@ if fetch_btn:
         if region == "AUTO":
             region = asset.region
         data = fetch_all_hazards(
-            asset.lat, asset.lon, region, hazards, ssp, "2041_2060",
+            asset.lat, asset.lon, region, hazards,
             terrain_elevation_asl_m=getattr(asset, "terrain_elevation_asl_m", 0.0),
             asset_type=asset.asset_type,
         )
         st.session_state.hazard_data[asset.id] = data
         progress.progress((i + 1) / len(assets), text=f"✅ {asset.name}")
-    sc_label = SCENARIOS.get(scenario_id, {}).get("label", scenario_id)
-    st.success(f"Loaded hazard data for {len(assets)} asset(s) using **{sc_label}** ({ssp}) baseline.")
+    st.success(f"Loaded scenario-agnostic baseline hazard data for {len(assets)} asset(s).")
     st.caption(
         "Note: These are scenario-agnostic baseline intensities (historical reference). "
         "The Results page applies IPCC AR6 hazard multipliers per scenario/year "
@@ -311,8 +294,9 @@ if st.session_state.hazard_data:
             "Country": asset.region.upper(),
         }
         _HAZ_LABELS = {"flood": "Flood", "wind": "Wind", "wildfire": "Wildfire",
-                       "heat": "Heat", "coastal_flood": "Coastal Flood"}
-        for hazard in ["flood", "wind", "wildfire", "heat", "coastal_flood"]:
+                       "heat": "Heat", "coastal_flood": "Coastal Flood",
+                       "water_stress": "Water Stress"}
+        for hazard in ["flood", "wind", "wildfire", "heat", "coastal_flood", "water_stress"]:
             col_name = _HAZ_LABELS[hazard]
             if hazard in hdata:
                 src = hdata[hazard]["source"]
@@ -392,10 +376,11 @@ if sel_asset_obj and st.session_state.hazard_data.get(sel_asset_detail):
     ]
     st.markdown(" | ".join(header_parts))
 
-    haz_tabs = [h for h in ["flood", "wind", "wildfire", "heat", "coastal_flood"] if h in hdata]
+    haz_tabs = [h for h in ["flood", "wind", "wildfire", "heat", "coastal_flood", "water_stress"] if h in hdata]
     if haz_tabs:
         _TAB_LABELS = {"flood": "🌊 Flood", "wind": "💨 Wind", "wildfire": "🔥 Wildfire",
-                       "heat": "🌡️ Heat", "coastal_flood": "🌊 Coastal Flood / SLR"}
+                       "heat": "🌡️ Heat", "coastal_flood": "🌊 Coastal Flood / SLR",
+                       "water_stress": "💧 Water Stress"}
         tabs = st.tabs([_TAB_LABELS.get(h, h) for h in haz_tabs])
 
         for tab, hazard in zip(tabs, haz_tabs):

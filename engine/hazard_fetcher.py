@@ -101,7 +101,7 @@ def get_fallback_detail(hazard: str, region_iso3: str) -> dict:
             "source": "ISIMIP3b global flood medians",
             "citation": "Sauer et al. (2021) Earth's Future 9(2)",
             "doi": "https://doi.org/10.1029/2020EF001901",
-            "description": "Median inundation depth (m) at each return period, derived from ensemble of ISIMIP3b global hydrological models (CaMa-Flood, ORCHIDEE, PCR-GLOBWB). Calibrated to observed flood records.",
+            "description": "Regional median indicative flood depth (m) at each return period, compiled from ISIMIP3b global hydrological model ensemble. Screening-level proxy — NOT site-level hydraulic modelling.",
         },
         "wind": {
             "source": "FEMA HAZUS regional wind speed data",
@@ -280,27 +280,14 @@ def fetch_hazard_intensities(
     except Exception as e:
         logger.warning(f"ISIMIP3b {hazard} fetch failed ({lat},{lon}): {e}")
 
-    # ── 2. NASA NEX-GDDP-CMIP6 (heat, wind) ───────────────────────────────
-    if hazard in ("heat", "wind"):
-        try:
-            from engine.data_sources import fetch_best_available
-            src_key, val = fetch_best_available(lat, lon, hazard, region_iso3, scenario_ssp)
-            if src_key not in ("fallback_baseline",) and val is not None:
-                rp_base, base_intens = _fallback_intensities(hazard, region_iso3)
-                rp100_idx = 2
-                scale_factor = val / base_intens[rp100_idx] if base_intens[rp100_idx] > 0 else 1.0
-                rp_out, int_out = rp_base, base_intens * scale_factor
-                if hazard == "wind":
-                    try:
-                        from engine.tropical_cyclone import get_cyclone_wind_intensities
-                        rp_out, int_out, _basin = get_cyclone_wind_intensities(lat, lon, rp_out, int_out)
-                    except Exception as e:
-                        logger.debug(f"Cyclone amplification skipped: {e}")
-                return rp_out, int_out, src_key
-        except Exception as e:
-            logger.warning(f"NEX-GDDP {hazard} fetch failed ({lat},{lon}): {e}")
-
-    # ── 3. Built-in regional baseline (always available) ───────────────────
+    # ── 2. Built-in regional baseline (always available) ─────────────────────
+    # NOTE: NASA NEX-GDDP, CHELSA, and ClimateNA are future-conditioned sources
+    # (they require SSP + year parameters). Under the baseline-plus-multipliers
+    # architecture, mixing future-conditioned data into the baseline path would
+    # create a hybrid that double-counts scenario signal when engine multipliers
+    # are applied. These sources are therefore DISABLED for the baseline path.
+    # If they are re-enabled in future, they must be configured to fetch
+    # historical/present-day reference data, not SSP projections.
     rp, intensities = _fallback_intensities(hazard, region_iso3)
     source = "fallback_baseline"
 

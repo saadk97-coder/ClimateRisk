@@ -215,8 +215,8 @@ _NODE_DATA = [
          desc="Standard RPs: 2, 5, 10, 25, 50, 100, 250, 500, 1000 yrs. GEV MLE fitting to ISIMIP annual maxima."),
     dict(id=13, x=3.3, y=1.2, label="EAD Integration",       cat="EAD",
          desc="Trapezoidal integration under the Loss EP curve. Discounted to PV at chosen rate. Annual 2025–2050 timeline."),
-    dict(id=14, x=3.3, y=0.0, label="Monte Carlo (1,000×)",  cat="EAD",
-         desc="1,000 draws from vulnerability curve uncertainty distributions → 5th/95th CI on EAD per asset."),
+    dict(id=14, x=3.3, y=0.0, label="Monte Carlo (planned)",  cat="EAD",
+         desc="Engine supports 1,000-draw MC uncertainty (intensity/vulnerability/value channels). Not yet wired to UI outputs — planned for future release."),
 
     # Outputs
     dict(id=15, x=4.4, y=4.0, label="Annual EAD 2025–50",    cat="Output",
@@ -512,7 +512,7 @@ Log-normalised so all scores use the full 1–10 range even when one asset domin
 **Expected Annual Loss Ratio (EALR):**  `EALR% = EAD_2050 / replacement_value × 100`
 (Note: This is an expected-loss ratio, not a tail Value-at-Risk measure.)
 
-**Monte Carlo uncertainty:** 1,000 draws at ±20% vulnerability curve CoV → 5th/95th CI.
+**Monte Carlo uncertainty (planned):** Engine supports 1,000-draw MC simulation with ±20% vulnerability CoV. Not yet rendered in UI outputs — planned for future release.
         """)
     with col_b:
         rps = np.array([2, 5, 10, 25, 50, 100, 250, 500, 1000])

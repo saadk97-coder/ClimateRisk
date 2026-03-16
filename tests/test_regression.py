@@ -395,3 +395,173 @@ def test_fetch_best_available_supports_wind():
     source, val = fetch_best_available(51.5, -0.1, "wind", "GBR")
     # Should attempt NASA NEX for wind, then fall back
     assert source is not None, "fetch_best_available must return a source for wind"
+
+
+# ── Test 21: Flood freeboard ordering — mult BEFORE freeboard ────────────
+
+def test_flood_freeboard_ordering():
+    """Flood must apply: max(0, base * mult - freeboard), NOT (base - freeboard) * mult.
+    The multiplier scales the hazard intensity; freeboard is a physical offset subtracted after."""
+    asset_slab = _make_asset(first_floor_height_m=0.0)
+    asset_raised = _make_asset(first_floor_height_m=0.5)
+    hdata = _make_hazard_data()
+
+    df_slab = compute_annual_damages(asset_slab, "current_policies", hdata, 0.035)
+    df_raised = compute_annual_damages(asset_raised, "current_policies", hdata, 0.035)
+
+    # At 2050, mult > 1.0. With the old ordering (base - freeboard) * mult,
+    # freeboard reduction was amplified by mult. With correct ordering
+    # (base * mult - freeboard), freeboard reduction is constant.
+    row_slab = df_slab[(df_slab["year"] == 2050) & (df_slab["hazard"] == "flood")].iloc[0]
+    row_raised = df_raised[(df_raised["year"] == 2050) & (df_raised["hazard"] == "flood")].iloc[0]
+
+    mult = row_slab["multiplier"]
+    baseline_rp100 = row_slab["baseline_intensity_rp100"]
+    freeboard = 0.5
+
+    # Under correct ordering: effective = max(0, baseline * mult - freeboard)
+    expected_effective = max(0, baseline_rp100 * mult - freeboard)
+    actual_effective = row_raised["adjusted_intensity_rp100"]
+
+    assert abs(actual_effective - expected_effective) < 0.01, \
+        f"Flood effective intensity should be max(0, {baseline_rp100}*{mult}-{freeboard})={expected_effective:.4f}, got {actual_effective:.4f}"
+
+
+# ── Test 22: Coastal flood ordering — mult * base + SLR - freeboard ──────
+
+def test_coastal_flood_ordering():
+    """Coastal flood must apply: max(0, base * storm_mult + SLR - freeboard).
+    SLR and freeboard must NOT be multiplied."""
+    from engine.scenario_model import get_slr_additive, get_scenario_multipliers
+
+    asset = _make_asset(first_floor_height_m=0.3)
+    rp = np.array([10, 50, 100, 250, 500, 1000], dtype=float)
+    base_intens = np.array([0.2, 0.5, 0.8, 1.2, 1.6, 2.0], dtype=float)
+    hdata = {
+        "coastal_flood": {
+            "return_periods": rp.tolist(),
+            "intensities": base_intens.tolist(),
+            "source": "coastal_slr_baseline",
+        }
+    }
+
+    df = compute_annual_damages(asset, "current_policies", hdata, 0.035)
+    row = df[(df["year"] == 2050) & (df["hazard"] == "coastal_flood")].iloc[0]
+
+    mult = get_scenario_multipliers("current_policies", 2050, "coastal_flood", "EUR")
+    slr = get_slr_additive("current_policies", 2050, "EUR")
+
+    # Expected: max(0, 0.8 * mult + slr - 0.3)
+    expected = max(0, 0.8 * mult + slr - 0.3)
+    actual = row["adjusted_intensity_rp100"]
+
+    assert abs(actual - expected) < 0.01, \
+        f"Coastal effective intensity should be max(0, 0.8*{mult}+{slr}-0.3)={expected:.4f}, got {actual:.4f}"
+
+
+# ── Test 23: SLR and freeboard are NOT multiplied ────────────────────────
+
+def test_slr_and_freeboard_not_multiplied():
+    """Verify that freeboard/SLR contribution is independent of the multiplier value.
+    If we double the multiplier, the freeboard deduction should stay constant."""
+    import engine.scenario_model as sm
+    original_fn = sm.get_scenario_multipliers
+
+    asset = _make_asset(first_floor_height_m=1.0)
+    rp = np.array([10, 50, 100, 250, 500, 1000], dtype=float)
+    base_intens = np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], dtype=float)
+    hdata = {
+        "flood": {
+            "return_periods": rp.tolist(),
+            "intensities": base_intens.tolist(),
+            "source": "fallback_baseline",
+        }
+    }
+
+    # Run with actual multiplier
+    df1 = compute_annual_damages(asset, "current_policies", hdata, 0.035)
+    row1 = df1[(df1["year"] == 2050) & (df1["hazard"] == "flood")].iloc[0]
+
+    # Effective = base * mult - freeboard
+    # If freeboard were multiplied, effective = (base - freeboard) * mult
+    # The difference tells us which formula is used.
+    mult = row1["multiplier"]
+    base_rp100 = 3.0  # the baseline RP100 value
+    freeboard = 1.0
+
+    correct_effective = max(0, base_rp100 * mult - freeboard)
+    wrong_effective = max(0, (base_rp100 - freeboard) * mult)
+
+    actual = row1["adjusted_intensity_rp100"]
+
+    # Should match correct formula, not the wrong one
+    assert abs(actual - correct_effective) < 0.01, \
+        f"Effective intensity {actual:.4f} should match (base*mult-fb)={correct_effective:.4f}, not ((base-fb)*mult)={wrong_effective:.4f}"
+
+
+# ── Test 24: Fallback sources are not future-conditioned ─────────────────
+
+def test_fallback_sources_not_future_conditioned():
+    """The baseline fetch path must not silently use future-conditioned
+    alternative sources (NASA/CHELSA/ClimateNA). These were removed from
+    the fetch cascade in favour of ISIMIP + built-in regional baseline only."""
+    import ast
+    import importlib
+
+    spec = importlib.util.find_spec("engine.hazard_fetcher")
+    with open(spec.origin) as f:
+        source = f.read()
+
+    # The fetch_hazard_intensities function should NOT call fetch_best_available
+    # (which uses SSP/year parameters) in its main path.
+    # Check that fetch_best_available is not called in the active code path.
+    tree = ast.parse(source)
+
+    # Find the fetch_hazard_intensities function
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == "fetch_hazard_intensities":
+            # Walk the function body for calls to fetch_best_available
+            for child in ast.walk(node):
+                if isinstance(child, ast.Call):
+                    func = child.func
+                    name = ""
+                    if isinstance(func, ast.Name):
+                        name = func.id
+                    elif isinstance(func, ast.Attribute):
+                        name = func.attr
+                    assert name != "fetch_best_available", \
+                        "fetch_hazard_intensities must not call fetch_best_available (future-conditioned)"
+            break
+
+
+# ── Test 25: asset_type threaded through damage_engine fetch ─────────────
+
+def test_asset_type_threaded_in_damage_engine():
+    """damage_engine fetch paths must pass asset_type to fetch functions,
+    not default to 'default'. Check by inspecting the source code."""
+    import ast
+    import importlib
+
+    spec = importlib.util.find_spec("engine.damage_engine")
+    with open(spec.origin) as f:
+        source = f.read()
+
+    # Count occurrences of asset_type= in keyword arguments to fetch calls
+    assert "asset_type=asset.asset_type" in source, \
+        "damage_engine must pass asset_type=asset.asset_type to fetch calls"
+
+
+# ── Test 26: water_stress in results hazard chart loop ───────────────────
+
+def test_water_stress_in_results_chart():
+    """The Results page stacked hazard chart must include water_stress
+    to maintain reporting parity with totals."""
+    import importlib
+
+    spec = importlib.util.find_spec("pages.04_Results")
+    with open(spec.origin) as f:
+        source = f.read()
+
+    # The hazard loop for the stacked chart must include water_stress
+    assert '"water_stress"' in source, \
+        "Results page must include water_stress in hazard decomposition"

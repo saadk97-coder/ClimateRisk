@@ -9,7 +9,7 @@ Calculation trace (auditable step by step):
   1. baseline_intensity[rp]          ← from ISIMIP API or regional fallback (near-term baseline)
   2. warming_c                        ← scenario warming trajectory (interpolated)
   3. hazard_multiplier                ← IPCC AR6 hazard scaling, applied to ALL sources
-  4. adjusted_intensity[rp]           ← baseline × multiplier (flood/coastal: minus freeboard; coastal: +SLR)
+  4. adjusted_intensity[rp]           ← flood: max(0, baseline × mult - freeboard); coastal: max(0, baseline × mult + SLR - freeboard); other: baseline × mult
   5. damage_fraction[rp]              ← vulnerability curve (HAZUS/JRC/Syphard/IEA)
   6. EAD                              ← ∫ damage(aep) d(aep) via trapezoidal rule (or chronic pathway for water_stress)
   7. PV                               ← EAD / (1 + r)^(year - base_year)
@@ -74,22 +74,28 @@ def compute_annual_damages(
             from engine.hazard_fetcher import get_region_zone
             region_zone = get_region_zone(asset.region) if hasattr(asset, 'region') else "global"
 
-            # Adjust intensity — first-floor height correction for flood and coastal flood
+            # Scenario multiplier
+            mult = get_scenario_multipliers(scenario_id, year, hazard, region_zone)
+
             intens = base_intens.copy()
-            if hazard in ("flood", "coastal_flood"):
-                intens = np.clip(intens - asset.first_floor_height_m, 0.0, None)
-
             if hazard == "coastal_flood":
-                # Additive SLR + small multiplicative storminess term
+                # Correct order: scale by storminess, ADD SLR, SUBTRACT freeboard.
+                # SLR and freeboard are physical offsets — must NOT be multiplied.
                 slr_m = get_slr_additive(scenario_id, year, region_zone)
-                intens = intens + slr_m
-                mult = get_scenario_multipliers(scenario_id, year, hazard, region_zone)
+                intens = np.clip(intens * mult + slr_m - asset.first_floor_height_m, 0.0, None)
+                ead, damage_fracs = calc_ead_from_intensities(
+                    rp, intens, asset.asset_type, hazard, asset.replacement_value, 1.0
+                )
+            elif hazard == "flood":
+                # Correct order: scale by multiplier, THEN subtract freeboard.
+                intens = np.clip(intens * mult - asset.first_floor_height_m, 0.0, None)
+                ead, damage_fracs = calc_ead_from_intensities(
+                    rp, intens, asset.asset_type, hazard, asset.replacement_value, 1.0
+                )
             else:
-                mult = get_scenario_multipliers(scenario_id, year, hazard, region_zone)
-
-            ead, damage_fracs = calc_ead_from_intensities(
-                rp, intens, asset.asset_type, hazard, asset.replacement_value, mult
-            )
+                ead, damage_fracs = calc_ead_from_intensities(
+                    rp, intens, asset.asset_type, hazard, asset.replacement_value, mult
+                )
             pv = ead / (1.0 + discount_rate) ** (year - base_year)
 
             rows.append({
@@ -104,7 +110,9 @@ def compute_annual_damages(
                 "pv": round(pv, 2),
                 "ead_pct_value": round(ead / asset.replacement_value * 100, 5) if asset.replacement_value > 0 else 0.0,
                 "baseline_intensity_rp100": round(float(base_intens[rp100_idx]), 4),
-                "adjusted_intensity_rp100": round(float(intens[rp100_idx] * mult), 4),
+                "adjusted_intensity_rp100": round(float(
+                    intens[rp100_idx] if hazard in ("flood", "coastal_flood") else intens[rp100_idx] * mult
+                ), 4),
                 "damage_fraction_rp100": round(float(damage_fracs[rp100_idx]), 5),
                 "data_source": source,
             })
