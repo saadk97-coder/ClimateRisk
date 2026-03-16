@@ -34,7 +34,8 @@ st.set_page_config(page_title="Results", page_icon="📊", layout="wide")
 with st.sidebar:
     st.header("Portfolio Summary")
     n = len(st.session_state.get("assets", []))
-    total_val = sum(a.replacement_value for a in st.session_state.get("assets", []))
+    _raw = st.session_state.get("assets", [])
+    total_val = sum((a.replacement_value if hasattr(a, 'replacement_value') else a.get('replacement_value', 0)) for a in _raw)
     st.metric("Assets", n)
     _cur = st.session_state.get("currency_code", "GBP")
     st.metric("Total Value", _fmt_cur(total_val, _cur))
@@ -106,6 +107,18 @@ if run_btn:
     st.session_state.hazard_data = hazard_data_flat
     # No per-scenario data needed — baseline is shared across all scenarios.
     st.session_state.hazard_data_by_scenario = {}
+
+    # Merge manual hazard overrides from the Hazards page (if any).
+    # Overrides take precedence over fetched data for specific asset/hazard pairs.
+    _overrides = st.session_state.get("hazard_overrides", {})
+    if _overrides:
+        for aid, haz_ov in _overrides.items():
+            if aid in hazard_data_flat:
+                hazard_data_flat[aid].update(haz_ov)
+            else:
+                hazard_data_flat[aid] = dict(haz_ov)
+        st.session_state.hazard_data = hazard_data_flat
+        st.info(f"Applied manual overrides for {len(_overrides)} asset(s).", icon="✏️")
 
     prog = st.progress(0, text="Computing EAD for each asset / scenario / year…")
 
@@ -204,7 +217,7 @@ with tab1:
             line=dict(color=sc_color, width=2.5),
             hovertemplate=f"<b>{sc_label}</b><br>Year: %{{x}}<br>EAD: {_sym}%{{y:,.0f}}<extra></extra>",
         ))
-    # Shaded uncertainty band between min/max scenarios
+    # Shaded scenario-range band between min/max scenarios
     if len(selected_scenarios) > 1:
         sc_pivot = ann_by_year_sc.pivot(index="year", columns="scenario_id", values="total_ead").fillna(0)
         fig_ann.add_trace(go.Scatter(
@@ -497,35 +510,33 @@ if coarse_results:
         )
         st.plotly_chart(fig_ep, use_container_width=True)
 
-        with st.expander("📖 Understanding this chart — Corporate Guide to Tail Risk & Return Periods"):
-            st.markdown("""
+        with st.expander("📖 Understanding this chart — EP Curves & Return Periods"):
+            st.markdown(f"""
 **What is EAD (Expected Annual Damage)?**
 EAD is the probability-weighted average annual loss — the "fair value" of climate damage in any given year.
-If your EAD is £50,000, you won't lose exactly £50,000 every year; in most years you lose nothing, but occasionally a severe event causes much larger losses. The EAD is the long-run annual average.
+If your EAD is {_sym}50,000, you won't lose exactly {_sym}50,000 every year; in most years you lose nothing, but occasionally a severe event causes much larger losses. The EAD is the long-run annual average.
 
 **What is a Return Period?**
 A "1-in-100-year event" has a **1% annual probability** — not that it happens once a century.
 With climate change, these probabilities are shifting: a former 1-in-100-year flood may become a 1-in-50-year event by 2050.
 
-**What is Tail Risk (TVaR / CVaR)?**
-The EP curve shows the full range of possible losses:
-- **95th percentile (1-in-20)**: a bad year, plausibly within a business planning horizon
-- **99th percentile (1-in-100)**: severe but possible; relevant for credit/insurance stress tests
-- **Tail Value at Risk (TVaR)**: average of all losses *above* the 95th or 99th percentile
+**What does the EP curve show?**
+The EP curve plots losses at discrete return periods (RP10 through RP1000).
+It shows how much you could lose in events of different severity, but it is **not** a continuous probability
+distribution and does **not** compute formal tail-risk metrics (TVaR/CVaR). For tail-risk quantification,
+dedicated catastrophe modelling with stochastic event sets would be required.
 
-For corporate strategic planning:
-- Use **EAD** for annual budgeting and insurance procurement
-- Use **99th percentile loss** for balance sheet stress tests and M&A due diligence
-- Use **TVaR** for TCFD physical risk disclosure and board risk appetite frameworks
+**How to use these outputs:**
+- **EAD** for annual budgeting and insurance procurement
+- **RP100/RP250 losses** as stress-test scenarios for balance sheet planning
+- **Scenario comparison** to understand how climate trajectories affect loss severity
 
-**TCFD Integration**
-These metrics map directly to TCFD physical risk disclosure:
-- *Chronic risk*: EAD + total PV damages (this page)
-- *Acute risk*: return-period losses (EP curve above)
-- *Scenario analysis*: current / transition / disorderly scenarios
-- *Financial quantification*: climate-adjusted NPV (see DCF page)
+**Limitations:**
+- Return-period intensities beyond RP100 are extrapolated from limited historical data (GEV fitting from ~24 years)
+- Flood intensities are screening-level proxies derived from precipitation, not hydraulic models
+- This is a portfolio screening tool, not an insurance-grade catastrophe model
 
-*Reference: [TCFD Final Report (2017)](https://www.fsb-tcfd.org/recommendations/) | [BSR Climate Strategy](https://www.bsr.org/reports/BSR_Climate_Science_Corporate_Strategy.pdf)*
+*Reference: [TCFD Final Report (2017)](https://www.fsb-tcfd.org/recommendations/)*
             """)
 
 # ── XLSX / CSV Export ──────────────────────────────────────────────────────

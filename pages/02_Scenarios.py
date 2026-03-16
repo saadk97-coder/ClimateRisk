@@ -16,7 +16,8 @@ st.set_page_config(page_title="Scenarios", page_icon="🌡️", layout="wide")
 with st.sidebar:
     st.header("Portfolio Summary")
     n = len(st.session_state.get("assets", []))
-    total_val = sum(a.replacement_value for a in st.session_state.get("assets", []))
+    _raw_assets = st.session_state.get("assets", [])
+    total_val = sum((a.replacement_value if hasattr(a, 'replacement_value') else a.get('replacement_value', 0)) for a in _raw_assets)
     st.metric("Assets", n)
     st.metric("Total Value", _fmt_cur(total_val, st.session_state.get("currency_code", "GBP")))
 

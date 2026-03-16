@@ -290,7 +290,8 @@ with tab_manual:
     st.markdown("#### 📍 Step 1 — Location")
     st.caption(
         "Enter coordinates, then click **Auto-detect** to look up the country and "
-        "terrain elevation automatically (uses OpenStreetMap reverse geocoding + ASTER DEM, free)."
+        "terrain elevation automatically. **Privacy note:** Auto-detect sends exact coordinates "
+        "to BigDataCloud (reverse geocode) and OpenTopoData (elevation). No other data is transmitted."
     )
 
     c1, c2 = st.columns(2)

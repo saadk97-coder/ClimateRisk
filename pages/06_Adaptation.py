@@ -276,6 +276,15 @@ if sel_asset and total_annual_eads:
                 total_capex = sum(r.capex_total for r in npv_results)
                 total_cost = sum(r.total_cost for r in npv_results)
                 total_npv_avoided = sum(r.npv_avoided_damages for r in npv_results)
+
+                if len(npv_results) > 1:
+                    st.warning(
+                        "**Combined benefit estimates may overstate savings.** "
+                        "Multiple measures targeting the same hazard are evaluated independently "
+                        "against the same baseline loss. Interactions between measures are not modelled — "
+                        "actual combined benefit will be less than the sum of individual benefits.",
+                        icon="⚠️",
+                    )
                 total_net_npv = total_npv_avoided - total_cost
                 combined_cbr = total_npv_avoided / total_cost if total_cost > 0 else 0.0
                 combined_roi = (total_npv_avoided - total_cost) / total_cost * 100 if total_cost > 0 else 0.0

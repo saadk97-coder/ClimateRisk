@@ -37,6 +37,9 @@ scenario-based, discounted cash flow framework — enabling climate risk to be i
 corporate financial planning, M&A due diligence, and TCFD disclosures.
 """)
 
+_cur = st.session_state.get("currency_code", "GBP")
+_sym = _currency_symbol(_cur)
+
 assets = [_Asset.from_dict(a) if isinstance(a, dict) else a
           for a in st.session_state.get("assets", [])]
 annual_df = st.session_state.get("annual_damages", pd.DataFrame())
@@ -76,9 +79,9 @@ with col3:
 # Cash flows input
 cashflows = []
 if dcf_mode == "Enter annual cash flows":
-    st.markdown("Enter annual free cash flows (£) — one per year from base year (2025):")
+    st.markdown(f"Enter annual free cash flows ({_sym}) — one per year from base year (2025):")
     cf_input = st.text_area(
-        "Cash flows (comma-separated, £)",
+        f"Cash flows (comma-separated, {_sym})",
         value=",".join(["1000000"] * int(forecast_years)),
         help="E.g.: 1000000,1050000,1100000,...",
     )
@@ -205,7 +208,7 @@ if st.button("▶ Compute Climate-Adjusted NPV", type="primary"):
                 mode="lines", name=r.label,
                 line=dict(color=SCENARIOS.get(r.scenario_id, {}).get("color", "#888"), width=2),
             ))
-    fig2.update_layout(xaxis_title="Year", yaxis_title="Annual Climate Damage (£)",
+    fig2.update_layout(xaxis_title="Year", yaxis_title=f"Annual Climate Damage ({_sym})",
                        height=300, margin=dict(l=20,r=20,t=20,b=20),
                        hovermode="x unified",
                        legend=dict(orientation="h", yanchor="bottom", y=1.02))
@@ -245,9 +248,9 @@ Evaluate adaptation measures (see Adaptation page): measures with CBR > 1 increa
     # Export
     sc_comparison_df = pd.DataFrame([{
         "Scenario": r.label, "Scenario ID": r.scenario_id,
-        "Base NPV (£)": r.npv_base, "Climate NPV (£)": r.npv_climate,
-        "NPV Delta (£)": r.npv_delta, "NPV Delta (%)": r.npv_delta_pct,
-        "PV Damages (£)": r.total_pv_damages,
+        f"Base NPV ({_sym})": r.npv_base, f"Climate NPV ({_sym})": r.npv_climate,
+        f"NPV Delta ({_sym})": r.npv_delta, "NPV Delta (%)": r.npv_delta_pct,
+        f"PV Damages ({_sym})": r.total_pv_damages,
     } for r in dcf_results])
 
     xlsx = export_dcf_xlsx(dcf_results, sc_comparison_df)
