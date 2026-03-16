@@ -162,7 +162,7 @@ mean_annual_ead = sc_annual.groupby("year")["ead"].sum().mean()
 st.subheader("Portfolio Summary")
 m1, m2, m3, m4, m5 = st.columns(5)
 m1.metric("Total Portfolio Value",    _fmt_cur(total_value, _cur))
-m2.metric("EAD (2025 baseline)",      _fmt_cur(total_ead_2025, _cur))
+m2.metric("EAD (2025)",               _fmt_cur(total_ead_2025, _cur))
 m3.metric("EAD (2050 projected)",     _fmt_cur(total_ead_2050, _cur),
           delta=f"+{(total_ead_2050-total_ead_2025)/max(total_ead_2025,1)*100:.1f}%" if total_ead_2025 > 0 else None)
 m4.metric("Total PV Damages 2025–50", _fmt_cur(total_pv, _cur))
@@ -225,7 +225,7 @@ with tab1:
 
 # ── TAB 2: Stacked area by hazard ─────────────────────────────────────────
 with tab2:
-    HAZARD_COLORS = {"flood": "#2980b9", "wind": "#8e44ad", "wildfire": "#e67e22", "heat": "#e74c3c", "coastal_flood": "#1abc9c", "cyclone": "#9b59b6"}
+    HAZARD_COLORS = {"flood": "#2980b9", "wind": "#8e44ad", "wildfire": "#e67e22", "heat": "#e74c3c", "coastal_flood": "#1abc9c", "cyclone": "#9b59b6", "water_stress": "#E9C46A"}
     sc_haz_year = (
         annual_df[annual_df["scenario_id"] == view_scenario]
         .groupby(["year", "hazard"])["ead"]
@@ -235,7 +235,7 @@ with tab2:
     hazards_present = sc_haz_year["hazard"].unique().tolist()
 
     fig_stack = go.Figure()
-    for haz in ["flood", "wind", "wildfire", "heat", "coastal_flood"]:
+    for haz in ["flood", "wind", "wildfire", "heat", "coastal_flood", "water_stress"]:
         if haz not in hazards_present:
             continue
         haz_data = sc_haz_year[sc_haz_year["hazard"] == haz].sort_values("year")

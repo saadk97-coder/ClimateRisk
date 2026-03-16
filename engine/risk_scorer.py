@@ -6,9 +6,9 @@ Provides:
     comparable across the portfolio regardless of asset size. Analogous to industry
     risk-rating systems but grounded in the platform's own EAD calculations.
 
-  • Physical Climate Value-at-Risk (Climate VaR %) — expected annual physical damage
+  • Expected Annual Loss Ratio (EALR %) — expected annual physical damage
     expressed as a percentage of replacement value, enabling cross-portfolio comparison.
-    Conceptually aligned with TCFD's "climate-related financial impacts" framing.
+    This is an expected-loss metric, not a tail Value-at-Risk measure.
 
   • 30-Year Forward Risk Projection — year-by-year score trajectory from 2025–2050,
     showing how risk evolves under each scenario.

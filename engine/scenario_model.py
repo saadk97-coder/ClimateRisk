@@ -425,7 +425,7 @@ BSR_NARRATIVES: Dict[str, Dict[str, Dict[str, Dict[str, str]]]] = {
             "2040s": {
                 "physical": "Warming stabilises near 1.5°C; physical risks plateau but do not fall. Irreversible losses (coral reefs, glaciers, permafrost) are locked in. Adaptation becomes the primary focus.",
                 "transition": "Global energy transition largely delivered. Remaining transition risk in heavy industry, agriculture, and developing economies.",
-                "financial": "Green asset premium becomes structural. Stranded fossil assets fully written off from institutional portfolios. Climate VaR becomes standard disclosure metric.",
+                "financial": "Green asset premium becomes structural. Stranded fossil assets fully written off from institutional portfolios. EALR-based climate risk scoring becomes standard disclosure metric.",
             },
             "2050s": {
                 "physical": "Stabilisation at 1.5°C; residual physical risks well below higher-warming scenarios. Nature-based solutions deployed at scale for carbon removal and ecosystem resilience.",

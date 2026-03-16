@@ -82,20 +82,23 @@ region_zone = get_region_zone(sel_asset.region)
 mult = get_scenario_multipliers(sel_scenario, sel_year, sel_hazard, region_zone)
 mult_note = f"Region zone: {region_zone} (from {sel_asset.region})"
 
-# Match engine logic: first-floor height adjustment for flood AND coastal_flood
-adj_intens = base_intens.copy()
+# Match engine logic: multiplier applied FIRST, then SLR/freeboard offsets.
+# Physical offsets (SLR, freeboard) must NOT be multiplied.
 elev_adj = 0.0
 slr_m = 0.0
-if sel_hazard in ("flood", "coastal_flood"):
-    elev_adj = sel_asset.first_floor_height_m
-    adj_intens = np.clip(base_intens - elev_adj, 0.0, None)
 
-# Additive SLR for coastal_flood (SLR is fundamentally additive, not multiplicative)
 if sel_hazard == "coastal_flood":
+    # coastal: scale by storminess, ADD SLR, SUBTRACT freeboard
+    elev_adj = sel_asset.first_floor_height_m
     slr_m = get_slr_additive(sel_scenario, sel_year, region_zone)
-    adj_intens = adj_intens + slr_m
+    scaled_intens = np.clip(base_intens * mult + slr_m - elev_adj, 0.0, None)
+elif sel_hazard == "flood":
+    # flood: scale by multiplier, THEN subtract freeboard
+    elev_adj = sel_asset.first_floor_height_m
+    scaled_intens = np.clip(base_intens * mult - elev_adj, 0.0, None)
+else:
+    scaled_intens = base_intens * mult
 
-scaled_intens = adj_intens * mult
 damage_fracs = np.array([get_damage_fraction(sel_hazard, sel_asset.asset_type, i) for i in scaled_intens])
 
 # Use the same pathway as the engine: chronic hazards (water_stress) use
@@ -144,7 +147,7 @@ steps = [
 
     ("5", "Asset-specific adjustments",
      f"**Hazard:** {sel_hazard}\n\n" +
-     (f"**First-floor height above ground:** {elev_adj:.2f} m → intensities reduced by {elev_adj:.2f} m before multiplication\n\n"
+     (f"**First-floor height above ground:** {elev_adj:.2f} m → subtracted AFTER multiplier scaling (not multiplied)\n\n"
       if sel_hazard in ("flood", "coastal_flood") and elev_adj > 0 else "No adjustments applied for this hazard type.\n\n") +
      f"**Asset type:** {sel_asset.asset_type} | **Material:** {sel_asset.construction_material}"),
 
@@ -170,11 +173,12 @@ for step_num, step_title, step_text in steps:
     with st.expander(f"Step {step_num}: {step_title}", expanded=(step_num in ("2", "7", "8"))):
         st.markdown(step_text)
         if step_num == "2":
+            after_mult = base_intens * mult
             df_intens = pd.DataFrame({
                 "Return Period (yr)": rp.astype(int),
                 f"Baseline Intensity ({unit})": np.round(base_intens, 4),
-                f"After Elevation Adj. ({unit})": np.round(adj_intens, 4),
-                f"After Multiplier ({unit})": np.round(scaled_intens, 4),
+                f"After Multiplier ({unit})": np.round(after_mult, 4),
+                f"Effective (mult{'+SLR' if slr_m > 0 else ''}{'-freeboard' if elev_adj > 0 else ''}) ({unit})": np.round(scaled_intens, 4),
             })
             st.dataframe(df_intens, use_container_width=True)
         elif step_num == "6":

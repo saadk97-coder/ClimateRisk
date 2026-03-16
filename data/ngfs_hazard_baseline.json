@@ -1,5 +1,5 @@
 {
-  "_comment": "Fallback regional hazard intensities when ISIMIP API unavailable. Values represent median hazard intensity at standard return periods. Flood = inundation depth (m), Wind = 3-s gust (m/s), Wildfire = flame length (m), Heat = max wet-bulb temp (°C).",
+  "_comment": "Fallback regional hazard intensities when ISIMIP API unavailable. Values represent median hazard intensity at standard return periods. Flood = inundation depth (m), Wind = 3-s gust (m/s), Wildfire = flame length (m), Heat = max daily temperature (°C dry-bulb).",
   "flood": {
     "rp10":  {"global": 0.30, "EUR": 0.25, "USA": 0.35, "CHN": 0.40, "IND": 0.50, "AUS": 0.20, "BRA": 0.45, "MEA": 0.15},
     "rp50":  {"global": 0.80, "EUR": 0.65, "USA": 0.90, "CHN": 1.10, "IND": 1.30, "AUS": 0.55, "BRA": 1.20, "MEA": 0.40},

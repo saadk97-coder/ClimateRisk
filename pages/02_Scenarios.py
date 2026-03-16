@@ -397,7 +397,8 @@ if new_scenarios:
     with col_ht:
         st.caption(
             "How much more intense each hazard becomes at each scenario's warming level "
-            "relative to the 1995–2014 historical baseline. Applied to all damage calculations."
+            "relative to the historical baseline. These are **global-reference** multipliers; "
+            "the engine applies regional adjustments per asset's country zone (see Audit page)."
         )
     with col_ht_info:
         with st.popover("ℹ️ Scaling sources"):
