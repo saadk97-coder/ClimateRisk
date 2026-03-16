@@ -176,6 +176,58 @@ def get_damage_curve(hazard: str, asset_type: str, n_points: int = 100) -> tuple
     return xs, ys
 
 
+def get_curve_control_points(hazard: str, asset_type: str) -> tuple:
+    """Return alias-resolved control points used by the engine for a curve."""
+    key = _resolve_curve_key(asset_type)
+    if hazard == "flood":
+        curves = _flood()
+        curve = curves.get(key, curves.get(asset_type, curves["_default"]))
+        return (
+            np.array(curve["depth_m"], dtype=float),
+            np.array(curve["damage_fraction"], dtype=float),
+            "depth_m",
+            key,
+        )
+    if hazard in ("wind", "cyclone"):
+        curves = _wind()
+        curve = curves.get(key, curves.get(asset_type, curves["_default"]))
+        return (
+            np.array(curve["speed_ms"], dtype=float),
+            np.array(curve["damage_fraction"], dtype=float),
+            "speed_ms",
+            key,
+        )
+    if hazard == "wildfire":
+        curves = _wildfire()
+        curve = curves.get(key, curves.get(asset_type, curves["_default"]))
+        return (
+            np.array(curve["flame_length_m"], dtype=float),
+            np.array(curve["damage_fraction"], dtype=float),
+            "flame_length_m",
+            key,
+        )
+    if hazard == "heat":
+        curves = _heat()
+        cooling = curves["cooling_cost"]
+        curve = cooling.get(key, cooling.get(asset_type, cooling["_default"]))
+        return (
+            np.array(curve["temp_c"], dtype=float),
+            np.array(curve["damage_fraction"], dtype=float),
+            "temp_c",
+            key,
+        )
+    if hazard == "coastal_flood":
+        curves = _coastal_flood()
+        curve = curves.get(key, curves.get(asset_type, curves["_default"]))
+        return (
+            np.array(curve["depth_m"], dtype=float),
+            np.array(curve["damage_fraction"], dtype=float),
+            "depth_m",
+            key,
+        )
+    return np.array([]), np.array([]), "", key
+
+
 HAZARD_UNITS = {
     "flood": "Inundation depth (m)",
     "wind": "3-s gust wind speed (m/s)",

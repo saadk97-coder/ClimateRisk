@@ -14,6 +14,7 @@ import requests
 from engine.asset_model import Asset, load_asset_types
 from engine.fmt import fmt as _fmt, CURRENCIES
 from engine.insights import portfolio_health_check, render_insights_html
+from engine.portfolio_validation import REQUIRED_COLUMNS, validate_portfolio_df
 
 # ── ISO 3166-1 alpha-2 → alpha-3 mapping ─────────────────────────────────────
 ISO2_TO_ISO3: dict[str, str] = {
@@ -62,17 +63,19 @@ ISO3_COUNTRIES: dict[str, str] = {
     "TWN": "Taiwan",
 }
 
+REGION_PLACEHOLDER = "__SELECT__"
+
 st.set_page_config(page_title="Portfolio", page_icon="🏗️", layout="wide")
 
 # ── Session state defaults ───────────────────────────────────────────────────
 if "assets" not in st.session_state:
     st.session_state.assets = []
 if "geo_lat" not in st.session_state:
-    st.session_state.geo_lat = 40.7128
+    st.session_state.geo_lat = 0.0
 if "geo_lon" not in st.session_state:
-    st.session_state.geo_lon = -74.0060
+    st.session_state.geo_lon = 0.0
 if "geo_country" not in st.session_state:
-    st.session_state.geo_country = "USA"
+    st.session_state.geo_country = REGION_PLACEHOLDER
 if "geo_elevation" not in st.session_state:
     st.session_state.geo_elevation = 0.0
 if "form_asset_type" not in st.session_state:
@@ -101,7 +104,7 @@ def _detect_location(lat: float, lon: float):
       - Elevation in metres (OpenTopoData ASTER 30m DEM, no API key required)
     Returns (iso3: str, elevation_m: float, status_msg: str)
     """
-    iso3 = "USA"
+    iso3 = REGION_PLACEHOLDER
     elev = 0.0
     msgs = []
 
@@ -147,6 +150,13 @@ def _on_asset_type_change():
     st.session_state["_auto_stories"]     = defaults.get("default_stories", 2)
     st.session_state["_auto_roof"]        = defaults.get("default_roof", "gable")
     st.session_state["_auto_floor_area"]  = float(defaults.get("default_floor_area_m2", 150))
+
+
+def _reset_geo_defaults():
+    st.session_state.geo_lat = 0.0
+    st.session_state.geo_lon = 0.0
+    st.session_state.geo_country = REGION_PLACEHOLDER
+    st.session_state.geo_elevation = 0.0
 
 
 # ── Sidebar ──────────────────────────────────────────────────────────────────
@@ -267,16 +277,28 @@ with tab_upload:
         st.dataframe(pd.DataFrame(ref_rows), use_container_width=True, hide_index=True)
 
     st.divider()
+    st.caption(
+        "Required columns: " + ", ".join(REQUIRED_COLUMNS) + ". "
+        "Rows are validated for schema, duplicate IDs, coordinate bounds, asset type, and ISO3 country code before import."
+    )
     uploaded = st.file_uploader("Upload your portfolio CSV", type=["csv"])
     if uploaded:
         try:
             df = pd.read_csv(uploaded)
             st.dataframe(df.head(), use_container_width=True)
-            new_assets = df_to_assets(df)
-            if st.button("✅ Import Assets", type="primary"):
-                st.session_state.assets = new_assets
-                st.success(f"Imported {len(new_assets)} assets.")
-                st.rerun()
+            validation = validate_portfolio_df(df, asset_types, ISO3_COUNTRIES.keys())
+            if validation.errors:
+                for msg in validation.errors:
+                    st.error(msg)
+            else:
+                for msg in validation.warnings:
+                    st.warning(msg)
+                new_assets = df_to_assets(validation.normalized_df)
+                st.success(f"Validation passed for {len(new_assets)} asset(s).")
+                if st.button("✅ Import Assets", type="primary"):
+                    st.session_state.assets = new_assets
+                    st.success(f"Imported {len(new_assets)} assets.")
+                    st.rerun()
         except Exception as e:
             st.error(f"Error reading CSV: {e}")
 
@@ -326,6 +348,8 @@ with tab_manual:
         # Keep lat/lon in sync even without auto-detect
         st.session_state.geo_lat = form_lat
         st.session_state.geo_lon = form_lon
+    if st.session_state.geo_country == REGION_PLACEHOLDER:
+        st.caption("Country has not been confirmed yet. Use Auto-detect or select the ISO3 code manually before adding the asset.")
 
     st.divider()
 
@@ -369,7 +393,7 @@ with tab_manual:
     _def_stories  = st.session_state.get("_auto_stories",    at_info.get("default_stories", 2))
     _def_roof     = st.session_state.get("_auto_roof",       at_info.get("default_roof", "gable"))
     _def_area     = float(st.session_state.get("_auto_floor_area", at_info.get("default_floor_area_m2", 150)))
-    _def_country  = st.session_state.get("geo_country", "USA")
+    _def_country  = st.session_state.get("geo_country", REGION_PLACEHOLDER)
     _def_elev     = st.session_state.get("geo_elevation", 0.0)
 
     with st.form("add_asset_form", clear_on_submit=True):
@@ -384,14 +408,14 @@ with tab_manual:
 
         with col2:
             # Country — pre-filled from auto-detect
-            country_options = list(ISO3_COUNTRIES.keys())
+            country_options = [REGION_PLACEHOLDER] + list(ISO3_COUNTRIES.keys())
             country_idx = country_options.index(_def_country) if _def_country in country_options else 0
             region = st.selectbox(
                 "Country (ISO3)",
                 country_options,
                 index=country_idx,
-                format_func=lambda k: f"{k} — {ISO3_COUNTRIES.get(k, k)}",
-                help="Pre-filled from Auto-detect. Override if needed.",
+                format_func=lambda k: "Select country" if k == REGION_PLACEHOLDER else f"{k} — {ISO3_COUNTRIES.get(k, k)}",
+                help="Pre-filled from Auto-detect when available. Required before adding an asset.",
             )
             # First-floor height above ground (freeboard)
             elevation_m = st.number_input(
@@ -433,12 +457,22 @@ with tab_manual:
 
         submitted = st.form_submit_button("➕ Add Asset", type="primary", use_container_width=True)
         if submitted:
-            if not name:
-                st.error("Asset name is required.")
+            errors = []
+            if not name.strip():
+                errors.append("Asset name is required.")
+            if region == REGION_PLACEHOLDER:
+                errors.append("Country (ISO3) is required. Use Auto-detect or select it manually.")
+            if replacement_value <= 0:
+                errors.append("Replacement value must be greater than 0.")
+            if floor_area < 0:
+                errors.append("Floor area cannot be negative.")
+            if errors:
+                for msg in errors:
+                    st.error(msg)
             else:
                 new_asset = Asset(
                     id=str(uuid.uuid4())[:8].upper(),
-                    name=name,
+                    name=name.strip(),
                     lat=st.session_state.geo_lat,
                     lon=st.session_state.geo_lon,
                     asset_type=chosen_asset_type,
@@ -454,7 +488,8 @@ with tab_manual:
                     region=region,
                 )
                 st.session_state.assets.append(new_asset)
-                st.success(f"✅ Added: **{name}** ({at_info['label']}, {region})")
+                _reset_geo_defaults()
+                st.success(f"✅ Added: **{name.strip()}** ({at_info['label']}, {region})")
                 st.rerun()
 
 # ══════════════════════════════════════════════════════════════════════════════

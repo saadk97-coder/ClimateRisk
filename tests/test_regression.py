@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from engine.asset_model import Asset
 from engine.annual_risk import compute_annual_damages
 from engine.hazard_fetcher import get_region_zone
-from engine.impact_functions import get_damage_fraction
+from engine.impact_functions import get_curve_control_points, get_damage_fraction
 from engine.ead_calculator import calc_ead_from_intensities, CHRONIC_HAZARDS
 
 
@@ -298,7 +298,7 @@ def test_isimip_uses_historical_baseline():
 
     # Parse the source directly to avoid importing xarray (not in test env)
     spec = importlib.util.find_spec("engine.isimip_fetcher")
-    with open(spec.origin) as f:
+    with open(spec.origin, encoding="utf-8") as f:
         source = f.read()
     tree = ast.parse(source)
 
@@ -509,7 +509,7 @@ def test_fallback_sources_not_future_conditioned():
     import importlib
 
     spec = importlib.util.find_spec("engine.hazard_fetcher")
-    with open(spec.origin) as f:
+    with open(spec.origin, encoding="utf-8") as f:
         source = f.read()
 
     # The fetch_hazard_intensities function should NOT call fetch_best_available
@@ -543,7 +543,7 @@ def test_asset_type_threaded_in_damage_engine():
     import importlib
 
     spec = importlib.util.find_spec("engine.damage_engine")
-    with open(spec.origin) as f:
+    with open(spec.origin, encoding="utf-8") as f:
         source = f.read()
 
     # Count occurrences of asset_type= in keyword arguments to fetch calls
@@ -559,7 +559,7 @@ def test_water_stress_in_results_chart():
     import importlib
 
     spec = importlib.util.find_spec("pages.04_Results")
-    with open(spec.origin) as f:
+    with open(spec.origin, encoding="utf-8") as f:
         source = f.read()
 
     # The hazard loop for the stacked chart must include water_stress
@@ -575,7 +575,7 @@ def test_no_tvar_claims_in_results():
     import importlib
 
     spec = importlib.util.find_spec("pages.04_Results")
-    with open(spec.origin) as f:
+    with open(spec.origin, encoding="utf-8") as f:
         source = f.read().lower()
 
     # Should NOT contain claims about computing TVaR or 99th percentile losses
@@ -592,7 +592,7 @@ def test_no_hardcoded_gbp_in_map():
     import importlib
 
     spec = importlib.util.find_spec("pages.05_Map")
-    with open(spec.origin) as f:
+    with open(spec.origin, encoding="utf-8") as f:
         source = f.read()
 
     # Count £ occurrences — should be zero (all replaced with _sym)
@@ -609,7 +609,7 @@ def test_no_vulnerability_false_promises():
     import importlib
 
     spec = importlib.util.find_spec("pages.09_Vulnerability")
-    with open(spec.origin) as f:
+    with open(spec.origin, encoding="utf-8") as f:
         source = f.read()
 
     assert "session restart to apply" not in source, \
@@ -626,7 +626,7 @@ def test_manual_overrides_merged_in_results():
     import importlib
 
     spec = importlib.util.find_spec("pages.04_Results")
-    with open(spec.origin) as f:
+    with open(spec.origin, encoding="utf-8") as f:
         source = f.read()
 
     assert "hazard_overrides" in source, \
@@ -654,7 +654,7 @@ def test_no_insurance_grade_claim():
     import importlib
 
     spec = importlib.util.find_spec("app")
-    with open(spec.origin) as f:
+    with open(spec.origin, encoding="utf-8") as f:
         source = f.read().lower()
 
     # Allow "not insurance-grade" disclaimers, but reject positive claims
@@ -663,3 +663,34 @@ def test_no_insurance_grade_claim():
             raise AssertionError(
                 f"app.py must not claim insurance-grade (platform is screening-level): {line.strip()}"
             )
+
+
+def test_asset_from_dict_parses_boolean_strings():
+    """String booleans in uploaded CSV rows must be parsed correctly."""
+    row = _make_asset().to_dict()
+    row["basement"] = "False"
+    rebuilt = Asset.from_dict(row)
+    assert rebuilt.basement is False
+
+    row["basement"] = "true"
+    rebuilt_true = Asset.from_dict(row)
+    assert rebuilt_true.basement is True
+
+
+def test_curve_control_points_follow_alias_resolution():
+    """Vulnerability reference control points must match the alias-resolved engine curve."""
+    alias_x, alias_y, _, alias_key = get_curve_control_points("flood", "commercial_office")
+    base_x, base_y, _, base_key = get_curve_control_points("flood", "commercial_steel")
+
+    assert alias_key == "commercial_steel"
+    assert base_key == "commercial_steel"
+    assert np.allclose(alias_x, base_x)
+    assert np.allclose(alias_y, base_y)
+
+
+def test_governance_page_exists():
+    """Governance page should exist as a first-class surface for assurance review."""
+    import importlib
+
+    spec = importlib.util.find_spec("pages.10_Governance")
+    assert spec is not None, "Governance page is missing"

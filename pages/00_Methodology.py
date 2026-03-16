@@ -58,8 +58,8 @@ st.markdown(
         How the Platform Works
       </h1>
       <p style="color:#b0c4d8;font-size:15px;max-width:720px;line-height:1.6;margin:0 0 20px 0;">
-        From an asset address to an insurance-grade financial damage estimate in six steps.
-        Every number is traceable to a published scientific source.
+        From an asset location to a screening-level financial damage estimate in six steps.
+        Inputs, assumptions, and source lineage are documented for analyst review.
       </p>
       <div style="display:flex;gap:24px;flex-wrap:wrap;">
         <div style="background:rgba(255,255,255,0.08);border-radius:8px;

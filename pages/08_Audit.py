@@ -15,6 +15,7 @@ from engine.ead_calculator import calc_ead
 from engine.data_sources import DATA_SOURCE_REGISTRY
 from engine.export_engine import export_audit_xlsx, df_to_xlsx
 from engine.fmt import currency_symbol as _currency_symbol
+from engine.governance import override_records as build_override_records
 
 st.set_page_config(page_title="Audit Trail", page_icon="🔍", layout="wide")
 
@@ -34,9 +35,11 @@ assets = [_Asset.from_dict(a) if isinstance(a, dict) else a
 annual_df = st.session_state.get("annual_damages", pd.DataFrame())
 hazard_data_all = st.session_state.get("hazard_data", {})
 hazard_data_by_scenario = st.session_state.get("hazard_data_by_scenario", {})
+hazard_overrides = st.session_state.get("hazard_overrides", {})
 selected_scenarios = st.session_state.get("selected_scenarios", list(SCENARIOS.keys())[:1])
 discount_rate = st.session_state.get("discount_rate", 0.035)
 _sym = _currency_symbol(st.session_state.get("currency_code", "GBP"))
+all_override_rows = build_override_records(hazard_overrides, assets)
 
 if not assets:
     st.warning("No assets defined.")
@@ -74,6 +77,11 @@ rp = np.array(hdata["return_periods"], dtype=float)
 base_intens = np.array(hdata["intensities"], dtype=float)
 source_key = hdata.get("source", "fallback_baseline")
 src_info = DATA_SOURCE_REGISTRY.get(source_key, {})
+selected_override_rows = [
+    row for row in all_override_rows
+    if row["Asset ID"] == sel_asset.id and row["Hazard"] == sel_hazard
+]
+selected_override = selected_override_rows[0] if selected_override_rows else None
 
 warming_c = get_warming(sel_scenario, sel_year)
 
@@ -117,16 +125,51 @@ pv = ead / (1.0 + discount_rate) ** (sel_year - 2025)
 hazard_src = HAZARD_SCALING_SOURCES.get(sel_hazard, {})
 unit = HAZARD_UNITS.get(sel_hazard, "")
 
+if selected_override:
+    st.warning(
+        "This calculation uses a manual hazard override. Review the recorded evidence source, "
+        "preparer, and timestamp before relying on the result.",
+        icon="⚠️",
+    )
+
 # ── Display ────────────────────────────────────────────────────────────────
 st.divider()
 st.subheader(f"Audit: {sel_asset.name} | {SCENARIOS.get(sel_scenario, {}).get('label', sel_scenario)} | {sel_year} | {sel_hazard.capitalize()}")
 
+source_text = (
+    f"**Source:** {src_info.get('name', source_key)}\n\n"
+    f"**Citation:** {src_info.get('citation', '')}\n\n"
+    f"**URL:** [{src_info.get('url', '')}]({src_info.get('url', '')})\n\n"
+    f"**Resolution:** {src_info.get('resolution', 'Regional')}"
+)
+if selected_override:
+    source_text = (
+        f"**Source:** Manual override\n\n"
+        f"**Replaces source:** {selected_override.get('Replaces source', '')}\n\n"
+        f"**Override basis:** {selected_override.get('Override basis', '')}\n\n"
+        f"**Source / justification:** {selected_override.get('Source / justification', '')}\n\n"
+        f"**Prepared by:** {selected_override.get('Prepared by', '')}\n\n"
+        f"**Prepared at (UTC):** {selected_override.get('Prepared at (UTC)', '')}"
+    )
+
+if sel_hazard in CHRONIC_HAZARDS:
+    integration_text = (
+        f"**Method:** Chronic hazard pathway using the median damage fraction at RP50\n\n"
+        f"**Formula:** EAD = damage_fraction(RP50) × replacement_value\n\n"
+        f"**Result:** EAD = **{_sym}{ead:,.2f}** ({ead/sel_asset.replacement_value*100:.4f}% of replacement value)\n\n"
+        f"**Reference:** WRI Aqueduct pathway as implemented in the engine for chronic water stress."
+    )
+else:
+    integration_text = (
+        f"**Method:** Trapezoidal integration under the exceedance probability (EP) curve\n\n"
+        f"**Formula:** EAD = ∫ damage(AEP) d(AEP) ≈ Σ (damage_i + damage_{{i+1}}) × |AEP_{{i+1}} − AEP_i| / 2\n\n"
+        f"**Result:** EAD = **{_sym}{ead:,.2f}** ({ead/sel_asset.replacement_value*100:.4f}% of replacement value)\n\n"
+        f"**Reference:** Standard catastrophe modelling style EP-curve integration."
+    )
+
 steps = [
     ("1", "Hazard data source",
-     f"**Source:** {src_info.get('name', source_key)}\n\n"
-     f"**Citation:** {src_info.get('citation', '')}\n\n"
-     f"**URL:** [{src_info.get('url', '')}]({src_info.get('url', '')})\n\n"
-     f"**Resolution:** {src_info.get('resolution', 'Regional')}"),
+     source_text),
 
     ("2", "Baseline hazard intensities at return periods",
      "Baseline intensities before any climate adjustment:"),
@@ -159,10 +202,7 @@ steps = [
      f"**Source:** See Vulnerability page for full curve with citations"),
 
     ("7", "EAD integration",
-     f"**Method:** Trapezoidal integration under the exceedance probability (EP) curve\n\n"
-     f"**Formula:** EAD = ∫ damage(AEP) d(AEP) ≈ Σ (damage_i + damage_{'{i+1}'}) × |AEP_{'{i+1}'} − AEP_i| / 2\n\n"
-     f"**Result:** EAD = **{_sym}{ead:,.2f}** ({ead/sel_asset.replacement_value*100:.4f}% of replacement value)\n\n"
-     f"**Reference:** Standard catastrophe modelling methodology (Lloyd's, RMS, AIR Worldwide)"),
+     integration_text),
 
     ("8", "Present value discounting",
      f"**Formula:** PV = EAD / (1 + r)^(year − 2025)\n\n"
@@ -200,6 +240,8 @@ for step_num, step_title, step_text in steps:
                 f"Loss ({_sym})": np.round(damage_fracs * sel_asset.replacement_value, 2),
             })
             st.dataframe(df_ead, use_container_width=True)
+            if sel_hazard in CHRONIC_HAZARDS:
+                st.caption("For chronic water stress, the engine uses the RP50 damage fraction as the representative annual chronic loss state.")
             st.success(f"**EAD = {_sym}{ead:,.2f}** | EAD% = {ead/sel_asset.replacement_value*100:.4f}%")
 
 # ── Full audit table ───────────────────────────────────────────────────────
@@ -237,7 +279,9 @@ if not annual_df.empty:
                 "Source citation": src_info.get("citation", ""),
                 "Source URL": src_info.get("url", ""),
                 "Discount rate": f"{discount_rate*100:.1f}%",
+                "Method pathway": "Chronic RP50 x value" if sel_hazard in CHRONIC_HAZARDS else "Acute EP-curve integration",
             },
+            override_records=selected_override_rows,
         )
         col_a, col_b = st.columns(2)
         with col_a:

@@ -19,6 +19,7 @@ from engine.portfolio_aggregator import results_to_dataframe, aggregate_portfoli
 from engine.scenario_model import SCENARIOS
 from engine.hazard_fetcher import fetch_all_hazards
 from engine.export_engine import export_results_xlsx, df_to_xlsx
+from engine.governance import override_records as build_override_records
 from engine.risk_scorer import (
     score_portfolio,
     portfolio_climate_var,
@@ -57,6 +58,7 @@ selected_scenarios = st.session_state.get("selected_scenarios", [])
 discount_rate = st.session_state.get("discount_rate", 0.035)
 years = list(range(2025, 2051))
 asset_types_catalog = load_asset_types()
+override_rows = build_override_records(st.session_state.get("hazard_overrides", {}), assets)
 
 if not selected_scenarios:
     st.warning("No scenarios selected. Go to the Scenarios page.")
@@ -118,7 +120,11 @@ if run_btn:
             else:
                 hazard_data_flat[aid] = dict(haz_ov)
         st.session_state.hazard_data = hazard_data_flat
-        st.info(f"Applied manual overrides for {len(_overrides)} asset(s).", icon="✏️")
+        st.info(
+            f"Applied manual overrides for {len(_overrides)} asset(s). "
+            "Results and exports will include override provenance.",
+            icon="✏️",
+        )
 
     prog = st.progress(0, text="Computing EAD for each asset / scenario / year…")
 
@@ -155,6 +161,13 @@ coarse_results: list = st.session_state.get("results", [])
 if annual_df.empty:
     st.info("Click 'Run Damage Calculation' to generate results.")
     st.stop()
+
+if override_rows:
+    st.warning(
+        f"{len(override_rows)} manual override record(s) are active in this results set. "
+        "Review the evidence trail before treating the outputs as decision-ready.",
+        icon="⚠️",
+    )
 
 # ── View controls ──────────────────────────────────────────────────────────
 st.divider()
@@ -548,19 +561,39 @@ col_e1, col_e2, col_e3 = st.columns(3)
 with col_e1:
     if not annual_df.empty:
         try:
+            scenario_labels = ", ".join(
+                SCENARIOS.get(sc, {}).get("label", sc) for sc in selected_scenarios
+            )
+            scenario_providers = ", ".join(
+                sorted({SCENARIOS.get(sc, {}).get("provider", "Unknown") for sc in selected_scenarios})
+            )
+            data_sources_used = ", ".join(
+                sorted(set(annual_df.get("data_source", pd.Series(dtype=str)).dropna().astype(str)))
+            )
             xlsx_bytes = export_results_xlsx(
                 asset_results_df=df_coarse if coarse_results else pd.DataFrame(),
                 annual_damages_df=annual_df,
                 portfolio_summary={
                     f"Total Portfolio Value ({_sym})": _fmt_cur(total_value, _cur),
-                    "Scenarios analysed": ", ".join(selected_scenarios),
+                    "Scenarios analysed": scenario_labels,
                     "Analysis period": "2025–2050 (annual)",
                     "Discount rate": f"{discount_rate*100:.1f}%",
                     "Run date": st.session_state.get("last_run", ""),
+                    "Manual override records": len(override_rows),
                 },
                 scenarios=selected_scenarios,
-                metadata={"Run": st.session_state.get("last_run", ""),
-                          "Provider": st.session_state.get("scenario_provider", "NGFS Phase V")},
+                metadata={
+                    "Run timestamp": st.session_state.get("last_run", ""),
+                    "Scenario providers": scenario_providers,
+                    "Scenarios": scenario_labels,
+                    "Currency": _cur,
+                    "currency_symbol": _sym,
+                    "Analysis period": "2025-2050",
+                    "Discount rate": f"{discount_rate*100:.1f}%",
+                    "Data sources used": data_sources_used,
+                    "Manual override records": len(override_rows),
+                },
+                override_records=override_rows,
             )
             st.download_button("⬇️ Full Results (.xlsx)", data=xlsx_bytes,
                                file_name="climate_risk_results.xlsx",

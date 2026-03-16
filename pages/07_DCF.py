@@ -33,8 +33,8 @@ st.markdown("""
 | [TCFD guidance ↗](https://www.fsb-tcfd.org/recommendations/)
 
 This module translates physical climate risk into **financial impairment of asset value** using a
-scenario-based, discounted cash flow framework — enabling climate risk to be integrated into
-corporate financial planning, M&A due diligence, and TCFD disclosures.
+scenario-based, discounted cash flow framework. It is suitable for scenario testing and impairment
+screening, not as a substitute for a valuation-grade underwriting or transaction model.
 """)
 
 _cur = st.session_state.get("currency_code", "GBP")
@@ -60,8 +60,8 @@ col1, col2, col3 = st.columns(3)
 with col1:
     dcf_mode = st.radio(
         "Cash flow basis",
-        ["Asset replacement value (proxy)", "Enter annual cash flows"],
-        help="Use asset value as a simple proxy, or enter explicit annual free cash flow projections.",
+        ["Replacement value proxy (screening only)", "Enter annual cash flows"],
+        help="Use a screening proxy or enter explicit annual free cash flow projections.",
     )
 with col2:
     wacc = st.number_input("WACC (%)", min_value=1.0, max_value=25.0,
@@ -96,7 +96,7 @@ st.divider()
 st.subheader("Scenario Probability Weights")
 st.caption(
     "Assign probabilities to each scenario for the probability-weighted NPV. "
-    "Weights must sum to 100%. Per BSR framework: use expert judgement or consult "
+    "Weights must sum to exactly 100%. Per BSR framework: use expert judgement or consult "
     "[NGFS guidance on scenario probabilities](https://www.ngfs.net/ngfs-scenarios-portal/)."
 )
 
@@ -113,18 +113,25 @@ for i, sc_id in enumerate(selected_scenarios):
 
 total_w = sum(w for _, w in raw_weights)
 if abs(total_w - 100.0) > 0.1:
-    st.warning(f"Weights sum to {total_w:.1f}% — will be normalised to 100%.")
+    st.error(f"Weights sum to {total_w:.1f}%. Adjust them to 100% before running the DCF.")
 for sc_id, w in raw_weights:
     weights[sc_id] = w / total_w if total_w > 0 else 1.0 / len(raw_weights)
 
 # ── Run ────────────────────────────────────────────────────────────────────
 if st.button("▶ Compute Climate-Adjusted NPV", type="primary"):
     total_asset_value = sum(a.replacement_value for a in assets)
+    if abs(total_w - 100.0) > 0.1:
+        st.stop()
 
     # Build DCF inputs
-    if dcf_mode == "Asset replacement value (proxy)":
+    if dcf_mode == "Replacement value proxy (screening only)":
         cf_list = []
         asset_val_for_dcf = total_asset_value
+        st.warning(
+            "Replacement-value mode is a screening proxy. For decision-grade valuation work, "
+            "use explicit cash flows and asset-specific assumptions.",
+            icon="⚠️",
+        )
     else:
         cf_list = cashflows[:int(forecast_years)]
         asset_val_for_dcf = total_asset_value

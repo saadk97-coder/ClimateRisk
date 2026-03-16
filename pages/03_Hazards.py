@@ -15,6 +15,7 @@ from engine.hazard_fetcher import (
 )
 from engine.data_sources import DATA_SOURCE_REGISTRY
 from engine.impact_functions import get_damage_curve, get_damage_fraction, HAZARD_UNITS
+from engine.governance import current_operator, utc_now_iso
 from engine.scenario_model import SCENARIOS
 
 st.set_page_config(page_title="Hazard Data", page_icon="🌊", layout="wide")
@@ -46,64 +47,69 @@ asset_types_catalog = load_asset_types()
 st.divider()
 st.subheader("Available Data Sources")
 st.caption(
-    "Sources are tried in priority order: ISIMIP3b → NASA NEX-GDDP → CHELSA → Regional Baseline. "
-    "ISIMIP3b is active for **all five hazards** (Flood, Heat, Wind, Wildfire + Coastal Flood for coastal assets). "
-    "Coastal Flood is auto-detected for assets within 10 km of a coastline, adding storm surge + SLR risk. "
-    "**Tropical cyclone** wind amplification is auto-applied for assets within TC basins (IBTrACS + Holland 1980). "
-    "Wildfire uses the full Canadian FWI system (Van Wagner 1987) from multi-variable extraction."
+    "Active baseline pathways in this release are ISIMIP3b historical extraction, "
+    "WRI Aqueduct for water stress, the coastal flood baseline for coastal assets, "
+    "IBTrACS tropical-cyclone wind amplification, and the built-in regional fallback. "
+    "NASA NEX-GDDP, CHELSA, LOCA2, and ClimateNA remain catalogued for future extensions "
+    "but are not used in the automatic baseline path."
 )
 
 SOURCE_STATUS = {
     "isimip3b": {
         "status": "active",
-        "badge": "🟢 Active — Flood, Heat, Wind, Wildfire",
+        "badge": "🟢 Active baseline source",
         "note": (
             "Point-extraction at asset coordinates (0.5° grid cell). "
             "Wildfire: multi-variable FWI pipeline (tasmax + pr + hurs + sfcWind → "
             "Canadian FWI system → GEV → flame length). ~90s per asset for wildfire."
         ),
     },
-    "nasa_nex_gddp_cmip6": {
+    "aqueduct": {
         "status": "active",
-        "badge": "🟢 Available",
-        "note": "25 km global; statistically downscaled CMIP6; public AWS S3 access",
+        "badge": "🟢 Active baseline source",
+        "note": "Primary chronic water-stress pathway in this release via WRI Aqueduct 4.0.",
+    },
+    "nasa_nex_gddp_cmip6": {
+        "status": "catalogued",
+        "badge": "🟠 Catalogued only",
+        "note": "Retained in the source registry, but inactive in the historical baseline path for this release.",
     },
     "chelsa_cmip6": {
-        "status": "active",
-        "badge": "🟢 Available",
-        "note": "1 km global bioclimatic climatologies; public cloud-hosted GeoTIFF",
+        "status": "catalogued",
+        "badge": "🟠 Catalogued only",
+        "note": "Retained in the source registry, but inactive in the historical baseline path for this release.",
     },
     "loca2": {
-        "status": "regional",
-        "badge": "🔵 N. America only",
-        "note": "6 km CONUS+Canada+Mexico; daily downscaled CMIP6",
+        "status": "catalogued",
+        "badge": "🟠 Catalogued only",
+        "note": "Regional source retained for future extensions, not used automatically in this release.",
     },
     "climatena_adaptwest": {
-        "status": "regional",
-        "badge": "🔵 N. America only",
-        "note": "1 km N. America; REST API available",
+        "status": "catalogued",
+        "badge": "🟠 Catalogued only",
+        "note": "Regional source retained for future extensions, not used automatically in this release.",
     },
     "coastal_slr_baseline": {
         "status": "active",
-        "badge": "🟢 Active — Coastal Flood",
+        "badge": "🟢 Active baseline source",
         "note": "Auto-enabled for assets within 10 km of coast; storm surge + IPCC AR6 SLR projections",
     },
     "ibtracs_cyclone": {
         "status": "active",
-        "badge": "🟢 Active — Wind (TC amplification)",
+        "badge": "🟢 Active baseline modifier",
         "note": "Auto-enabled for assets within tropical cyclone basins; amplifies wind intensities at high return periods using Holland (1980) wind profile model",
     },
     "fallback_baseline": {
         "status": "active",
-        "badge": "🟢 Active (fallback)",
+        "badge": "🟢 Active fallback source",
         "note": "Always available; 7 continental-scale zones; coarsest resolution",
     },
 }
 
 PRIORITY_ORDER = [
-    "isimip3b", "nasa_nex_gddp_cmip6", "chelsa_cmip6",
-    "loca2", "climatena_adaptwest", "coastal_slr_baseline",
-    "ibtracs_cyclone", "fallback_baseline",
+    "isimip3b", "aqueduct", "coastal_slr_baseline",
+    "ibtracs_cyclone", "fallback_baseline", "nasa_nex_gddp_cmip6",
+    "chelsa_cmip6", "loca2", "climatena_adaptwest",
 ]
 
 HAZARD_UNIT_LABELS = {
@@ -144,6 +150,11 @@ for idx, src_key in enumerate(PRIORITY_ORDER):
 
 # ── Comparative Source Explainer ──────────────────────────────────────────
 with st.expander("📊 Comparative Source Guide — which source should you use?"):
+    st.info(
+        "This table compares the full source registry. In the automatic baseline flow for this release, "
+        "ISIMIP3b, Aqueduct, the coastal baseline, and the built-in fallback are the active pathways.",
+        icon="ℹ️",
+    )
     st.markdown("""
 ### Data Source Comparison
 
@@ -173,10 +184,11 @@ st.subheader("Source Settings")
 
 st.info(
     "**Data source selection is automatic in this release.** "
-    "The system tries ISIMIP3b (historical baseline) first; if unavailable, "
-    "it falls back to the Built-in Regional Baseline. "
-    "NASA NEX-GDDP, CHELSA, and ClimateNA are disabled as baseline sources "
-    "because they require SSP/future-year parameters incompatible with the "
+    "The system tries ISIMIP3b historical baseline extraction first for acute hazards; "
+    "water stress uses WRI Aqueduct; coastal flood uses the coastal baseline path for coastal assets; "
+    "and any remaining gaps fall back to the Built-in Regional Baseline. "
+    "NASA NEX-GDDP, CHELSA, LOCA2, and ClimateNA are disabled in the automatic baseline path "
+    "because they are future-conditioned sources that would conflict with the "
     "baseline-plus-multipliers architecture.",
     icon="ℹ️",
 )
@@ -233,8 +245,9 @@ with col_btn:
 with col_info:
     st.caption(
         f"Fetches baseline intensity profiles for all {len(assets)} asset(s) across "
-        "Flood, Wind, Wildfire, and Heat hazards. The system tries ISIMIP3b first "
-        "(point extraction at the asset's lat/lon), then falls through the priority chain."
+        "Flood, Wind, Wildfire, Heat, Water Stress, and coastal hazards where relevant. "
+        "The automatic baseline flow uses ISIMIP3b, Aqueduct, coastal baseline logic, "
+        "and the built-in regional fallback."
     )
 
 if fetch_btn:
@@ -321,13 +334,13 @@ if st.session_state.hazard_data:
     # Explain spatial reference
     with st.expander("📍 How spatial referencing works"):
         st.markdown("""
-**Gridded sources (ISIMIP3b, NASA NEX-GDDP, CHELSA):** Data is extracted from the grid cell
+**Active gridded baseline source (ISIMIP3b):** Data is extracted from the grid cell
 containing the asset's exact latitude/longitude coordinates. The table above shows the grid cell
 centre coordinate for each hazard.
 
 - **ISIMIP3b** uses a 0.5° grid (~55 km at the equator). The nearest grid cell centre is shown.
-- **NASA NEX-GDDP** uses a 0.25° grid (~25 km). Higher spatial precision than ISIMIP3b.
-- **CHELSA** uses a 30 arc-second grid (~1 km). Near-site-level precision for temperature.
+- **NASA NEX-GDDP / CHELSA / LOCA2 / ClimateNA** remain catalogued in the source registry for
+  future extensions, but they are not used in the automatic historical-baseline flow for this release.
 
 **Built-in Regional Baseline (fallback):** When gridded sources are unavailable, data falls back to
 continental-zone medians. All assets in the same zone receive identical intensities. The zone
@@ -662,32 +675,65 @@ if override_asset:
             })
             edited = st.data_editor(override_df, num_rows="fixed", use_container_width=True)
         with col_src:
+            override_basis = st.selectbox(
+                "Override basis",
+                [
+                    "Site survey / engineering assessment",
+                    "Regulatory or public hazard map",
+                    "Third-party model output",
+                    "Internal sensitivity analysis",
+                    "Other documented evidence",
+                ],
+                key="override_basis",
+            )
             override_source_note = st.text_area(
-                "Source / justification for override (optional)",
+                "Source / justification for override",
                 placeholder="e.g. 'Environment Agency Flood Map RP100 depth = 0.8m at this postcode' "
                             "or 'Site survey 2024 — elevated 1.2m above local flood plain'",
                 height=160,
                 key="override_note",
             )
+            override_user = st.text_input(
+                "Prepared by",
+                value=current_operator(),
+                key="override_user",
+            )
+            st.caption("Timestamp is captured automatically in UTC and exported with the override.")
 
         if st.button("💾 Save Override", type="primary"):
-            if override_asset_id not in st.session_state.hazard_overrides:
-                st.session_state.hazard_overrides[override_asset_id] = {}
-            st.session_state.hazard_overrides[override_asset_id][selected_hazard] = {
-                "return_periods": edited["Return Period (yr)"].tolist(),
-                "intensities": edited[f"Intensity ({unit})"].tolist(),
-                "source": "manual_override",
-                "source_note": override_source_note,
-            }
-            if override_asset_id not in st.session_state.hazard_data:
-                st.session_state.hazard_data[override_asset_id] = {}
-            st.session_state.hazard_data[override_asset_id][selected_hazard] = (
-                st.session_state.hazard_overrides[override_asset_id][selected_hazard]
-            )
-            st.success(
-                f"Override saved for **{override_asset.name}** / **{selected_hazard}**. "
-                "This will be used in all subsequent damage calculations."
-            )
+            cleaned_intensities = pd.to_numeric(
+                edited[f"Intensity ({unit})"], errors="coerce"
+            ).tolist()
+            if not override_source_note.strip():
+                st.error("A source / justification is required for every manual override.")
+            elif not override_user.strip():
+                st.error("Prepared by is required for every manual override.")
+            elif any(pd.isna(val) for val in cleaned_intensities):
+                st.error("All override intensities must be numeric.")
+            elif any(float(val) < 0 for val in cleaned_intensities):
+                st.error("Override intensities cannot be negative.")
+            else:
+                if override_asset_id not in st.session_state.hazard_overrides:
+                    st.session_state.hazard_overrides[override_asset_id] = {}
+                st.session_state.hazard_overrides[override_asset_id][selected_hazard] = {
+                    "return_periods": edited["Return Period (yr)"].tolist(),
+                    "intensities": [float(val) for val in cleaned_intensities],
+                    "source": "manual_override",
+                    "source_note": override_source_note.strip(),
+                    "override_basis": override_basis,
+                    "override_user": override_user.strip(),
+                    "override_timestamp_utc": utc_now_iso(),
+                    "replaces_source": base_data.get("source", ""),
+                }
+                if override_asset_id not in st.session_state.hazard_data:
+                    st.session_state.hazard_data[override_asset_id] = {}
+                st.session_state.hazard_data[override_asset_id][selected_hazard] = (
+                    st.session_state.hazard_overrides[override_asset_id][selected_hazard]
+                )
+                st.success(
+                    f"Override saved for **{override_asset.name}** / **{selected_hazard}**. "
+                    "This will be used in all subsequent damage calculations and exported with provenance."
+                )
     else:
         st.info("Fetch hazard data first, then you can override individual values.")
 
@@ -698,8 +744,11 @@ if any(st.session_state.hazard_overrides.values()):
             aname = next((a.name for a in assets if a.id == aid), aid)
             for haz, od in haz_overrides.items():
                 note = od.get("source_note", "")
+                basis = od.get("override_basis", "")
+                user = od.get("override_user", "")
+                ts = od.get("override_timestamp_utc", "")
                 st.markdown(
-                    f"**{aname}** / {haz} — "
+                    f"**{aname}** / {haz} — {basis} | prepared by `{user}` at `{ts}`\n\n"
                     + (f"*{note}*" if note else "*No source note*")
                 )
 

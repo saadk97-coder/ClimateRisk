@@ -79,7 +79,7 @@ with st.sidebar:
 
     st.divider()
     st.caption(
-        "**Hazard data:** ISIMIP3b · NASA NEX-GDDP · CHELSA · WRI Aqueduct\n\n"
+        "**Hazard data:** ISIMIP3b historical baseline · WRI Aqueduct · coastal baseline · regional fallback\n\n"
         "**Vulnerability:** HAZUS 6.0 · JRC DDFs · Syphard et al.\n\n"
         "**Scenarios:** BSR 2025 · NGFS Phase V · IEA WEO 2023 · IPCC AR6\n\n"
         "[BSR Climate Scenarios 2025 ↗](https://www.bsr.org/en/reports/bsr-climate-scenarios-2025)"
@@ -130,6 +130,7 @@ st.markdown("""
 | 7 | **DCF** | Climate-adjusted NPV valuation with stranded asset analysis |
 | 8 | **Audit** | Step-by-step calculation trace for any asset/scenario/year |
 | 9 | **Vulnerability** | Damage functions with structural failure pathways and component-level analysis |
+| 10 | **Governance** | Model scope, validation status, lineage controls, and known limitations |
 """)
 
 st.divider()
@@ -148,8 +149,8 @@ with col2:
     st.markdown("### 🌍 Data & Scenarios")
     st.markdown("""
 - **BSR Climate Scenarios 2025** with regional qualitative narratives (incl. *Fragmented World*)
-- **5 hazards**: Flood, Wind, Wildfire, Heat, Water Stress
-- **ISIMIP3b** — full FWI wildfire pipeline (Canadian FWI, Van Wagner 1987)
+- **6 hazards**: Flood, Wind, Wildfire, Heat, Coastal Flood, Water Stress
+- **ISIMIP3b** historical baseline plus coastal and water-stress specialist pathways
 - **WRI Aqueduct 4.0** — water stress projections to 2050
     """)
 with col3:

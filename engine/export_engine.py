@@ -1,53 +1,99 @@
 """
-XLSX export engine — generates formatted, multi-sheet workbooks for all outputs.
-Uses openpyxl for full formatting control.
+XLSX export engine with assurance-oriented metadata, lineage, and methodology notes.
 """
 
+from __future__ import annotations
+
 import io
-from typing import List, Optional
-import pandas as pd
+from typing import Optional
+
 import numpy as np
+import pandas as pd
+
+from engine.data_sources import DATA_SOURCE_REGISTRY
+from engine.governance import (
+    BASELINE_METHOD,
+    DCF_POSITIONING,
+    MODEL_SCOPE,
+    PLATFORM_NAME,
+    RESULTS_POSITIONING,
+    runtime_metadata,
+)
+from engine.scenario_model import HAZARD_SCALING_SOURCES, SCENARIOS
 
 try:
     from openpyxl import Workbook
-    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side, numbers
+    from openpyxl.styles import Alignment, Font, PatternFill
     from openpyxl.utils import get_column_letter
-    from openpyxl.chart import BarChart, LineChart, Reference
+
     _HAS_OPENPYXL = True
 except ImportError:
     _HAS_OPENPYXL = False
 
-# Colour palette
-HDR_FILL = "1F4E79"   # dark blue
-SUB_FILL = "2E75B6"   # medium blue
-ALT_FILL = "D6E4F0"   # light blue
-WARN_FILL = "FFEB9C"  # amber
-ERR_FILL  = "FFC7CE"  # red
-OK_FILL   = "C6EFCE"  # green
+HDR_FILL = "1F4E79"
+SUB_FILL = "2E75B6"
+
+VULNERABILITY_ROWS = [
+    {
+        "Component": "Vulnerability",
+        "Item": "Flood",
+        "Citation": "FEMA HAZUS 6.0; JRC Global Flood DDFs (Huizinga et al. 2017)",
+        "URL": "https://www.fema.gov/flood-maps/products-tools/hazus",
+        "Notes": "Depth-damage functions mapped to asset-type curve keys.",
+    },
+    {
+        "Component": "Vulnerability",
+        "Item": "Wind",
+        "Citation": "FEMA HAZUS MH Hurricane Technical Manual; IBHS FORTIFIED",
+        "URL": "https://www.fema.gov/sites/default/files/2020-09/fema_hazus-hurricane-technical-manual.pdf",
+        "Notes": "Wind fragility curves applied as asset-type specific vulnerability functions.",
+    },
+    {
+        "Component": "Vulnerability",
+        "Item": "Wildfire",
+        "Citation": "Syphard et al. (2012); FEMA HAZUS Wildfire",
+        "URL": "https://doi.org/10.1890/ES12-00197.1",
+        "Notes": "Flame-length curves are screening-level structural damage proxies.",
+    },
+    {
+        "Component": "Vulnerability",
+        "Item": "Heat",
+        "Citation": "IEA (2018); ILO (2019); Zhao et al. (2021)",
+        "URL": "https://www.iea.org/reports/the-future-of-cooling",
+        "Notes": "Heat curves combine cooling-cost escalation and productivity-loss proxies.",
+    },
+    {
+        "Component": "Vulnerability",
+        "Item": "Coastal Flood",
+        "Citation": "Vousdoukas et al. (2018); Muis et al. (2020)",
+        "URL": "https://doi.org/10.1038/s41467-018-04692-w",
+        "Notes": "Coastal curves use storm-surge depth damage relationships.",
+    },
+]
 
 
-def _hdr_style(ws, row, fill_hex=HDR_FILL):
+def _hdr_style(ws, row: int, fill_hex: str = HDR_FILL):
     fill = PatternFill("solid", fgColor=fill_hex)
     font = Font(bold=True, color="FFFFFF" if fill_hex in (HDR_FILL, SUB_FILL) else "000000")
     for cell in ws[row]:
         cell.fill = fill
         cell.font = font
-        cell.alignment = Alignment(horizontal="center")
+        cell.alignment = Alignment(horizontal="center", vertical="center")
 
 
-def _autofit(ws, min_width=10, max_width=40):
+def _autofit(ws, min_width: int = 10, max_width: int = 50):
     for col in ws.columns:
         max_len = max((len(str(c.value or "")) for c in col), default=min_width)
         ws.column_dimensions[get_column_letter(col[0].column)].width = min(max(max_len + 2, min_width), max_width)
 
 
-def _write_df(ws, df: pd.DataFrame, start_row: int = 1, header_fill=HDR_FILL):
+def _write_df(ws, df: pd.DataFrame, start_row: int = 1, header_fill: str = HDR_FILL):
     if df is None or df.empty:
         ws.cell(start_row, 1, "No data")
         return
     headers = list(df.columns)
-    for j, h in enumerate(headers, 1):
-        ws.cell(start_row, j, h)
+    for j, header in enumerate(headers, 1):
+        ws.cell(start_row, j, header)
     _hdr_style(ws, start_row, header_fill)
     for i, row in enumerate(df.itertuples(index=False), start_row + 1):
         for j, val in enumerate(row, 1):
@@ -55,19 +101,157 @@ def _write_df(ws, df: pd.DataFrame, start_row: int = 1, header_fill=HDR_FILL):
     _autofit(ws)
 
 
-def _add_metadata(ws, metadata: dict):
-    ws.cell(1, 1, "Climate Risk Financial Quantification Platform")
+def _ordered_metadata(metadata: Optional[dict]) -> dict:
+    merged = runtime_metadata()
+    if metadata:
+        merged.update({k: v for k, v in metadata.items() if v not in (None, "")})
+    return merged
+
+
+def _add_cover(ws, metadata: Optional[dict]) -> int:
+    ws.cell(1, 1, PLATFORM_NAME)
     ws.cell(1, 1).font = Font(bold=True, size=14)
-    ws.cell(2, 1, "BSR — Business for Social Responsibility")
-    ws.cell(3, 1, "Framework: From Climate Science to Corporate Strategy")
-    ws.cell(4, 1, "https://www.bsr.org/reports/BSR_Climate_Science_Corporate_Strategy.pdf")
-    ws.cell(4, 1).font = Font(color="0070C0", underline="single")
-    row = 5
-    for k, v in metadata.items():
-        ws.cell(row, 1, k)
-        ws.cell(row, 2, str(v))
+    ws.cell(2, 1, MODEL_SCOPE)
+    ws.cell(3, 1, RESULTS_POSITIONING)
+    ws.cell(4, 1, BASELINE_METHOD)
+    row = 6
+    for key, value in _ordered_metadata(metadata).items():
+        ws.cell(row, 1, key)
+        ws.cell(row, 2, str(value))
         row += 1
     return row + 1
+
+
+def _metadata_df(metadata: Optional[dict]) -> pd.DataFrame:
+    return pd.DataFrame(
+        [{"Field": key, "Value": value} for key, value in _ordered_metadata(metadata).items()]
+    )
+
+
+def _source_rows(annual_damages_df: Optional[pd.DataFrame], scenarios: Optional[list], override_records: Optional[list[dict]]) -> pd.DataFrame:
+    rows: list[dict] = []
+
+    for scenario_id in scenarios or []:
+        info = SCENARIOS.get(scenario_id, {})
+        rows.append(
+            {
+                "Component": "Scenario set",
+                "Item": info.get("label", scenario_id),
+                "Citation": f"{info.get('provider', 'Scenario provider')} | {info.get('ssp', '')}",
+                "URL": info.get("source_url", ""),
+                "Notes": info.get("description", ""),
+            }
+        )
+
+    hazards_used = []
+    if annual_damages_df is not None and not annual_damages_df.empty and "hazard" in annual_damages_df.columns:
+        hazards_used = sorted(set(annual_damages_df["hazard"].dropna().astype(str)))
+    for hazard in hazards_used:
+        src = HAZARD_SCALING_SOURCES.get(hazard, {})
+        if src:
+            rows.append(
+                {
+                    "Component": "Hazard scaling",
+                    "Item": hazard,
+                    "Citation": src.get("citation", ""),
+                    "URL": src.get("url", ""),
+                    "Notes": "Forward-looking change is applied through scenario multipliers.",
+                }
+            )
+
+    source_keys = []
+    if annual_damages_df is not None and not annual_damages_df.empty and "data_source" in annual_damages_df.columns:
+        source_keys = sorted(set(annual_damages_df["data_source"].dropna().astype(str)))
+    for source_key in source_keys:
+        info = DATA_SOURCE_REGISTRY.get(source_key, {})
+        rows.append(
+            {
+                "Component": "Hazard data",
+                "Item": info.get("name", source_key),
+                "Citation": info.get("citation", ""),
+                "URL": info.get("url", ""),
+                "Notes": info.get("description", ""),
+            }
+        )
+
+    rows.extend(VULNERABILITY_ROWS)
+
+    if override_records:
+        rows.append(
+            {
+                "Component": "Manual overrides",
+                "Item": "Analyst-entered hazard overrides",
+                "Citation": "Session-state manual override records",
+                "URL": "",
+                "Notes": (
+                    "Overrides replace fetched baseline intensities for specified asset-hazard pairs. "
+                    "Provenance is documented on the Manual Overrides sheet."
+                ),
+            }
+        )
+
+    return pd.DataFrame(rows)
+
+
+def _method_notes_df(annual_damages_df: Optional[pd.DataFrame], override_records: Optional[list[dict]]) -> pd.DataFrame:
+    hazards_used = []
+    if annual_damages_df is not None and not annual_damages_df.empty and "hazard" in annual_damages_df.columns:
+        hazards_used = sorted(set(annual_damages_df["hazard"].dropna().astype(str)))
+
+    rows = [
+        {"Topic": "Scope", "Detail": RESULTS_POSITIONING},
+        {"Topic": "Baseline method", "Detail": BASELINE_METHOD},
+        {
+            "Topic": "Acute hazard EAD",
+            "Detail": (
+                "Acute hazards use trapezoidal integration of loss over annual exceedance probability "
+                "across the discrete return-period curve."
+            ),
+        },
+    ]
+
+    if "water_stress" in hazards_used:
+        rows.append(
+            {
+                "Topic": "Water stress method",
+                "Detail": (
+                    "Water stress is treated as a chronic hazard. Expected annual damage is computed as "
+                    "the RP50 damage fraction multiplied by replacement value, not by EP-curve integration."
+                ),
+            }
+        )
+    if "flood" in hazards_used:
+        rows.append(
+            {
+                "Topic": "Flood limitation",
+                "Detail": (
+                    "Flood depths are screening-level proxies derived from gridded climate and hydrological "
+                    "data. They are not local hydraulic depth simulations."
+                ),
+            }
+        )
+    if "coastal_flood" in hazards_used:
+        rows.append(
+            {
+                "Topic": "Coastal flood method",
+                "Detail": (
+                    "Coastal flood combines multiplicative scenario scaling with additive sea-level rise and "
+                    "asset freeboard adjustments."
+                ),
+            }
+        )
+    if override_records:
+        rows.append(
+            {
+                "Topic": "Manual overrides",
+                "Detail": (
+                    "Manual overrides are analyst-entered intensities that supersede fetched hazard data for "
+                    "specific asset-hazard pairs. They should be reviewed with the recorded evidence source."
+                ),
+            }
+        )
+
+    return pd.DataFrame(rows)
 
 
 def export_results_xlsx(
@@ -76,15 +260,8 @@ def export_results_xlsx(
     portfolio_summary: Optional[dict],
     scenarios: list,
     metadata: dict,
+    override_records: Optional[list[dict]] = None,
 ) -> bytes:
-    """
-    Generate results workbook with sheets:
-      1. Portfolio Summary
-      2. Asset Results
-      3. Annual Damages 2025–2050
-      4. Scenario Comparison
-      5. Sources & Methodology
-    """
     if not _HAS_OPENPYXL:
         buf = io.BytesIO()
         asset_results_df.to_excel(buf, index=False)
@@ -92,31 +269,23 @@ def export_results_xlsx(
 
     wb = Workbook()
 
-    # ── Sheet 1: Summary ─────────────────────────────────────────────
     ws_sum = wb.active
     ws_sum.title = "Portfolio Summary"
-    next_row = _add_metadata(ws_sum, metadata)
+    next_row = _add_cover(ws_sum, metadata)
     if portfolio_summary:
-        ws_sum.cell(next_row, 1, "Metric")
-        ws_sum.cell(next_row, 2, "Value")
-        _hdr_style(ws_sum, next_row)
-        next_row += 1
-        for k, v in portfolio_summary.items():
-            ws_sum.cell(next_row, 1, k)
-            ws_sum.cell(next_row, 2, v)
-            next_row += 1
+        _write_df(ws_sum, pd.DataFrame([{"Metric": k, "Value": v} for k, v in portfolio_summary.items()]), start_row=next_row)
     _autofit(ws_sum)
 
-    # ── Sheet 2: Asset Results ────────────────────────────────────────
+    ws_meta = wb.create_sheet("Run Metadata")
+    _write_df(ws_meta, _metadata_df(metadata))
+
     ws_ar = wb.create_sheet("Asset Results")
     _write_df(ws_ar, asset_results_df)
 
-    # ── Sheet 3: Annual Damages ───────────────────────────────────────
     if annual_damages_df is not None and not annual_damages_df.empty:
         ws_ann = wb.create_sheet("Annual Damages 2025-2050")
         _write_df(ws_ann, annual_damages_df)
 
-        # Pivot: year × scenario, total EAD
         try:
             pivot = annual_damages_df.pivot_table(
                 index="year", columns="scenario_id", values="ead", aggfunc="sum"
@@ -126,67 +295,45 @@ def export_results_xlsx(
         except Exception:
             pass
 
-    # ── Sheet 4: Scenario Comparison ─────────────────────────────────
-    if annual_damages_df is not None and not annual_damages_df.empty:
         ws_sc = wb.create_sheet("Scenario Comparison")
-        sc_summary_rows = []
-        for sc in scenarios:
-            sc_df = annual_damages_df[annual_damages_df["scenario_id"] == sc]
+        sc_rows = []
+        for scenario_id in scenarios:
+            sc_df = annual_damages_df[annual_damages_df["scenario_id"] == scenario_id]
             if sc_df.empty:
                 continue
-            from engine.scenario_model import SCENARIOS
-            sc_label = SCENARIOS.get(sc, {}).get("label", sc)
-            total_ead = sc_df["ead"].sum()
-            total_pv = sc_df["pv"].sum()
-            mean_ead = sc_df.groupby("year")["ead"].sum().mean()
+            sc_label = SCENARIOS.get(scenario_id, {}).get("label", scenario_id)
             currency = metadata.get("currency_symbol", "")
-            sc_summary_rows.append({
-                "Scenario": sc_label,
-                "Scenario ID": sc,
-                f"Total EAD 2025\u20132050 ({currency})": round(total_ead, 2),
-                f"Total PV Damages ({currency})": round(total_pv, 2),
-                f"Mean Annual EAD ({currency})": round(mean_ead, 2),
-            })
-        if sc_summary_rows:
-            _write_df(ws_sc, pd.DataFrame(sc_summary_rows))
+            sc_rows.append(
+                {
+                    "Scenario": sc_label,
+                    "Scenario ID": scenario_id,
+                    f"Total EAD 2025-2050 ({currency})": round(float(sc_df["ead"].sum()), 2),
+                    f"Total PV Damages ({currency})": round(float(sc_df["pv"].sum()), 2),
+                    f"Mean Annual EAD ({currency})": round(float(sc_df.groupby("year")["ead"].sum().mean()), 2),
+                }
+            )
+        _write_df(ws_sc, pd.DataFrame(sc_rows))
 
-    # ── Sheet 5: Sources ─────────────────────────────────────────────
     ws_src = wb.create_sheet("Sources & Methodology")
-    sources = [
-        ["Component", "Source", "Citation", "URL"],
-        ["Scenarios", "NGFS Phase V", "NGFS (2023) Climate Scenarios Phase V Technical Note", "https://www.ngfs.net/ngfs-scenarios-portal/"],
-        ["Scenarios", "IEA WEO 2023", "IEA (2023) World Energy Outlook", "https://www.iea.org/reports/world-energy-outlook-2023"],
-        ["Scenarios", "IPCC AR6", "IPCC WG1 SPM Table 1 (2021)", "https://www.ipcc.ch/report/ar6/wg1/chapter/summary-for-policymakers/"],
-        ["Hazard scaling", "Flood", "Tabari (2020) Sci. Total Environ.", "https://doi.org/10.1016/j.scitotenv.2020.140612"],
-        ["Hazard scaling", "Wind/Cyclone", "Knutson et al. (2020) BAMS", "https://doi.org/10.1175/BAMS-D-18-0194.1"],
-        ["Hazard scaling", "Wildfire", "Jolly et al. (2015) Nature Comms", "https://doi.org/10.1038/ncomms8537"],
-        ["Hazard scaling", "Heat", "Zhao et al. (2021) Nature", "https://doi.org/10.1038/s41586-021-03305-z"],
-        ["Vulnerability", "Flood (structure)", "FEMA HAZUS 6.0 Technical Manual", "https://www.fema.gov/flood-maps/products-tools/hazus"],
-        ["Vulnerability", "Flood (global)", "JRC Global Flood DDFs (Huizinga et al. 2017)", "https://publications.jrc.ec.europa.eu/repository/handle/JRC105688"],
-        ["Vulnerability", "Wind", "HAZUS MH Hurricane Technical Manual", "https://www.fema.gov/sites/default/files/2020-09/fema_hazus-hurricane-technical-manual.pdf"],
-        ["Vulnerability", "Wildfire", "Syphard et al. (2012) Ecosphere", "https://doi.org/10.1890/ES12-00197.1"],
-        ["Vulnerability", "Heat", "IEA/IPCC cooling cost escalation + ILO (2019)", "https://www.ilo.org/global/topics/labour-administration-inspection/resources-library/publications/WCMS_711919"],
-        ["Adaptation costs", "General", "FEMA BCA Reference Guide (2019)", "https://www.fema.gov/sites/default/files/2020-02/bca_reference_guide.pdf"],
-        ["Adaptation costs", "Flood UK", "Environment Agency FCERM appraisal guidance", "https://www.gov.uk/guidance/flood-and-coastal-erosion-risk-management-research-reports"],
-        ["EAD method", "Trapezoidal", "Standard catastrophe modelling (Lloyd's, RMS, AIR)", "https://www.lloyds.com/resources-and-services/lloyds-lab/technical-resources/catastrophe-modelling"],
-        ["DCF framework", "BSR", "From Climate Science to Corporate Strategy", "https://www.bsr.org/reports/BSR_Climate_Science_Corporate_Strategy.pdf"],
-        ["DCF framework", "TCFD", "TCFD Final Report (2017)", "https://www.fsb-tcfd.org/recommendations/"],
-        ["Hazard data", "ISIMIP3b", "Frieler et al. (2017) GeoSci. Model Dev.", "https://www.isimip.org/"],
-        ["Hazard data", "Regional fallback", "NGFS Hazard Baseline (compiled from above sources)", "See ngfs_hazard_baseline.json"],
-    ]
-    for r_idx, row_data in enumerate(sources, 1):
-        for c_idx, val in enumerate(row_data, 1):
-            ws_src.cell(r_idx, c_idx, val)
-    _hdr_style(ws_src, 1)
-    _autofit(ws_src)
+    _write_df(ws_src, _source_rows(annual_damages_df, scenarios, override_records))
+
+    ws_method = wb.create_sheet("Method Notes")
+    _write_df(ws_method, _method_notes_df(annual_damages_df, override_records))
+
+    if override_records:
+        ws_ov = wb.create_sheet("Manual Overrides")
+        _write_df(ws_ov, pd.DataFrame(override_records))
 
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()
 
 
-def export_audit_xlsx(audit_df: pd.DataFrame, metadata: dict) -> bytes:
-    """Export detailed calculation audit trail."""
+def export_audit_xlsx(
+    audit_df: pd.DataFrame,
+    metadata: dict,
+    override_records: Optional[list[dict]] = None,
+) -> bytes:
     if not _HAS_OPENPYXL:
         buf = io.BytesIO()
         audit_df.to_excel(buf, index=False)
@@ -195,12 +342,32 @@ def export_audit_xlsx(audit_df: pd.DataFrame, metadata: dict) -> bytes:
     wb = Workbook()
     ws = wb.active
     ws.title = "Calculation Audit"
-    next_row = _add_metadata(ws, metadata)
-    ws.cell(next_row, 1, "Step-by-step calculation trace — fully auditable")
+    next_row = _add_cover(ws, metadata)
+    ws.cell(next_row, 1, "Step-by-step calculation trace")
     ws.cell(next_row, 1).font = Font(bold=True, italic=True)
-    next_row += 1
-    _write_df(ws, audit_df, start_row=next_row)
-    _autofit(ws)
+    _write_df(ws, audit_df, start_row=next_row + 2)
+
+    ws_meta = wb.create_sheet("Run Metadata")
+    _write_df(ws_meta, _metadata_df(metadata))
+
+    ws_method = wb.create_sheet("Method Notes")
+    _write_df(
+        ws_method,
+        pd.DataFrame(
+            [
+                {"Topic": "Scope", "Detail": RESULTS_POSITIONING},
+                {"Topic": "Baseline method", "Detail": BASELINE_METHOD},
+                {
+                    "Topic": "Audit purpose",
+                    "Detail": "This workbook is a calculation trace for the selected asset, scenario, year, and hazard.",
+                },
+            ]
+        ),
+    )
+
+    if override_records:
+        ws_ov = wb.create_sheet("Manual Overrides")
+        _write_df(ws_ov, pd.DataFrame(override_records))
 
     buf = io.BytesIO()
     wb.save(buf)
@@ -208,7 +375,6 @@ def export_audit_xlsx(audit_df: pd.DataFrame, metadata: dict) -> bytes:
 
 
 def export_adaptation_xlsx(adaptation_df: pd.DataFrame, frontier_df: pd.DataFrame) -> bytes:
-    """Export adaptation cost-benefit analysis."""
     if not _HAS_OPENPYXL:
         buf = io.BytesIO()
         adaptation_df.to_excel(buf, index=False)
@@ -225,19 +391,15 @@ def export_adaptation_xlsx(adaptation_df: pd.DataFrame, frontier_df: pd.DataFram
     ws3 = wb.create_sheet("Methodology")
     notes = [
         ["Metric", "Formula", "Source"],
-        ["Capex", "asset_value × capex_pct/100", "FEMA BCA Guide; EA FCERM"],
-        ["Annual Opex", "capex × opex_annual_pct/100", "FEMA BCA Guide"],
-        ["NPV Benefits", "Σ avoided_EAD × (1+r)^-t  over design life", "Standard NPV"],
-        ["Cost–Benefit Ratio", "NPV Benefits / (capex + NPV opex)", "FEMA BCA; HM Treasury Green Book"],
-        ["Payback Period", "capex / avoided_EAD_annual (years)", "Standard payback formula"],
-        ["Avoided EAD", "baseline_EAD × damage_reduction_pct/100", "Per-measure effectiveness (see Sources)"],
-        ["Discount Rate", "3.5% default (HM Treasury Green Book / NGFS green finance rate)", "https://www.gov.uk/government/publications/the-green-book-appraisal-and-evaluation-in-central-government"],
+        ["Capex", "asset_value x capex_pct/100", "FEMA BCA Guide; EA FCERM"],
+        ["Annual Opex", "capex x opex_annual_pct/100", "FEMA BCA Guide"],
+        ["NPV Benefits", "Sum of avoided_EAD discounted over design life", "Standard NPV"],
+        ["Cost-Benefit Ratio", "NPV Benefits / (capex + NPV opex)", "FEMA BCA; HM Treasury Green Book"],
+        ["Payback Period", "capex / avoided_EAD_annual", "Standard payback formula"],
+        ["Avoided EAD", "baseline_EAD x damage_reduction_pct/100", "Per-measure effectiveness"],
+        ["Scope", RESULTS_POSITIONING, ""],
     ]
-    for r_idx, row_data in enumerate(notes, 1):
-        for c_idx, val in enumerate(row_data, 1):
-            ws3.cell(r_idx, c_idx, val)
-    _hdr_style(ws3, 1)
-    _autofit(ws3)
+    _write_df(ws3, pd.DataFrame(notes[1:], columns=notes[0]))
 
     buf = io.BytesIO()
     wb.save(buf)
@@ -245,7 +407,6 @@ def export_adaptation_xlsx(adaptation_df: pd.DataFrame, frontier_df: pd.DataFram
 
 
 def export_dcf_xlsx(dcf_results: list, scenario_comparison_df: pd.DataFrame) -> bytes:
-    """Export climate-adjusted DCF results."""
     if not _HAS_OPENPYXL:
         buf = io.BytesIO()
         scenario_comparison_df.to_excel(buf, index=False)
@@ -257,27 +418,34 @@ def export_dcf_xlsx(dcf_results: list, scenario_comparison_df: pd.DataFrame) -> 
     ws_sc.title = "Scenario Comparison"
     _write_df(ws_sc, scenario_comparison_df)
 
-    for r in dcf_results:
-        safe_name = r.label[:28].replace("/", "-")
+    for result in dcf_results:
+        safe_name = result.label[:28].replace("/", "-")
         ws = wb.create_sheet(safe_name)
-        _write_df(ws, r.annual_detail)
+        _write_df(ws, result.annual_detail)
+
+    ws_meta = wb.create_sheet("Run Metadata")
+    _write_df(
+        ws_meta,
+        pd.DataFrame(
+            [
+                {"Field": "Platform", "Value": PLATFORM_NAME},
+                {"Field": "Scope", "Value": DCF_POSITIONING},
+                {"Field": "Baseline method", "Value": BASELINE_METHOD},
+            ]
+        ),
+    )
 
     ws_m = wb.create_sheet("Methodology")
     meth = [
         ["Item", "Description", "Reference"],
-        ["Base NPV", "NPV = Σ CF_t/(1+WACC)^t + TV/(1+WACC)^T", "Standard DCF"],
-        ["Climate-Adjusted NPV", "NPV_climate = Σ (CF_t - ΔDamage_t + ΔSaving_t)/(1+WACC)^t + TV_adj", "BSR Climate Strategy Framework"],
-        ["Climate Risk Premium", "Optional: WACC_climate = WACC + λ × physical_risk_score", "TCFD / BSR"],
-        ["Terminal Value", "TV = CF_T × (1+g)/(WACC-g)  (Gordon Growth)", "Standard finance"],
-        ["Scenario Weighting", "E[NPV] = Σ P(s) × NPV(s)", "TCFD scenario analysis"],
-        ["BSR Framework", "From Climate Science to Corporate Strategy", "https://www.bsr.org/reports/BSR_Climate_Science_Corporate_Strategy.pdf"],
-        ["TCFD Reference", "Recommendations of the Task Force on Climate-related Financial Disclosures", "https://www.fsb-tcfd.org/recommendations/"],
+        ["Base NPV", "NPV = discounted cash flows plus discounted terminal value", "Standard DCF"],
+        ["Climate-Adjusted NPV", "Base cash flows less annual climate damages, discounted at WACC", "BSR Climate Strategy Framework"],
+        ["Climate Risk Premium", "Optional uplift applied to WACC as a sensitivity input", "TCFD / BSR"],
+        ["Terminal Value", "Gordon Growth approximation", "Standard finance"],
+        ["Scenario Weighting", "Probability-weighted average of scenario NPVs", "TCFD scenario analysis"],
+        ["Scope", DCF_POSITIONING, ""],
     ]
-    for r_idx, row_data in enumerate(meth, 1):
-        for c_idx, val in enumerate(row_data, 1):
-            ws_m.cell(r_idx, c_idx, val)
-    _hdr_style(ws_m, 1)
-    _autofit(ws_m)
+    _write_df(ws_m, pd.DataFrame(meth[1:], columns=meth[0]))
 
     buf = io.BytesIO()
     wb.save(buf)
@@ -285,7 +453,6 @@ def export_dcf_xlsx(dcf_results: list, scenario_comparison_df: pd.DataFrame) -> 
 
 
 def df_to_xlsx(df: pd.DataFrame, sheet_name: str = "Sheet1") -> bytes:
-    """Simple single-sheet export."""
     buf = io.BytesIO()
     if _HAS_OPENPYXL:
         wb = Workbook()
