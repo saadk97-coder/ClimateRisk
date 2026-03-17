@@ -101,12 +101,10 @@ def calc_ead_from_intensities(
 
     Returns (ead, damage_fractions)
     """
-    from engine.impact_functions import get_damage_fraction
+    from engine.impact_functions import get_damage_fractions
 
     scaled = np.asarray(intensities, dtype=float) * hazard_multiplier
-    damage_fractions = np.array([
-        get_damage_fraction(hazard, asset_type, i) for i in scaled
-    ])
+    damage_fractions = get_damage_fractions(hazard, asset_type, scaled)
 
     if hazard in CHRONIC_HAZARDS:
         # Chronic pathway: use median damage fraction (RP50 equivalent, index 1

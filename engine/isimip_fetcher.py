@@ -26,6 +26,7 @@ Sources:
 import io
 import zipfile
 import logging
+from functools import lru_cache
 import numpy as np
 from typing import Optional, Tuple, List
 
@@ -55,6 +56,12 @@ _TIME_CHUNKS = ["1991_2000", "2001_2010", "2011_2014"]
 
 # Fixed baseline experiment key — all fetches use this regardless of scenario.
 _BASELINE_SSP = "historical"
+
+
+def _selected_gcms(max_gcms: Optional[int] = None) -> List[str]:
+    if max_gcms is None or max_gcms <= 0 or max_gcms >= len(_GCM_PRIORITY):
+        return list(_GCM_PRIORITY)
+    return list(_GCM_PRIORITY[:max_gcms])
 
 
 # ---------------------------------------------------------------------------
@@ -272,6 +279,7 @@ def _open_isimip_nc_wildfire(data: bytes) -> Optional[tuple]:
 # ISIMIP API helpers
 # ---------------------------------------------------------------------------
 
+@lru_cache(maxsize=64)
 def _query_isimip_paths(
     simulation_round: str,
     product: str,
@@ -386,6 +394,7 @@ def fetch_isimip3b_heat(
     lon: float,
     ssp: str = "SSP2-4.5",
     return_periods: Optional[np.ndarray] = None,
+    max_gcms: Optional[int] = None,
 ) -> Optional[Tuple[np.ndarray, np.ndarray]]:
     """
     Fetch heat (maximum temperature, °C) return-period curve from ISIMIP3b.
@@ -408,7 +417,7 @@ def fetch_isimip3b_heat(
     ssp_key = _BASELINE_SSP
 
     gcm_curves: List[np.ndarray] = []
-    for gcm in _GCM_PRIORITY:
+    for gcm in _selected_gcms(max_gcms):
         try:
             paths = _query_isimip_paths("ISIMIP3b", "SecondaryInputData", ssp_key, "tasmax", gcm)
             if not paths:
@@ -446,6 +455,7 @@ def fetch_isimip3b_wind(
     lon: float,
     ssp: str = "SSP2-4.5",
     return_periods: Optional[np.ndarray] = None,
+    max_gcms: Optional[int] = None,
 ) -> Optional[Tuple[np.ndarray, np.ndarray]]:
     """
     Fetch wind speed return-period curve from ISIMIP3b (ensemble median).
@@ -462,7 +472,7 @@ def fetch_isimip3b_wind(
     ssp_key = _BASELINE_SSP
 
     gcm_curves: List[np.ndarray] = []
-    for gcm in _GCM_PRIORITY:
+    for gcm in _selected_gcms(max_gcms):
         try:
             paths = _query_isimip_paths("ISIMIP3b", "SecondaryInputData", ssp_key, "sfcwind", gcm)
             if not paths:
@@ -500,6 +510,7 @@ def fetch_isimip3b_flood(
     lon: float,
     ssp: str = "SSP2-4.5",
     return_periods: Optional[np.ndarray] = None,
+    max_gcms: Optional[int] = None,
 ) -> Optional[Tuple[np.ndarray, np.ndarray]]:
     """
     Derive flood depth return-period curve from ISIMIP3b precipitation extremes.
@@ -567,7 +578,7 @@ def fetch_isimip3b_flood(
     DRAINAGE_THRESHOLD_MM, DEPTH_FACTOR = _REGIONAL_FLOOD_PARAMS.get(zone, _REGIONAL_FLOOD_PARAMS["global"])
 
     gcm_curves: List[np.ndarray] = []
-    for gcm in _GCM_PRIORITY:
+    for gcm in _selected_gcms(max_gcms):
         try:
             paths = _query_isimip_paths("ISIMIP3b", "SecondaryInputData", ssp_key, "pr", gcm)
             if not paths:
@@ -609,6 +620,7 @@ def fetch_isimip3b_wildfire(
     ssp: str = "SSP2-4.5",
     return_periods: Optional[np.ndarray] = None,
     vegetation: str = "forest",
+    max_gcms: Optional[int] = None,
 ) -> Optional[Tuple[np.ndarray, np.ndarray]]:
     """
     Derive wildfire flame length return periods from ISIMIP3b multi-variable extraction.
@@ -644,7 +656,7 @@ def fetch_isimip3b_wildfire(
     WILDFIRE_VARS = ["tasmax", "pr", "hurs", "sfcwind"]
 
     gcm_curves: List[np.ndarray] = []
-    for gcm in _GCM_PRIORITY:
+    for gcm in _selected_gcms(max_gcms):
         try:
             all_paths: List[str] = []
             for var in WILDFIRE_VARS:

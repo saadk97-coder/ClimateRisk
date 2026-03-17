@@ -3,6 +3,9 @@ Page 3 – Hazard Data: source transparency, data provenance, intensity tables,
 damage function explainer, manual overrides, and multi-source optionality.
 """
 
+import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -42,6 +45,55 @@ if not assets:
 
 selected_scenarios = st.session_state.get("selected_scenarios", ["current_policies"])
 asset_types_catalog = load_asset_types()
+
+FETCH_MODE_LABELS = {
+    "fast": "Fast - screening speed",
+    "balanced": "Balanced - 2-GCM baseline",
+    "full": "Full - deepest fetch",
+}
+FETCH_MODE_NOTES = {
+    "fast": "Fast uses one ISIMIP GCM for acute hazards and keeps wildfire on the fallback baseline. Best for larger screening portfolios.",
+    "balanced": "Balanced uses two ISIMIP GCMs for acute hazards and keeps wildfire on the fallback baseline. Good default trade-off.",
+    "full": "Full uses four ISIMIP GCMs and enables the full ISIMIP wildfire pipeline. This is the slowest option.",
+}
+MAX_FETCH_WORKERS = max(1, min(8, os.cpu_count() or 4))
+
+if "hazard_fetch_mode" not in st.session_state:
+    st.session_state.hazard_fetch_mode = "fast"
+if "hazard_fetch_workers" not in st.session_state:
+    st.session_state.hazard_fetch_workers = max(1, min(4, MAX_FETCH_WORKERS))
+
+
+def _hazards_for_asset(asset: _Asset) -> list[str]:
+    hazards = list(asset_types_catalog.get(asset.asset_type, {}).get(
+        "hazards", ["flood", "wind", "wildfire", "heat"]
+    ))
+    if "coastal_flood" not in hazards:
+        try:
+            from engine.coastal import is_coastal
+            if is_coastal(asset.lat, asset.lon):
+                hazards.append("coastal_flood")
+        except Exception:
+            pass
+    return hazards
+
+
+def _effective_region(asset: _Asset, overrides: dict) -> str:
+    region = overrides.get(asset.id, asset.region)
+    return asset.region if region == "AUTO" else region
+
+
+def _fetch_asset_hazard_data(asset: _Asset, region: str, fetch_mode: str) -> tuple[str, str, dict]:
+    data = fetch_all_hazards(
+        asset.lat,
+        asset.lon,
+        region,
+        _hazards_for_asset(asset),
+        terrain_elevation_asl_m=getattr(asset, "terrain_elevation_asl_m", 0.0),
+        asset_type=asset.asset_type,
+        fetch_mode=fetch_mode,
+    )
+    return asset.id, asset.name, data
 
 # ── Source Registry ────────────────────────────────────────────────────────
 st.divider()
@@ -239,6 +291,34 @@ st.subheader("Fetch Hazard Data")
 if "hazard_data" not in st.session_state:
     st.session_state.hazard_data = {}
 
+worker_limit = max(1, min(MAX_FETCH_WORKERS, len(assets)))
+st.session_state.hazard_fetch_workers = max(
+    1,
+    min(int(st.session_state.hazard_fetch_workers), worker_limit),
+)
+
+perf_col1, perf_col2 = st.columns([3, 2])
+with perf_col1:
+    fetch_mode = st.selectbox(
+        "Performance profile",
+        options=list(FETCH_MODE_LABELS.keys()),
+        index=list(FETCH_MODE_LABELS.keys()).index(st.session_state.hazard_fetch_mode),
+        format_func=lambda mode: FETCH_MODE_LABELS[mode],
+        key="hazard_fetch_mode",
+        help="Controls how much external hazard data is pulled before the fallback baseline is used.",
+    )
+with perf_col2:
+    st.number_input(
+        "Parallel asset workers",
+        min_value=1,
+        max_value=worker_limit,
+        value=int(st.session_state.hazard_fetch_workers),
+        step=1,
+        key="hazard_fetch_workers",
+        help="Fetch different assets concurrently. Keep this modest to avoid API contention.",
+    )
+st.caption(FETCH_MODE_NOTES[fetch_mode])
+
 col_btn, col_info = st.columns([2, 5])
 with col_btn:
     fetch_btn = st.button("🔄 Fetch / Refresh All Assets", type="primary", use_container_width=True)
@@ -251,6 +331,57 @@ with col_info:
     )
 
 if fetch_btn:
+    progress = st.progress(0, text="Fetching hazard data...")
+    fetched_data = dict(st.session_state.get("hazard_data", {}))
+    failures = []
+    max_workers = max(1, min(int(st.session_state.hazard_fetch_workers), len(assets)))
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(
+                _fetch_asset_hazard_data,
+                asset,
+                _effective_region(asset, zone_overrides),
+                st.session_state.hazard_fetch_mode,
+            ): asset
+            for asset in assets
+        }
+
+        completed = 0
+        for future in as_completed(futures):
+            asset = futures[future]
+            completed += 1
+            try:
+                asset_id, asset_name, data = future.result()
+                fetched_data[asset_id] = data
+                label = f"[{completed}/{len(assets)}] {asset_name}"
+            except Exception as exc:
+                failures.append(f"{asset.name}: {exc}")
+                label = f"[{completed}/{len(assets)}] {asset.name} failed"
+            progress.progress(completed / len(assets), text=label)
+
+    st.session_state.hazard_data = fetched_data
+    loaded_assets = len(assets) - len(failures)
+    if failures:
+        st.warning(
+            "Some assets failed to refresh and kept their previous hazard data: "
+            + "; ".join(failures[:5])
+            + ("; ..." if len(failures) > 5 else ""),
+            icon="âš ï¸",
+        )
+    st.success(
+        f"Loaded scenario-agnostic baseline hazard data for {loaded_assets}/{len(assets)} asset(s) "
+        f"using the {FETCH_MODE_LABELS[st.session_state.hazard_fetch_mode]} profile "
+        f"with {max_workers} worker(s)."
+    )
+    st.caption(
+        "Note: These are scenario-agnostic baseline intensities (historical reference). "
+        "The Results page applies IPCC AR6 hazard multipliers per scenario/year "
+        "to model temporal evolution from 2025â€“2050."
+    )
+    progress.empty()
+
+if False and fetch_btn:
     progress = st.progress(0, text="Fetching hazard data...")
     # Fetch scenario-agnostic baseline hazard data for preview on this page.
     # The Results page fetches its own baseline independently; this is for inspection only.

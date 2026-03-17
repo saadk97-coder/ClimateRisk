@@ -23,6 +23,7 @@ Built-in fallback values are compiled from:
 import json
 import logging
 import os
+from functools import lru_cache
 import requests
 import numpy as np
 from typing import Dict, List, Optional, Tuple
@@ -33,8 +34,20 @@ logger = logging.getLogger(__name__)
 
 BASE_URL = "https://api.isimip.org/v2"
 REQUEST_TIMEOUT = 10
+FETCH_MODE_MAX_GCMS = {
+    "fast": 1,
+    "balanced": 2,
+    "full": 4,
+}
 
 _BASELINE: Optional[dict] = None
+
+
+def _normalize_fetch_mode(fetch_mode: str) -> str:
+    mode = str(fetch_mode or "balanced").strip().lower()
+    if mode not in FETCH_MODE_MAX_GCMS:
+        return "balanced"
+    return mode
 
 
 def _load_baseline() -> dict:
@@ -182,7 +195,7 @@ def _fallback_intensities(hazard: str, region_iso3: str) -> Tuple[np.ndarray, np
     return np.array(rps_list, dtype=float), np.array(intensities, dtype=float)
 
 
-def fetch_hazard_intensities(
+def _fetch_hazard_intensities_impl(
     lat: float,
     lon: float,
     hazard: str,
@@ -191,6 +204,7 @@ def fetch_hazard_intensities(
     time_period: str = "2021_2040",
     terrain_elevation_asl_m: float = 0.0,
     asset_type: str = "default",
+    fetch_mode: str = "balanced",
 ) -> Tuple[np.ndarray, np.ndarray, str]:
     """
     Fetch hazard return-period intensity profile for a location.
@@ -212,6 +226,8 @@ def fetch_hazard_intensities(
     (return_periods, intensities, source_key)
     source_key maps to DATA_SOURCE_REGISTRY for full citation.
     """
+    mode = _normalize_fetch_mode(fetch_mode)
+    max_gcms = FETCH_MODE_MAX_GCMS[mode]
     # ── 0a. Coastal flood — storm surge + SLR (dedicated pipeline) ────────
     if hazard == "coastal_flood":
         try:
@@ -256,15 +272,15 @@ def fetch_hazard_intensities(
             fetch_isimip3b_wind, fetch_isimip3b_wildfire,
         )
         if hazard == "flood":
-            result = fetch_isimip3b_flood(lat, lon)
+            result = fetch_isimip3b_flood(lat, lon, max_gcms=max_gcms)
             if result is not None:
                 return result[0], result[1], "isimip3b"
         elif hazard == "heat":
-            result = fetch_isimip3b_heat(lat, lon)
+            result = fetch_isimip3b_heat(lat, lon, max_gcms=max_gcms)
             if result is not None:
                 return result[0], result[1], "isimip3b"
         elif hazard == "wind":
-            result = fetch_isimip3b_wind(lat, lon)
+            result = fetch_isimip3b_wind(lat, lon, max_gcms=max_gcms)
             if result is not None:
                 rp_w, int_w = result[0], result[1]
                 try:
@@ -273,8 +289,8 @@ def fetch_hazard_intensities(
                 except Exception as e:
                     logger.debug(f"Cyclone amplification skipped: {e}")
                 return rp_w, int_w, "isimip3b"
-        elif hazard == "wildfire":
-            result = fetch_isimip3b_wildfire(lat, lon)
+        elif hazard == "wildfire" and mode == "full":
+            result = fetch_isimip3b_wildfire(lat, lon, max_gcms=max_gcms)
             if result is not None:
                 return result[0], result[1], "isimip3b"
     except Exception as e:
@@ -306,6 +322,57 @@ def fetch_hazard_intensities(
     return rp, intensities, source
 
 
+@lru_cache(maxsize=2048)
+def _fetch_hazard_intensities_cached(
+    lat: float,
+    lon: float,
+    hazard: str,
+    region_iso3: str,
+    scenario_ssp: str,
+    time_period: str,
+    terrain_elevation_asl_m: float,
+    asset_type: str,
+    fetch_mode: str,
+) -> tuple:
+    rp, intensities, source = _fetch_hazard_intensities_impl(
+        lat,
+        lon,
+        hazard,
+        region_iso3,
+        scenario_ssp,
+        time_period,
+        terrain_elevation_asl_m,
+        asset_type,
+        fetch_mode,
+    )
+    return tuple(np.asarray(rp, dtype=float).tolist()), tuple(np.asarray(intensities, dtype=float).tolist()), source
+
+
+def fetch_hazard_intensities(
+    lat: float,
+    lon: float,
+    hazard: str,
+    region_iso3: str,
+    scenario_ssp: str = "SSP2-4.5",
+    time_period: str = "2021_2040",
+    terrain_elevation_asl_m: float = 0.0,
+    asset_type: str = "default",
+    fetch_mode: str = "balanced",
+) -> Tuple[np.ndarray, np.ndarray, str]:
+    rp, intensities, source = _fetch_hazard_intensities_cached(
+        round(float(lat), 5),
+        round(float(lon), 5),
+        hazard,
+        region_iso3,
+        scenario_ssp,
+        time_period,
+        round(float(terrain_elevation_asl_m), 2),
+        asset_type,
+        _normalize_fetch_mode(fetch_mode),
+    )
+    return np.array(rp, dtype=float), np.array(intensities, dtype=float), source
+
+
 def fetch_all_hazards(
     lat: float,
     lon: float,
@@ -315,6 +382,7 @@ def fetch_all_hazards(
     time_period: str = "2021_2040",
     terrain_elevation_asl_m: float = 0.0,
     asset_type: str = "default",
+    fetch_mode: str = "balanced",
 ) -> Dict[str, dict]:
     """Fetch intensity profiles for multiple hazards. Returns {hazard: {return_periods, intensities, source, citation}}.
 
@@ -329,6 +397,7 @@ def fetch_all_hazards(
             lat, lon, hazard, region_iso3, scenario_ssp, time_period,
             terrain_elevation_asl_m=terrain_elevation_asl_m,
             asset_type=asset_type,
+            fetch_mode=fetch_mode,
         )
         src_info = DATA_SOURCE_REGISTRY.get(source, {})
         entry = {

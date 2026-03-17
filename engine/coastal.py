@@ -22,6 +22,7 @@ Storm surge baseline intensities are derived from:
 """
 
 import math
+from functools import lru_cache
 import numpy as np
 from typing import Tuple, Optional
 
@@ -453,6 +454,7 @@ def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return R * 2 * math.asin(math.sqrt(a))
 
 
+@lru_cache(maxsize=4096)
 def distance_to_coast_km(lat: float, lon: float) -> float:
     """
     Estimate distance to nearest coastline in km.
@@ -463,6 +465,8 @@ def distance_to_coast_km(lat: float, lon: float) -> float:
     from the coast may be misclassified. This is inherent to the
     coarse coastline resolution and should not be treated as site-level.
     """
+    lat = round(float(lat), 5)
+    lon = round(float(lon), 5)
     coast = _build_coastline()
 
     # Vectorised approximate distance for pre-filtering

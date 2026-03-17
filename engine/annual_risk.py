@@ -20,6 +20,7 @@ import pandas as pd
 from typing import List, Dict, Optional
 
 from engine.asset_model import Asset
+from engine.hazard_fetcher import get_region_zone
 from engine.scenario_model import get_scenario_multipliers, get_warming, get_slr_additive
 from engine.ead_calculator import calc_ead_from_intensities
 
@@ -59,6 +60,7 @@ def compute_annual_damages(
         years = DEFAULT_YEARS
 
     rows = []
+    region_zone = get_region_zone(asset.region) if hasattr(asset, "region") else "global"
     for hazard, hdata in hazard_data.items():
         rp = np.array(hdata["return_periods"], dtype=float)
         base_intens = np.array(hdata["intensities"], dtype=float)
@@ -66,16 +68,15 @@ def compute_annual_damages(
 
         # Reference RP100 for audit readability
         rp100_idx = int(np.argmin(np.abs(rp - 100))) if len(rp) > 0 else 0
+        warmings = np.array([get_warming(scenario_id, year) for year in years], dtype=float)
+        multipliers = np.array(
+            [get_scenario_multipliers(scenario_id, year, hazard, region_zone) for year in years],
+            dtype=float,
+        )
 
-        for year in years:
-            warming_c = get_warming(scenario_id, year)
-
-            # Scenario multiplier — applied uniformly to ALL sources.
-            from engine.hazard_fetcher import get_region_zone
-            region_zone = get_region_zone(asset.region) if hasattr(asset, 'region') else "global"
-
-            # Scenario multiplier
-            mult = get_scenario_multipliers(scenario_id, year, hazard, region_zone)
+        for idx, year in enumerate(years):
+            warming_c = warmings[idx]
+            mult = multipliers[idx]
 
             intens = base_intens.copy()
             if hazard == "coastal_flood":

@@ -112,6 +112,8 @@ def run_asset_scenario(
     # Apply elevation adjustment to flood intensity
     hazard_results = {}
     total_ead = 0.0
+    from engine.hazard_fetcher import get_region_zone
+    region_zone = get_region_zone(asset.region)
 
     for hazard, hdata in hazard_data.items():
         rp = np.array(hdata["return_periods"], dtype=float)
@@ -119,8 +121,6 @@ def run_asset_scenario(
         source = hdata["source"]
 
         # Scenario hazard multiplier — applied uniformly to ALL sources.
-        from engine.hazard_fetcher import get_region_zone
-        region_zone = get_region_zone(asset.region)
         mult = get_scenario_multipliers(scenario_id, year, hazard, region_zone)
 
         if hazard == "coastal_flood":
