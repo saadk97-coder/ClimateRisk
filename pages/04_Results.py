@@ -96,15 +96,29 @@ def _hazards_for_asset(asset: _Asset) -> list[str]:
 
 
 def _fetch_asset_hazard_data(asset: _Asset, fetch_mode: str) -> tuple[str, str, dict]:
-    data = fetch_all_hazards(
-        asset.lat,
-        asset.lon,
-        asset.region,
-        _hazards_for_asset(asset),
-        terrain_elevation_asl_m=getattr(asset, "terrain_elevation_asl_m", 0.0),
-        asset_type=asset.asset_type,
-        fetch_mode=fetch_mode,
-    )
+    kwargs = {
+        "terrain_elevation_asl_m": getattr(asset, "terrain_elevation_asl_m", 0.0),
+        "asset_type": asset.asset_type,
+    }
+    try:
+        data = fetch_all_hazards(
+            asset.lat,
+            asset.lon,
+            asset.region,
+            _hazards_for_asset(asset),
+            fetch_mode=fetch_mode,
+            **kwargs,
+        )
+    except TypeError as exc:
+        if "fetch_mode" not in str(exc):
+            raise
+        data = fetch_all_hazards(
+            asset.lat,
+            asset.lon,
+            asset.region,
+            _hazards_for_asset(asset),
+            **kwargs,
+        )
     return asset.id, asset.name, data
 
 if not selected_scenarios:

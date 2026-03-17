@@ -84,15 +84,29 @@ def _effective_region(asset: _Asset, overrides: dict) -> str:
 
 
 def _fetch_asset_hazard_data(asset: _Asset, region: str, fetch_mode: str) -> tuple[str, str, dict]:
-    data = fetch_all_hazards(
-        asset.lat,
-        asset.lon,
-        region,
-        _hazards_for_asset(asset),
-        terrain_elevation_asl_m=getattr(asset, "terrain_elevation_asl_m", 0.0),
-        asset_type=asset.asset_type,
-        fetch_mode=fetch_mode,
-    )
+    kwargs = {
+        "terrain_elevation_asl_m": getattr(asset, "terrain_elevation_asl_m", 0.0),
+        "asset_type": asset.asset_type,
+    }
+    try:
+        data = fetch_all_hazards(
+            asset.lat,
+            asset.lon,
+            region,
+            _hazards_for_asset(asset),
+            fetch_mode=fetch_mode,
+            **kwargs,
+        )
+    except TypeError as exc:
+        if "fetch_mode" not in str(exc):
+            raise
+        data = fetch_all_hazards(
+            asset.lat,
+            asset.lon,
+            region,
+            _hazards_for_asset(asset),
+            **kwargs,
+        )
     return asset.id, asset.name, data
 
 # ── Source Registry ────────────────────────────────────────────────────────
@@ -362,12 +376,18 @@ if fetch_btn:
 
     st.session_state.hazard_data = fetched_data
     loaded_assets = len(assets) - len(failures)
-    if failures:
+    if False and failures:
         st.warning(
             "Some assets failed to refresh and kept their previous hazard data: "
             + "; ".join(failures[:5])
             + ("; ..." if len(failures) > 5 else ""),
             icon="âš ï¸",
+        )
+    if failures:
+        st.warning(
+            "Some assets failed to refresh and kept their previous hazard data: "
+            + "; ".join(failures[:5])
+            + ("; ..." if len(failures) > 5 else "")
         )
     st.success(
         f"Loaded scenario-agnostic baseline hazard data for {loaded_assets}/{len(assets)} asset(s) "
