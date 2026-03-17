@@ -23,7 +23,6 @@ Built-in fallback values are compiled from:
 import json
 import logging
 import os
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import lru_cache
 from threading import Lock
 import requests
@@ -508,9 +507,10 @@ def fetch_all_hazards(
     if not ordered_hazards:
         return {}
 
-    if len(ordered_hazards) == 1:
-        hazard, entry = _build_hazard_entry(
-            ordered_hazards[0],
+    results = {}
+    for hazard in ordered_hazards:
+        _, entry = _build_hazard_entry(
+            hazard,
             lat,
             lon,
             region_iso3,
@@ -520,30 +520,7 @@ def fetch_all_hazards(
             asset_type,
             fetch_mode,
         )
-        results = {hazard: entry}
-    else:
-        parallel_results: Dict[str, dict] = {}
-        max_workers = min(4, len(ordered_hazards))
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = {
-                executor.submit(
-                    _build_hazard_entry,
-                    hazard,
-                    lat,
-                    lon,
-                    region_iso3,
-                    scenario_ssp,
-                    time_period,
-                    terrain_elevation_asl_m,
-                    asset_type,
-                    fetch_mode,
-                ): hazard
-                for hazard in ordered_hazards
-            }
-            for future in as_completed(futures):
-                hazard, entry = future.result()
-                parallel_results[hazard] = entry
-        results = {hazard: parallel_results[hazard] for hazard in ordered_hazards}
+        results[hazard] = entry
 
     source_summary = [f"{hazard}={results[hazard]['source']}" for hazard in ordered_hazards]
 

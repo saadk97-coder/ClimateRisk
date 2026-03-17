@@ -151,10 +151,8 @@ def _asset_fetch_signature(asset: _Asset, region: str, fetch_mode: str) -> tuple
 def _optimal_fetch_workers(asset_batch: list[_Asset], fetch_mode: str) -> int:
     if not asset_batch:
         return 1
-    avg_parallel_hazards = sum(max(1, min(3, len(_hazards_for_asset(asset)))) for asset in asset_batch) / len(asset_batch)
-    remote_budget = 18 if fetch_mode == "balanced" else 16
-    worker_guess = int(remote_budget // max(1.0, avg_parallel_hazards * 2.0))
-    return max(1, min(MAX_FETCH_WORKERS, len(asset_batch), max(1, worker_guess)))
+    target_workers = 3 if fetch_mode == "balanced" else 2
+    return max(1, min(MAX_FETCH_WORKERS, len(asset_batch), target_workers))
 
 # ── Source Registry ────────────────────────────────────────────────────────
 st.divider()
