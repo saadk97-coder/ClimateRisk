@@ -13,13 +13,40 @@ import plotly.graph_objects as go
 
 from engine.asset_model import Asset as _Asset, load_asset_types
 from engine.fmt import fmt as _fmt_cur
-from engine.hazard_fetcher import (
-    DEFAULT_FETCH_MODE, build_fetch_signature, fetch_all_hazards, get_region_zone, get_fallback_detail, _load_baseline
-)
+import engine.hazard_fetcher as _hazard_fetcher
 from engine.data_sources import DATA_SOURCE_REGISTRY
 from engine.impact_functions import get_damage_curve, get_damage_fraction, HAZARD_UNITS
 from engine.governance import current_operator, utc_now_iso
 from engine.scenario_model import SCENARIOS
+
+fetch_all_hazards = _hazard_fetcher.fetch_all_hazards
+get_region_zone = _hazard_fetcher.get_region_zone
+get_fallback_detail = _hazard_fetcher.get_fallback_detail
+_load_baseline = _hazard_fetcher._load_baseline
+DEFAULT_FETCH_MODE = getattr(_hazard_fetcher, "DEFAULT_FETCH_MODE", "full")
+
+
+def _fallback_build_fetch_signature(
+    lat: float,
+    lon: float,
+    region_iso3: str,
+    hazards: list,
+    terrain_elevation_asl_m: float = 0.0,
+    asset_type: str = "default",
+    fetch_mode: str = "full",
+) -> tuple:
+    return (
+        round(float(lat), 5),
+        round(float(lon), 5),
+        str(region_iso3).upper().strip(),
+        tuple(dict.fromkeys(str(hazard) for hazard in hazards)),
+        round(float(terrain_elevation_asl_m), 2),
+        str(asset_type or "default"),
+        str(fetch_mode or DEFAULT_FETCH_MODE).strip().lower(),
+    )
+
+
+build_fetch_signature = getattr(_hazard_fetcher, "build_fetch_signature", _fallback_build_fetch_signature)
 
 st.set_page_config(page_title="Hazard Data", page_icon="🌊", layout="wide")
 
