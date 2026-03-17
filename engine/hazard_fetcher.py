@@ -23,31 +23,103 @@ Built-in fallback values are compiled from:
 import json
 import logging
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import lru_cache
+from threading import Lock
 import requests
 import numpy as np
 from typing import Dict, List, Optional, Tuple
 
-from engine.data_sources import fetch_best_available, DATA_SOURCE_REGISTRY
+from engine.data_sources import DATA_SOURCE_REGISTRY
 
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://api.isimip.org/v2"
 REQUEST_TIMEOUT = 10
+DEFAULT_FETCH_MODE = "full"
 FETCH_MODE_MAX_GCMS = {
     "fast": 1,
     "balanced": 2,
     "full": 4,
 }
+_GRID_CELL_HAZARDS = {"flood", "heat", "wind", "wildfire"}
+_FETCH_KEY_LOCKS: dict[tuple, Lock] = {}
+_FETCH_KEY_LOCKS_GUARD = Lock()
 
 _BASELINE: Optional[dict] = None
 
 
 def _normalize_fetch_mode(fetch_mode: str) -> str:
-    mode = str(fetch_mode or "balanced").strip().lower()
+    mode = str(fetch_mode or DEFAULT_FETCH_MODE).strip().lower()
     if mode not in FETCH_MODE_MAX_GCMS:
-        return "balanced"
+        return DEFAULT_FETCH_MODE
     return mode
+
+
+def _grid_cell_coord(value: float) -> float:
+    return round(round(float(value) * 2.0) / 2.0, 2)
+
+
+def build_fetch_signature(
+    lat: float,
+    lon: float,
+    region_iso3: str,
+    hazards: list,
+    terrain_elevation_asl_m: float = 0.0,
+    asset_type: str = "default",
+    fetch_mode: str = DEFAULT_FETCH_MODE,
+) -> tuple:
+    return (
+        round(float(lat), 5),
+        round(float(lon), 5),
+        str(region_iso3).upper().strip(),
+        tuple(dict.fromkeys(str(hazard) for hazard in hazards)),
+        round(float(terrain_elevation_asl_m), 2),
+        str(asset_type or "default"),
+        _normalize_fetch_mode(fetch_mode),
+    )
+
+
+def _normalized_cache_args(
+    lat: float,
+    lon: float,
+    hazard: str,
+    region_iso3: str,
+    terrain_elevation_asl_m: float,
+    asset_type: str,
+    fetch_mode: str,
+) -> tuple:
+    hazard_key = str(hazard or "").strip()
+    if hazard_key in _GRID_CELL_HAZARDS:
+        lat_key = _grid_cell_coord(lat)
+        lon_key = _grid_cell_coord(lon)
+        terrain_key = 0.0
+        asset_key = "default"
+    else:
+        lat_key = round(float(lat), 5)
+        lon_key = round(float(lon), 5)
+        terrain_key = round(float(terrain_elevation_asl_m), 2)
+        asset_key = str(asset_type or "default")
+    return (
+        lat_key,
+        lon_key,
+        hazard_key,
+        str(region_iso3).upper().strip(),
+        "baseline",
+        "historical",
+        terrain_key,
+        asset_key,
+        _normalize_fetch_mode(fetch_mode),
+    )
+
+
+def _get_cache_lock(cache_key: tuple) -> Lock:
+    with _FETCH_KEY_LOCKS_GUARD:
+        lock = _FETCH_KEY_LOCKS.get(cache_key)
+        if lock is None:
+            lock = Lock()
+            _FETCH_KEY_LOCKS[cache_key] = lock
+        return lock
 
 
 def _load_baseline() -> dict:
@@ -204,7 +276,7 @@ def _fetch_hazard_intensities_impl(
     time_period: str = "2021_2040",
     terrain_elevation_asl_m: float = 0.0,
     asset_type: str = "default",
-    fetch_mode: str = "balanced",
+    fetch_mode: str = DEFAULT_FETCH_MODE,
 ) -> Tuple[np.ndarray, np.ndarray, str]:
     """
     Fetch hazard return-period intensity profile for a location.
@@ -357,20 +429,62 @@ def fetch_hazard_intensities(
     time_period: str = "2021_2040",
     terrain_elevation_asl_m: float = 0.0,
     asset_type: str = "default",
-    fetch_mode: str = "balanced",
+    fetch_mode: str = DEFAULT_FETCH_MODE,
 ) -> Tuple[np.ndarray, np.ndarray, str]:
-    rp, intensities, source = _fetch_hazard_intensities_cached(
-        round(float(lat), 5),
-        round(float(lon), 5),
+    cache_key = _normalized_cache_args(
+        lat,
+        lon,
+        hazard,
+        region_iso3,
+        terrain_elevation_asl_m,
+        asset_type,
+        fetch_mode,
+    )
+    with _get_cache_lock(cache_key):
+        rp, intensities, source = _fetch_hazard_intensities_cached(*cache_key)
+    return np.array(rp, dtype=float), np.array(intensities, dtype=float), source
+
+
+def _build_hazard_entry(
+    hazard: str,
+    lat: float,
+    lon: float,
+    region_iso3: str,
+    scenario_ssp: str,
+    time_period: str,
+    terrain_elevation_asl_m: float,
+    asset_type: str,
+    fetch_mode: str,
+) -> tuple[str, dict]:
+    rp, intensities, source = fetch_hazard_intensities(
+        lat,
+        lon,
         hazard,
         region_iso3,
         scenario_ssp,
         time_period,
-        round(float(terrain_elevation_asl_m), 2),
-        asset_type,
-        _normalize_fetch_mode(fetch_mode),
+        terrain_elevation_asl_m=terrain_elevation_asl_m,
+        asset_type=asset_type,
+        fetch_mode=fetch_mode,
     )
-    return np.array(rp, dtype=float), np.array(intensities, dtype=float), source
+    src_info = DATA_SOURCE_REGISTRY.get(source, {})
+    entry = {
+        "return_periods": rp.tolist(),
+        "intensities": intensities.tolist(),
+        "source": source,
+        "source_name": src_info.get("name", source),
+        "citation": src_info.get("citation", ""),
+        "source_url": src_info.get("url", ""),
+    }
+    if hazard == "wind":
+        try:
+            from engine.tropical_cyclone import get_cyclone_exposure_summary
+            tc_info = get_cyclone_exposure_summary(lat, lon)
+            if tc_info is not None:
+                entry["cyclone_basin"] = tc_info
+        except Exception:
+            pass
+    return hazard, entry
 
 
 def fetch_all_hazards(
@@ -382,7 +496,7 @@ def fetch_all_hazards(
     time_period: str = "2021_2040",
     terrain_elevation_asl_m: float = 0.0,
     asset_type: str = "default",
-    fetch_mode: str = "balanced",
+    fetch_mode: str = DEFAULT_FETCH_MODE,
 ) -> Dict[str, dict]:
     """Fetch intensity profiles for multiple hazards. Returns {hazard: {return_periods, intensities, source, citation}}.
 
@@ -390,35 +504,48 @@ def fetch_all_hazards(
     parameter is accepted for backward compatibility but does NOT condition the data.
     Logs a per-location provenance summary showing which source was used for each hazard.
     """
-    results = {}
-    source_summary: List[str] = []
-    for hazard in hazards:
-        rp, intensities, source = fetch_hazard_intensities(
-            lat, lon, hazard, region_iso3, scenario_ssp, time_period,
-            terrain_elevation_asl_m=terrain_elevation_asl_m,
-            asset_type=asset_type,
-            fetch_mode=fetch_mode,
+    ordered_hazards = list(dict.fromkeys(str(hazard) for hazard in hazards))
+    if not ordered_hazards:
+        return {}
+
+    if len(ordered_hazards) == 1:
+        hazard, entry = _build_hazard_entry(
+            ordered_hazards[0],
+            lat,
+            lon,
+            region_iso3,
+            scenario_ssp,
+            time_period,
+            terrain_elevation_asl_m,
+            asset_type,
+            fetch_mode,
         )
-        src_info = DATA_SOURCE_REGISTRY.get(source, {})
-        entry = {
-            "return_periods": rp.tolist(),
-            "intensities": intensities.tolist(),
-            "source": source,
-            "source_name": src_info.get("name", source),
-            "citation": src_info.get("citation", ""),
-            "source_url": src_info.get("url", ""),
-        }
-        # Attach cyclone basin info to wind hazard for UI display
-        if hazard == "wind":
-            try:
-                from engine.tropical_cyclone import get_cyclone_exposure_summary
-                tc_info = get_cyclone_exposure_summary(lat, lon)
-                if tc_info is not None:
-                    entry["cyclone_basin"] = tc_info
-            except Exception:
-                pass
-        results[hazard] = entry
-        source_summary.append(f"{hazard}={source}")
+        results = {hazard: entry}
+    else:
+        parallel_results: Dict[str, dict] = {}
+        max_workers = min(4, len(ordered_hazards))
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(
+                    _build_hazard_entry,
+                    hazard,
+                    lat,
+                    lon,
+                    region_iso3,
+                    scenario_ssp,
+                    time_period,
+                    terrain_elevation_asl_m,
+                    asset_type,
+                    fetch_mode,
+                ): hazard
+                for hazard in ordered_hazards
+            }
+            for future in as_completed(futures):
+                hazard, entry = future.result()
+                parallel_results[hazard] = entry
+        results = {hazard: parallel_results[hazard] for hazard in ordered_hazards}
+
+    source_summary = [f"{hazard}={results[hazard]['source']}" for hazard in ordered_hazards]
 
     # Log provenance summary per location
     logger.info(f"Hazard sources ({lat:.2f},{lon:.2f} {region_iso3}): {', '.join(source_summary)}")

@@ -20,7 +20,7 @@ from engine.damage_engine import run_portfolio
 from engine.annual_risk import compute_portfolio_annual_damages, summarise_annual, DEFAULT_YEARS
 from engine.portfolio_aggregator import results_to_dataframe, aggregate_portfolio, scenario_comparison_table
 from engine.scenario_model import SCENARIOS
-from engine.hazard_fetcher import fetch_all_hazards
+from engine.hazard_fetcher import DEFAULT_FETCH_MODE, build_fetch_signature, fetch_all_hazards
 from engine.export_engine import export_results_xlsx, df_to_xlsx
 from engine.governance import override_records as build_override_records
 from engine.risk_scorer import (
@@ -71,14 +71,16 @@ FETCH_MODE_LABELS = {
 FETCH_MODE_NOTES = {
     "fast": "Fast uses one ISIMIP GCM for acute hazards and keeps wildfire on the fallback baseline. Best for larger screening portfolios.",
     "balanced": "Balanced uses two ISIMIP GCMs for acute hazards and keeps wildfire on the fallback baseline. Good default trade-off.",
-    "full": "Full uses four ISIMIP GCMs and enables the full ISIMIP wildfire pipeline. This is the slowest option.",
+    "full": "Full uses four ISIMIP GCMs and enables the full ISIMIP wildfire pipeline. This is the highest-fidelity baseline and is reused across pages once loaded.",
 }
 MAX_FETCH_WORKERS = max(1, min(8, os.cpu_count() or 4))
 
 if "hazard_fetch_mode" not in st.session_state:
-    st.session_state.hazard_fetch_mode = "fast"
+    st.session_state.hazard_fetch_mode = DEFAULT_FETCH_MODE
 if "hazard_fetch_workers" not in st.session_state:
     st.session_state.hazard_fetch_workers = max(1, min(4, MAX_FETCH_WORKERS))
+if "hazard_data_meta" not in st.session_state:
+    st.session_state.hazard_data_meta = {}
 
 
 def _hazards_for_asset(asset: _Asset) -> list[str]:
@@ -120,6 +122,18 @@ def _fetch_asset_hazard_data(asset: _Asset, fetch_mode: str) -> tuple[str, str, 
             **kwargs,
         )
     return asset.id, asset.name, data
+
+
+def _asset_fetch_signature(asset: _Asset, fetch_mode: str) -> tuple:
+    return build_fetch_signature(
+        asset.lat,
+        asset.lon,
+        asset.region,
+        _hazards_for_asset(asset),
+        terrain_elevation_asl_m=getattr(asset, "terrain_elevation_asl_m", 0.0),
+        asset_type=asset.asset_type,
+        fetch_mode=fetch_mode,
+    )
 
 if not selected_scenarios:
     st.warning("No scenarios selected. Go to the Scenarios page.")
@@ -164,13 +178,24 @@ with perf_col2:
 st.caption(FETCH_MODE_NOTES[fetch_mode])
 
 if run_btn:
-    hazard_data_flat: dict = {}
-    total_fetches = len(assets)
+    hazard_data_flat = dict(st.session_state.get("hazard_data", {}))
+    hazard_data_meta = dict(st.session_state.get("hazard_data_meta", {}))
+    requested_signatures = {
+        asset.id: _asset_fetch_signature(asset, st.session_state.hazard_fetch_mode)
+        for asset in assets
+    }
+    assets_to_fetch = [
+        asset
+        for asset in assets
+        if hazard_data_meta.get(asset.id) != requested_signatures[asset.id]
+        or asset.id not in hazard_data_flat
+    ]
+    reused_assets = len(assets) - len(assets_to_fetch)
     failures = []
-    if total_fetches > 0:
-        with st.status(f"Fetching baseline hazard data for {len(assets)} asset(s)...", expanded=False) as fetch_status:
+    if assets_to_fetch:
+        with st.status(f"Fetching baseline hazard data for {len(assets_to_fetch)} asset(s)...", expanded=False) as fetch_status:
             fetch_progress = st.progress(0, text="Fetching baseline hazard data...")
-            max_workers = max(1, min(int(st.session_state.hazard_fetch_workers), len(assets)))
+            max_workers = max(1, min(int(st.session_state.hazard_fetch_workers), len(assets_to_fetch)))
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 futures = {
                     executor.submit(
@@ -178,7 +203,7 @@ if run_btn:
                         asset,
                         st.session_state.hazard_fetch_mode,
                     ): asset
-                    for asset in assets
+                    for asset in assets_to_fetch
                 }
 
                 done_fetch = 0
@@ -188,16 +213,28 @@ if run_btn:
                     try:
                         asset_id, asset_name, data = future.result()
                         hazard_data_flat[asset_id] = data
-                        label = f"[{done_fetch}/{len(assets)}] {asset_name}"
+                        hazard_data_meta[asset_id] = requested_signatures[asset_id]
+                        label = f"[{done_fetch}/{len(assets_to_fetch)}] {asset_name}"
                     except Exception as exc:
                         failures.append(f"{asset.name}: {exc}")
-                        label = f"[{done_fetch}/{len(assets)}] {asset.name} failed"
-                    fetch_progress.progress(done_fetch / len(assets), text=label)
+                        label = f"[{done_fetch}/{len(assets_to_fetch)}] {asset.name} failed"
+                    fetch_progress.progress(done_fetch / len(assets_to_fetch), text=label)
 
             fetch_progress.empty()
             state = "error" if failures else "complete"
             summary = "Hazard data ready." if not failures else f"Hazard data ready with {len(failures)} fetch failure(s)."
             fetch_status.update(label=summary, state=state)
+    elif reused_assets:
+        st.info(
+            f"Reused cached baseline hazard data for all {reused_assets} asset(s). "
+            "Only changed assets trigger a new full-fidelity fetch."
+        )
+
+    if reused_assets and assets_to_fetch:
+        st.info(
+            f"Reused cached baseline hazard data for {reused_assets} unchanged asset(s) "
+            f"and refreshed {len(assets_to_fetch)} asset(s)."
+        )
 
     if failures:
         st.warning(
@@ -207,7 +244,22 @@ if run_btn:
         )
 
     st.session_state.hazard_data = hazard_data_flat
+    st.session_state.hazard_data_meta = hazard_data_meta
     st.session_state.hazard_data_by_scenario = {}
+
+    invalid_assets = [
+        asset.name
+        for asset in assets
+        if st.session_state.hazard_data_meta.get(asset.id) != requested_signatures[asset.id]
+    ]
+    if invalid_assets:
+        st.error(
+            "Damage calculation stopped because some assets do not have a valid baseline for the "
+            "requested fetch profile: "
+            + "; ".join(invalid_assets[:5])
+            + ("; ..." if len(invalid_assets) > 5 else "")
+        )
+        st.stop()
 
     _overrides = st.session_state.get("hazard_overrides", {})
     if _overrides:

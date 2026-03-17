@@ -694,3 +694,80 @@ def test_governance_page_exists():
 
     spec = importlib.util.find_spec("pages.10_Governance")
     assert spec is not None, "Governance page is missing"
+
+
+def test_adaptation_measures_cover_extended_asset_types():
+    """Extended portfolio asset types should resolve to a usable adaptation catalog entry."""
+    from engine.adaptation_engine import list_measures
+
+    measures = list_measures(asset_type="commercial_office")
+    assert measures, "commercial_office should inherit adaptation measures from the base catalog"
+
+
+def test_fetch_all_hazards_preserves_requested_order():
+    """Parallel hazard collection must keep the requested hazard ordering stable."""
+    import engine.hazard_fetcher as hf
+
+    original = hf.fetch_hazard_intensities
+
+    def _fake_fetch(lat, lon, hazard, region_iso3, scenario_ssp="SSP2-4.5", time_period="2021_2040",
+                    terrain_elevation_asl_m=0.0, asset_type="default", fetch_mode="balanced"):
+        value = {
+            "heat": 1.0,
+            "flood": 2.0,
+            "wind": 3.0,
+        }[hazard]
+        return np.array([10.0, 100.0]), np.array([value, value + 0.5]), "fallback_baseline"
+
+    hf.fetch_hazard_intensities = _fake_fetch
+    try:
+        data = hf.fetch_all_hazards(
+            51.5,
+            -0.1,
+            "GBR",
+            ["heat", "flood", "wind"],
+            fetch_mode="full",
+        )
+    finally:
+        hf.fetch_hazard_intensities = original
+
+    assert list(data.keys()) == ["heat", "flood", "wind"]
+    assert data["heat"]["intensities"] == [1.0, 1.5]
+    assert data["wind"]["intensities"] == [3.0, 3.5]
+
+
+def test_acute_hazard_cache_uses_grid_resolution():
+    """Nearby assets in the same 0.5 degree acute-hazard cell should share one cached fetch."""
+    import engine.hazard_fetcher as hf
+
+    original_impl = hf._fetch_hazard_intensities_impl
+    hf._fetch_hazard_intensities_cached.cache_clear()
+    calls = []
+
+    def _fake_impl(lat, lon, hazard, region_iso3, scenario_ssp="baseline", time_period="historical",
+                   terrain_elevation_asl_m=0.0, asset_type="default", fetch_mode="full"):
+        calls.append((lat, lon, hazard, region_iso3, fetch_mode))
+        return np.array([10.0, 100.0]), np.array([1.0, 2.0]), "fallback_baseline"
+
+    hf._fetch_hazard_intensities_impl = _fake_impl
+    try:
+        hf.fetch_hazard_intensities(51.49, -0.11, "heat", "GBR", fetch_mode="full")
+        hf.fetch_hazard_intensities(51.51, -0.09, "heat", "GBR", fetch_mode="full")
+    finally:
+        hf._fetch_hazard_intensities_impl = original_impl
+        hf._fetch_hazard_intensities_cached.cache_clear()
+
+    assert len(calls) == 1, f"Expected one shared grid-cell fetch, got {len(calls)}"
+
+
+def test_dcf_page_uses_scenario_toggle_language():
+    """DCF page should present scenario-specific valuation views, not weighted scenario language."""
+    import importlib
+
+    spec = importlib.util.find_spec("pages.07_DCF")
+    with open(spec.origin, encoding="utf-8") as f:
+        source = f.read().lower()
+
+    assert "probability-weighted" not in source
+    assert "weight by probability" not in source
+    assert "valuation scenario" in source

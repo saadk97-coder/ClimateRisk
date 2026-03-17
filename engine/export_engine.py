@@ -442,7 +442,7 @@ def export_dcf_xlsx(dcf_results: list, scenario_comparison_df: pd.DataFrame) -> 
         ["Climate-Adjusted NPV", "Base cash flows less annual climate damages, discounted at WACC", "BSR Climate Strategy Framework"],
         ["Climate Risk Premium", "Optional uplift applied to WACC as a sensitivity input", "TCFD / BSR"],
         ["Terminal Value", "Gordon Growth approximation", "Standard finance"],
-        ["Scenario Weighting", "Probability-weighted average of scenario NPVs", "TCFD scenario analysis"],
+        ["Scenario Comparison", "Scenario NPVs are reported side by side; no probability weighting is applied in the UI workflow", "TCFD scenario analysis"],
         ["Scope", DCF_POSITIONING, ""],
     ]
     _write_df(ws_m, pd.DataFrame(meth[1:], columns=meth[0]))

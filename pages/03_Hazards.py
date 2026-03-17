@@ -14,7 +14,7 @@ import plotly.graph_objects as go
 from engine.asset_model import Asset as _Asset, load_asset_types
 from engine.fmt import fmt as _fmt_cur
 from engine.hazard_fetcher import (
-    fetch_all_hazards, get_region_zone, get_fallback_detail, _load_baseline
+    DEFAULT_FETCH_MODE, build_fetch_signature, fetch_all_hazards, get_region_zone, get_fallback_detail, _load_baseline
 )
 from engine.data_sources import DATA_SOURCE_REGISTRY
 from engine.impact_functions import get_damage_curve, get_damage_fraction, HAZARD_UNITS
@@ -54,14 +54,16 @@ FETCH_MODE_LABELS = {
 FETCH_MODE_NOTES = {
     "fast": "Fast uses one ISIMIP GCM for acute hazards and keeps wildfire on the fallback baseline. Best for larger screening portfolios.",
     "balanced": "Balanced uses two ISIMIP GCMs for acute hazards and keeps wildfire on the fallback baseline. Good default trade-off.",
-    "full": "Full uses four ISIMIP GCMs and enables the full ISIMIP wildfire pipeline. This is the slowest option.",
+    "full": "Full uses four ISIMIP GCMs and enables the full ISIMIP wildfire pipeline. It is the highest-fidelity baseline and is reused across pages once loaded.",
 }
 MAX_FETCH_WORKERS = max(1, min(8, os.cpu_count() or 4))
 
 if "hazard_fetch_mode" not in st.session_state:
-    st.session_state.hazard_fetch_mode = "fast"
+    st.session_state.hazard_fetch_mode = DEFAULT_FETCH_MODE
 if "hazard_fetch_workers" not in st.session_state:
     st.session_state.hazard_fetch_workers = max(1, min(4, MAX_FETCH_WORKERS))
+if "hazard_data_meta" not in st.session_state:
+    st.session_state.hazard_data_meta = {}
 
 
 def _hazards_for_asset(asset: _Asset) -> list[str]:
@@ -108,6 +110,18 @@ def _fetch_asset_hazard_data(asset: _Asset, region: str, fetch_mode: str) -> tup
             **kwargs,
         )
     return asset.id, asset.name, data
+
+
+def _asset_fetch_signature(asset: _Asset, region: str, fetch_mode: str) -> tuple:
+    return build_fetch_signature(
+        asset.lat,
+        asset.lon,
+        region,
+        _hazards_for_asset(asset),
+        terrain_elevation_asl_m=getattr(asset, "terrain_elevation_asl_m", 0.0),
+        asset_type=asset.asset_type,
+        fetch_mode=fetch_mode,
+    )
 
 # ── Source Registry ────────────────────────────────────────────────────────
 st.divider()
@@ -332,10 +346,15 @@ with perf_col2:
         help="Fetch different assets concurrently. Keep this modest to avoid API contention.",
     )
 st.caption(FETCH_MODE_NOTES[fetch_mode])
+force_refresh = st.checkbox(
+    "Force refresh cached assets",
+    value=False,
+    help="By default, unchanged assets reuse the cached baseline already loaded in this session.",
+)
 
 col_btn, col_info = st.columns([2, 5])
 with col_btn:
-    fetch_btn = st.button("🔄 Fetch / Refresh All Assets", type="primary", use_container_width=True)
+    fetch_btn = st.button("🔄 Fetch / Refresh Changed Assets", type="primary", use_container_width=True)
 with col_info:
     st.caption(
         f"Fetches baseline intensity profiles for all {len(assets)} asset(s) across "
@@ -345,36 +364,57 @@ with col_info:
     )
 
 if fetch_btn:
-    progress = st.progress(0, text="Fetching hazard data...")
     fetched_data = dict(st.session_state.get("hazard_data", {}))
+    hazard_data_meta = dict(st.session_state.get("hazard_data_meta", {}))
+    requested_signatures = {
+        asset.id: _asset_fetch_signature(
+            asset,
+            _effective_region(asset, zone_overrides),
+            st.session_state.hazard_fetch_mode,
+        )
+        for asset in assets
+    }
+    assets_to_fetch = [
+        asset
+        for asset in assets
+        if force_refresh
+        or hazard_data_meta.get(asset.id) != requested_signatures[asset.id]
+        or asset.id not in fetched_data
+    ]
+    reused_assets = len(assets) - len(assets_to_fetch)
     failures = []
-    max_workers = max(1, min(int(st.session_state.hazard_fetch_workers), len(assets)))
+    max_workers = max(1, min(int(st.session_state.hazard_fetch_workers), max(1, len(assets_to_fetch))))
 
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {
-            executor.submit(
-                _fetch_asset_hazard_data,
-                asset,
-                _effective_region(asset, zone_overrides),
-                st.session_state.hazard_fetch_mode,
-            ): asset
-            for asset in assets
-        }
+    if assets_to_fetch:
+        progress = st.progress(0, text="Fetching hazard data...")
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(
+                    _fetch_asset_hazard_data,
+                    asset,
+                    _effective_region(asset, zone_overrides),
+                    st.session_state.hazard_fetch_mode,
+                ): asset
+                for asset in assets_to_fetch
+            }
 
-        completed = 0
-        for future in as_completed(futures):
-            asset = futures[future]
-            completed += 1
-            try:
-                asset_id, asset_name, data = future.result()
-                fetched_data[asset_id] = data
-                label = f"[{completed}/{len(assets)}] {asset_name}"
-            except Exception as exc:
-                failures.append(f"{asset.name}: {exc}")
-                label = f"[{completed}/{len(assets)}] {asset.name} failed"
-            progress.progress(completed / len(assets), text=label)
+            completed = 0
+            for future in as_completed(futures):
+                asset = futures[future]
+                completed += 1
+                try:
+                    asset_id, asset_name, data = future.result()
+                    fetched_data[asset_id] = data
+                    hazard_data_meta[asset_id] = requested_signatures[asset_id]
+                    label = f"[{completed}/{len(assets_to_fetch)}] {asset_name}"
+                except Exception as exc:
+                    failures.append(f"{asset.name}: {exc}")
+                    label = f"[{completed}/{len(assets_to_fetch)}] {asset.name} failed"
+                progress.progress(completed / len(assets_to_fetch), text=label)
+        progress.empty()
 
     st.session_state.hazard_data = fetched_data
+    st.session_state.hazard_data_meta = hazard_data_meta
     loaded_assets = len(assets) - len(failures)
     if False and failures:
         st.warning(
@@ -389,6 +429,28 @@ if fetch_btn:
             + "; ".join(failures[:5])
             + ("; ..." if len(failures) > 5 else "")
         )
+    invalid_assets = [
+        asset.name
+        for asset in assets
+        if st.session_state.hazard_data_meta.get(asset.id) != requested_signatures[asset.id]
+    ]
+    if invalid_assets:
+        st.warning(
+            "The preview for some assets is still showing an older baseline because the requested "
+            "refresh did not complete: "
+            + "; ".join(invalid_assets[:5])
+            + ("; ..." if len(invalid_assets) > 5 else "")
+        )
+    if reused_assets and assets_to_fetch:
+        st.info(
+            f"Reused cached baseline data for {reused_assets} unchanged asset(s) and refreshed "
+            f"{len(assets_to_fetch)} asset(s)."
+        )
+    elif reused_assets and not assets_to_fetch:
+        st.info(
+            f"Reused cached baseline data for all {reused_assets} asset(s). "
+            "No hazard refresh was needed."
+        )
     st.success(
         f"Loaded scenario-agnostic baseline hazard data for {loaded_assets}/{len(assets)} asset(s) "
         f"using the {FETCH_MODE_LABELS[st.session_state.hazard_fetch_mode]} profile "
@@ -399,7 +461,6 @@ if fetch_btn:
         "The Results page applies IPCC AR6 hazard multipliers per scenario/year "
         "to model temporal evolution from 2025â€“2050."
     )
-    progress.empty()
 
 if False and fetch_btn:
     progress = st.progress(0, text="Fetching hazard data...")
@@ -512,7 +573,7 @@ on the Results page — so a 2050 EAD under Current Policies will be higher than
         """)
 
 else:
-    st.info("Click **Fetch / Refresh All Assets** to load hazard data.")
+    st.info("Click **Fetch / Refresh Changed Assets** to load hazard data.")
 
 # ── Per-Asset Intensity Detail ─────────────────────────────────────────────
 st.divider()

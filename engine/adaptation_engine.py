@@ -10,6 +10,21 @@ from dataclasses import dataclass
 
 _CATALOG: Optional[dict] = None
 
+_ADAPTATION_ASSET_TYPE_CANDIDATES: Dict[str, tuple[str, ...]] = {
+    "residential_high_rise": ("residential_concrete", "commercial_concrete"),
+    "commercial_office": ("commercial_steel", "commercial_concrete"),
+    "commercial_retail": ("commercial_steel", "commercial_concrete"),
+    "commercial_warehouse": ("industrial_steel", "commercial_steel"),
+    "industrial_heavy": ("industrial_steel", "commercial_concrete"),
+    "healthcare_hospital": ("commercial_concrete", "infrastructure_utility"),
+    "education_school": ("residential_masonry", "commercial_concrete"),
+    "data_center": ("commercial_concrete", "infrastructure_utility", "industrial_steel"),
+    "hotel_resort": ("commercial_concrete", "commercial_steel", "residential_concrete"),
+    "mixed_use": ("commercial_concrete", "commercial_steel", "residential_concrete"),
+    "infrastructure_bridge": ("infrastructure_road", "infrastructure_utility"),
+    "infrastructure_port": ("infrastructure_utility", "infrastructure_road"),
+}
+
 
 def _load_catalog() -> dict:
     global _CATALOG
@@ -22,6 +37,12 @@ def _load_catalog() -> dict:
     return _CATALOG
 
 
+def _asset_type_candidates(asset_type: str) -> set[str]:
+    candidates = {asset_type}
+    candidates.update(_ADAPTATION_ASSET_TYPE_CANDIDATES.get(asset_type, ()))
+    return candidates
+
+
 def list_measures(hazard: Optional[str] = None, asset_type: Optional[str] = None) -> List[dict]:
     """Return adaptation measures, optionally filtered by hazard and/or asset_type."""
     catalog = _load_catalog()
@@ -29,9 +50,11 @@ def list_measures(hazard: Optional[str] = None, asset_type: Optional[str] = None
     if hazard:
         measures = [m for m in measures if m["hazard"] == hazard]
     if asset_type:
+        asset_candidates = _asset_type_candidates(asset_type)
         measures = [
             m for m in measures
-            if not m.get("applicable_asset_types") or asset_type in m["applicable_asset_types"]
+            if not m.get("applicable_asset_types")
+            or bool(asset_candidates.intersection(m["applicable_asset_types"]))
         ]
     return measures
 
