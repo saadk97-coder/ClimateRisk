@@ -8,7 +8,7 @@ import pandas as pd
 import numpy as np
 
 from engine.asset_model import Asset as _Asset
-from engine.scenario_model import SCENARIOS, get_warming, get_hazard_multiplier, get_scenario_multipliers, get_slr_additive, HAZARD_SCALING_SOURCES
+import engine.scenario_model as _scenario_model
 from engine.hazard_fetcher import _load_baseline, get_region_zone
 from engine.impact_functions import get_damage_fraction, HAZARD_UNITS
 from engine.ead_calculator import calc_ead
@@ -16,6 +16,13 @@ from engine.data_sources import DATA_SOURCE_REGISTRY
 from engine.export_engine import export_audit_xlsx, df_to_xlsx
 from engine.fmt import currency_symbol as _currency_symbol
 from engine.governance import override_records as build_override_records
+
+SCENARIOS = getattr(_scenario_model, "SCENARIOS", {})
+get_warming = getattr(_scenario_model, "get_warming", None)
+get_hazard_multiplier = getattr(_scenario_model, "get_hazard_multiplier", None)
+get_scenario_multipliers = getattr(_scenario_model, "get_scenario_multipliers", None)
+get_slr_additive = getattr(_scenario_model, "get_slr_additive", None)
+HAZARD_SCALING_SOURCES = getattr(_scenario_model, "HAZARD_SCALING_SOURCES", {})
 
 st.set_page_config(page_title="Audit Trail", page_icon="🔍", layout="wide")
 
@@ -30,13 +37,32 @@ st.markdown(
     "complete step-by-step calculation, with source citations for every input."
 )
 
+missing_scenario_helpers = [
+    name for name, value in {
+        "SCENARIOS": SCENARIOS,
+        "get_warming": get_warming,
+        "get_hazard_multiplier": get_hazard_multiplier,
+        "get_scenario_multipliers": get_scenario_multipliers,
+        "get_slr_additive": get_slr_additive,
+        "HAZARD_SCALING_SOURCES": HAZARD_SCALING_SOURCES,
+    }.items()
+    if value is None or value == {}
+]
+if missing_scenario_helpers:
+    st.error(
+        "This deployment is missing scenario helpers required by the Audit page: "
+        + ", ".join(missing_scenario_helpers)
+        + ". The rest of the platform can still be used while this page is restored."
+    )
+    st.stop()
+
 assets = [_Asset.from_dict(a) if isinstance(a, dict) else a
           for a in st.session_state.get("assets", [])]
 annual_df = st.session_state.get("annual_damages", pd.DataFrame())
 hazard_data_all = st.session_state.get("hazard_data", {})
 hazard_data_by_scenario = st.session_state.get("hazard_data_by_scenario", {})
 hazard_overrides = st.session_state.get("hazard_overrides", {})
-selected_scenarios = st.session_state.get("selected_scenarios", list(SCENARIOS.keys())[:1])
+selected_scenarios = st.session_state.get("selected_scenarios") or list(SCENARIOS.keys())[:1]
 discount_rate = st.session_state.get("discount_rate", 0.035)
 _sym = _currency_symbol(st.session_state.get("currency_code", "GBP"))
 all_override_rows = build_override_records(hazard_overrides, assets)

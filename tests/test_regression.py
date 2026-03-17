@@ -789,3 +789,73 @@ def test_default_fetch_mode_is_balanced():
     from engine.hazard_fetcher import DEFAULT_FETCH_MODE
 
     assert DEFAULT_FETCH_MODE == "balanced"
+
+
+def test_methodology_hex_to_rgba_helper():
+    """Methodology helper should emit a Plotly-compatible rgba(...) string."""
+    import ast
+    import importlib
+
+    spec = importlib.util.find_spec("pages.00_Methodology")
+    with open(spec.origin, encoding="utf-8") as f:
+        source = f.read()
+
+    tree = ast.parse(source)
+    helper_node = next(
+        node for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == "_hex_to_rgba"
+    )
+    helper_module = ast.Module(body=[helper_node], type_ignores=[])
+    ast.fix_missing_locations(helper_module)
+    namespace = {}
+    exec(compile(helper_module, spec.origin, "exec"), namespace, namespace)
+
+    assert namespace["_hex_to_rgba"]("#1A3A5C", 0.09) == "rgba(26,58,92,0.09)"
+
+
+def test_scenario_model_exports_get_slr_additive():
+    """Audit and damage pages depend on get_slr_additive being importable."""
+    import engine.scenario_model as sm
+
+    assert callable(getattr(sm, "get_slr_additive", None))
+
+
+def test_fetch_all_hazards_compat_filters_unsupported_kwargs():
+    """Compatibility wrapper should drop kwargs unsupported by legacy fetch signatures."""
+    from engine.hazard_fetcher import call_fetch_all_hazards_compat
+
+    seen = {}
+
+    def _legacy_fetch(lat, lon, region_iso3, hazards, scenario_ssp="SSP2-4.5", time_period="2021_2040"):
+        seen["payload"] = {
+            "lat": lat,
+            "lon": lon,
+            "region_iso3": region_iso3,
+            "hazards": tuple(hazards),
+            "scenario_ssp": scenario_ssp,
+            "time_period": time_period,
+        }
+        return {"hazards": tuple(hazards)}
+
+    result = call_fetch_all_hazards_compat(
+        _legacy_fetch,
+        51.5,
+        -0.1,
+        "GBR",
+        ["flood", "wind"],
+        scenario_ssp="SSP2-4.5",
+        time_period="2021_2040",
+        terrain_elevation_asl_m=12.0,
+        asset_type="data_center",
+        fetch_mode="balanced",
+    )
+
+    assert result == {"hazards": ("flood", "wind")}
+    assert seen["payload"] == {
+        "lat": 51.5,
+        "lon": -0.1,
+        "region_iso3": "GBR",
+        "hazards": ("flood", "wind"),
+        "scenario_ssp": "SSP2-4.5",
+        "time_period": "2021_2040",
+    }

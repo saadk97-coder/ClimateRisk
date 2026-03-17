@@ -3,6 +3,7 @@ Page 4 – Results: Annual 2025–2050 EAD, PV discounting, scenario comparison,
 EP curves, tail-risk explainer, and xlsx/CSV export.
 """
 
+import inspect
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -58,6 +59,34 @@ def _fallback_build_fetch_signature(
 
 
 build_fetch_signature = getattr(_hazard_fetcher, "build_fetch_signature", _fallback_build_fetch_signature)
+
+
+def _fallback_call_fetch_all_hazards_compat(fetch_callable, lat, lon, region_iso3, hazards, **kwargs):
+    try:
+        signature = inspect.signature(fetch_callable)
+    except (TypeError, ValueError):
+        return fetch_callable(lat, lon, region_iso3, hazards)
+
+    accepts_var_kwargs = any(
+        parameter.kind == inspect.Parameter.VAR_KEYWORD
+        for parameter in signature.parameters.values()
+    )
+    if accepts_var_kwargs:
+        filtered_kwargs = kwargs
+    else:
+        supported = {
+            name for name, parameter in signature.parameters.items()
+            if parameter.kind != inspect.Parameter.VAR_KEYWORD
+        }
+        filtered_kwargs = {key: value for key, value in kwargs.items() if key in supported}
+    return fetch_callable(lat, lon, region_iso3, hazards, **filtered_kwargs)
+
+
+call_fetch_all_hazards_compat = getattr(
+    _hazard_fetcher,
+    "call_fetch_all_hazards_compat",
+    _fallback_call_fetch_all_hazards_compat,
+)
 
 st.set_page_config(page_title="Results", page_icon="📊", layout="wide")
 
@@ -121,29 +150,16 @@ def _hazards_for_asset(asset: _Asset) -> list[str]:
 
 
 def _fetch_asset_hazard_data(asset: _Asset, fetch_mode: str) -> tuple[str, str, dict]:
-    kwargs = {
-        "terrain_elevation_asl_m": getattr(asset, "terrain_elevation_asl_m", 0.0),
-        "asset_type": asset.asset_type,
-    }
-    try:
-        data = fetch_all_hazards(
-            asset.lat,
-            asset.lon,
-            asset.region,
-            _hazards_for_asset(asset),
-            fetch_mode=fetch_mode,
-            **kwargs,
-        )
-    except TypeError as exc:
-        if "fetch_mode" not in str(exc):
-            raise
-        data = fetch_all_hazards(
-            asset.lat,
-            asset.lon,
-            asset.region,
-            _hazards_for_asset(asset),
-            **kwargs,
-        )
+    data = call_fetch_all_hazards_compat(
+        fetch_all_hazards,
+        asset.lat,
+        asset.lon,
+        asset.region,
+        _hazards_for_asset(asset),
+        terrain_elevation_asl_m=getattr(asset, "terrain_elevation_asl_m", 0.0),
+        asset_type=asset.asset_type,
+        fetch_mode=fetch_mode,
+    )
     return asset.id, asset.name, data
 
 

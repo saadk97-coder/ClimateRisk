@@ -20,6 +20,7 @@ Built-in fallback values are compiled from:
     https://cds.climate.copernicus.eu/
 """
 
+import inspect
 import json
 import logging
 import os
@@ -27,7 +28,7 @@ from functools import lru_cache
 from threading import Lock
 import requests
 import numpy as np
-from typing import Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 from engine.data_sources import DATA_SOURCE_REGISTRY
 
@@ -77,6 +78,40 @@ def build_fetch_signature(
         str(asset_type or "default"),
         _normalize_fetch_mode(fetch_mode),
     )
+
+
+@lru_cache(maxsize=32)
+def _fetch_callable_profile(fetch_callable: Callable) -> tuple[frozenset[str], bool]:
+    """Return supported parameter names and whether the callable accepts **kwargs."""
+    try:
+        signature = inspect.signature(fetch_callable)
+    except (TypeError, ValueError):
+        return frozenset(), False
+
+    supported = set()
+    accepts_var_kwargs = False
+    for name, parameter in signature.parameters.items():
+        if parameter.kind == inspect.Parameter.VAR_KEYWORD:
+            accepts_var_kwargs = True
+            continue
+        supported.add(name)
+    return frozenset(supported), accepts_var_kwargs
+
+
+def call_fetch_all_hazards_compat(
+    fetch_callable: Callable[..., Dict[str, dict]],
+    lat: float,
+    lon: float,
+    region_iso3: str,
+    hazards: list,
+    **kwargs,
+) -> Dict[str, dict]:
+    """Call a hazard fetcher while filtering kwargs to the supported signature."""
+    supported, accepts_var_kwargs = _fetch_callable_profile(fetch_callable)
+    filtered_kwargs = kwargs if accepts_var_kwargs else {
+        key: value for key, value in kwargs.items() if key in supported
+    }
+    return fetch_callable(lat, lon, region_iso3, hazards, **filtered_kwargs)
 
 
 def _normalized_cache_args(

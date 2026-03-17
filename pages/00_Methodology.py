@@ -25,6 +25,16 @@ BSR = {
     "mid":     "#EDEDED",
 }
 
+
+def _hex_to_rgba(hex_color: str, alpha: float) -> str:
+    """Convert a #RRGGBB color to a Plotly-compatible rgba(...) string."""
+    color = str(hex_color).strip().lstrip("#")
+    if len(color) != 6:
+        raise ValueError(f"Expected a 6-digit hex color, got {hex_color!r}")
+    r, g, b = (int(color[index:index + 2], 16) for index in (0, 2, 4))
+    alpha_text = f"{float(alpha):g}"
+    return f"rgba({r},{g},{b},{alpha_text})"
+
 with st.sidebar:
     st.markdown(
         f"<div style='padding:8px 0;'>"
@@ -515,31 +525,37 @@ Log-normalised so all scores use the full 1–10 range even when one asset domin
 **Monte Carlo uncertainty (planned):** Engine supports 1,000-draw MC simulation with ±20% vulnerability CoV. Not yet rendered in UI outputs — planned for future release.
         """)
     with col_b:
-        rps = np.array([2, 5, 10, 25, 50, 100, 250, 500, 1000])
-        aep_ex = 1.0 / rps
-        losses_ex = 0.01 * (1 - np.exp(-0.003 * rps)) * 10_000_000
-        _trapz = getattr(np, "trapezoid", None) or getattr(np, "trapz")
-        ead_ex = _trapz(losses_ex[::-1], aep_ex[::-1])
-        fig_ep = go.Figure()
-        fig_ep.add_trace(go.Scatter(
-            x=losses_ex[::-1], y=aep_ex[::-1],
-            mode="lines+markers",
-            line=dict(color=BSR["navy"], width=2.5),
-            fill="tozeroy", fillcolor=f"{BSR['navy']}18",
-            name="EP curve",
-        ))
-        fig_ep.add_vline(x=ead_ex, line_dash="dot", line_color=BSR["red"],
-                         annotation_text=f"EAD")
-        fig_ep.update_layout(
-            title="Loss Exceedance Probability Curve",
-            xaxis_title="Loss ($)", yaxis_title="Annual Exceedance Prob.",
-            yaxis_type="log", height=260,
-            margin=dict(l=0,r=0,t=40,b=20),
-            plot_bgcolor="white", paper_bgcolor="white",
-            showlegend=False,
-        )
-        st.plotly_chart(fig_ep, use_container_width=True)
-        st.caption("Area under curve = EAD. Red dashed line marks the expected annual loss.")
+        try:
+            rps = np.array([2, 5, 10, 25, 50, 100, 250, 500, 1000])
+            aep_ex = 1.0 / rps
+            losses_ex = 0.01 * (1 - np.exp(-0.003 * rps)) * 10_000_000
+            _trapz = getattr(np, "trapezoid", None) or getattr(np, "trapz")
+            ead_ex = _trapz(losses_ex[::-1], aep_ex[::-1])
+            fig_ep = go.Figure()
+            fig_ep.add_trace(go.Scatter(
+                x=losses_ex[::-1], y=aep_ex[::-1],
+                mode="lines+markers",
+                line=dict(color=BSR["navy"], width=2.5),
+                fill="tozeroy", fillcolor=_hex_to_rgba(BSR["navy"], 0.09),
+                name="EP curve",
+            ))
+            fig_ep.add_vline(x=ead_ex, line_dash="dot", line_color=BSR["red"],
+                             annotation_text="EAD")
+            fig_ep.update_layout(
+                title="Loss Exceedance Probability Curve",
+                xaxis_title="Loss ($)", yaxis_title="Annual Exceedance Prob.",
+                yaxis_type="log", height=260,
+                margin=dict(l=0,r=0,t=40,b=20),
+                plot_bgcolor="white", paper_bgcolor="white",
+                showlegend=False,
+            )
+            st.plotly_chart(fig_ep, use_container_width=True)
+            st.caption("Area under curve = EAD. Red dashed line marks the expected annual loss.")
+        except Exception:
+            st.warning(
+                "The example EP curve could not be rendered on this deployment. "
+                "The rest of the methodology page remains available."
+            )
 
 # Step 6
 with st.expander(_step_header("6", "🛡️", "Adaptation ROI & DCF Impairment", BSR["green"]), expanded=False):
