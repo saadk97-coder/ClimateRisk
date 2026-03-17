@@ -34,7 +34,7 @@ from engine.risk_scorer import (
 from engine.insights import results_hotspots, render_insights_html
 
 fetch_all_hazards = _hazard_fetcher.fetch_all_hazards
-DEFAULT_FETCH_MODE = getattr(_hazard_fetcher, "DEFAULT_FETCH_MODE", "full")
+DEFAULT_FETCH_MODE = getattr(_hazard_fetcher, "DEFAULT_FETCH_MODE", "balanced")
 
 
 def _fallback_build_fetch_signature(
@@ -44,7 +44,7 @@ def _fallback_build_fetch_signature(
     hazards: list,
     terrain_elevation_asl_m: float = 0.0,
     asset_type: str = "default",
-    fetch_mode: str = "full",
+    fetch_mode: str = "balanced",
 ) -> tuple:
     return (
         round(float(lat), 5),
@@ -89,22 +89,19 @@ years = list(range(2025, 2051))
 asset_types_catalog = load_asset_types()
 override_rows = build_override_records(st.session_state.get("hazard_overrides", {}), assets)
 
+FETCH_MODE_OPTIONS = ["balanced", "full"]
 FETCH_MODE_LABELS = {
-    "fast": "Fast - screening speed",
-    "balanced": "Balanced - 2-GCM baseline",
-    "full": "Full - deepest fetch",
+    "balanced": "Balanced - recommended",
+    "full": "Full - deepest review",
 }
 FETCH_MODE_NOTES = {
-    "fast": "Fast uses one ISIMIP GCM for acute hazards and keeps wildfire on the fallback baseline. Best for larger screening portfolios.",
-    "balanced": "Balanced uses two ISIMIP GCMs for acute hazards and keeps wildfire on the fallback baseline. Good default trade-off.",
-    "full": "Full uses four ISIMIP GCMs and enables the full ISIMIP wildfire pipeline. This is the highest-fidelity baseline and is reused across pages once loaded.",
+    "balanced": "Balanced uses a 2-GCM ensemble median for acute hazards. This avoids the instability of a single-model extreme-value fit while staying materially faster than the full 4-GCM path.",
+    "full": "Full uses a 4-GCM ensemble median and the full ISIMIP wildfire pipeline. Use it for a smaller set of priority assets when you want the deepest baseline review.",
 }
 MAX_FETCH_WORKERS = max(1, min(8, os.cpu_count() or 4))
 
-if "hazard_fetch_mode" not in st.session_state:
-    st.session_state.hazard_fetch_mode = DEFAULT_FETCH_MODE
-if "hazard_fetch_workers" not in st.session_state:
-    st.session_state.hazard_fetch_workers = max(1, min(4, MAX_FETCH_WORKERS))
+if "hazard_fetch_mode" not in st.session_state or st.session_state.hazard_fetch_mode not in FETCH_MODE_OPTIONS:
+    st.session_state.hazard_fetch_mode = DEFAULT_FETCH_MODE if DEFAULT_FETCH_MODE in FETCH_MODE_OPTIONS else "balanced"
 if "hazard_data_meta" not in st.session_state:
     st.session_state.hazard_data_meta = {}
 
@@ -161,6 +158,15 @@ def _asset_fetch_signature(asset: _Asset, fetch_mode: str) -> tuple:
         fetch_mode=fetch_mode,
     )
 
+
+def _optimal_fetch_workers(asset_batch: list[_Asset], fetch_mode: str) -> int:
+    if not asset_batch:
+        return 1
+    avg_parallel_hazards = sum(max(1, min(3, len(_hazards_for_asset(asset)))) for asset in asset_batch) / len(asset_batch)
+    remote_budget = 18 if fetch_mode == "balanced" else 16
+    worker_guess = int(remote_budget // max(1.0, avg_parallel_hazards * 2.0))
+    return max(1, min(MAX_FETCH_WORKERS, len(asset_batch), max(1, worker_guess)))
+
 if not selected_scenarios:
     st.warning("No scenarios selected. Go to the Scenarios page.")
     st.stop()
@@ -175,33 +181,18 @@ with col_info:
         f"| Discount rate: {discount_rate*100:.1f}%"
     )
 
-worker_limit = max(1, min(MAX_FETCH_WORKERS, len(assets)))
-st.session_state.hazard_fetch_workers = max(
-    1,
-    min(int(st.session_state.hazard_fetch_workers), worker_limit),
+fetch_mode = st.selectbox(
+    "Fetch profile",
+    options=FETCH_MODE_OPTIONS,
+    index=FETCH_MODE_OPTIONS.index(st.session_state.hazard_fetch_mode),
+    format_func=lambda mode: FETCH_MODE_LABELS[mode],
+    key="hazard_fetch_mode",
+    help="Controls the ensemble depth used for acute hazards before the fallback baseline is used.",
 )
-
-perf_col1, perf_col2 = st.columns([3, 2])
-with perf_col1:
-    fetch_mode = st.selectbox(
-        "Performance profile",
-        options=list(FETCH_MODE_LABELS.keys()),
-        index=list(FETCH_MODE_LABELS.keys()).index(st.session_state.hazard_fetch_mode),
-        format_func=lambda mode: FETCH_MODE_LABELS[mode],
-        key="hazard_fetch_mode",
-        help="Controls how much external hazard data is pulled before the fallback baseline is used.",
-    )
-with perf_col2:
-    st.number_input(
-        "Parallel asset workers",
-        min_value=1,
-        max_value=worker_limit,
-        value=int(st.session_state.hazard_fetch_workers),
-        step=1,
-        key="hazard_fetch_workers",
-        help="Fetch different assets concurrently. Keep this modest to avoid API contention.",
-    )
 st.caption(FETCH_MODE_NOTES[fetch_mode])
+st.caption(
+    "Single-GCM mode is intentionally not exposed in the standard UI because a single model can materially shift return-period extremes for an individual asset."
+)
 
 if run_btn:
     hazard_data_flat = dict(st.session_state.get("hazard_data", {}))
@@ -221,7 +212,7 @@ if run_btn:
     if assets_to_fetch:
         with st.status(f"Fetching baseline hazard data for {len(assets_to_fetch)} asset(s)...", expanded=False) as fetch_status:
             fetch_progress = st.progress(0, text="Fetching baseline hazard data...")
-            max_workers = max(1, min(int(st.session_state.hazard_fetch_workers), len(assets_to_fetch)))
+            max_workers = _optimal_fetch_workers(assets_to_fetch, st.session_state.hazard_fetch_mode)
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 futures = {
                     executor.submit(

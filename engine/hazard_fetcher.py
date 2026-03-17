@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 BASE_URL = "https://api.isimip.org/v2"
 REQUEST_TIMEOUT = 10
-DEFAULT_FETCH_MODE = "full"
+DEFAULT_FETCH_MODE = "balanced"
 FETCH_MODE_MAX_GCMS = {
     "fast": 1,
     "balanced": 2,

@@ -771,3 +771,21 @@ def test_dcf_page_uses_scenario_toggle_language():
     assert "probability-weighted" not in source
     assert "weight by probability" not in source
     assert "valuation scenario" in source
+
+
+def test_hazard_pages_hide_worker_knob():
+    """Hazard and Results pages should auto-tune fetch concurrency instead of exposing worker counts."""
+    import importlib
+
+    for module_name in ["pages.03_Hazards", "pages.04_Results"]:
+        spec = importlib.util.find_spec(module_name)
+        with open(spec.origin, encoding="utf-8") as f:
+            source = f.read()
+        assert "Parallel asset workers" not in source
+
+
+def test_default_fetch_mode_is_balanced():
+    """The default fetch mode should use an ensemble path, not the single-GCM shortcut."""
+    from engine.hazard_fetcher import DEFAULT_FETCH_MODE
+
+    assert DEFAULT_FETCH_MODE == "balanced"
