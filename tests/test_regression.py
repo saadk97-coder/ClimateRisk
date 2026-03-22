@@ -859,3 +859,146 @@ def test_fetch_all_hazards_compat_filters_unsupported_kwargs():
         "scenario_ssp": "SSP2-4.5",
         "time_period": "2021_2040",
     }
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PCRAM 2.0 integration tests
+# ══════════════════════════════════════════════════════════════════════════════
+
+from engine.pcram import (
+    classify_hazard,
+    get_eu_taxonomy_hazards,
+    assess_materiality,
+    portfolio_materiality_summary,
+    build_case_comparison,
+    compute_aal,
+    compute_pml,
+    compute_pcram_ratios,
+    MATERIALITY_THRESHOLDS,
+)
+
+
+def test_pcram_hazard_classification_acute_vs_chronic():
+    """Platform hazards must be correctly classified as acute or chronic
+    per EU Taxonomy Annex A."""
+    acute = ["flood", "wind", "wildfire", "coastal_flood"]
+    chronic = ["heat", "water_stress"]
+    for h in acute:
+        cls = classify_hazard(h)
+        assert cls["type"] == "acute", f"{h} should be acute, got {cls['type']}"
+    for h in chronic:
+        cls = classify_hazard(h)
+        assert cls["type"] == "chronic", f"{h} should be chronic, got {cls['type']}"
+
+
+def test_pcram_eu_taxonomy_data_loads():
+    """EU Taxonomy hazard classification JSON must load and contain both
+    acute and chronic sections."""
+    tax = get_eu_taxonomy_hazards()
+    assert "acute" in tax
+    assert "chronic" in tax
+    assert "platform_hazard_classification" in tax
+    mapping = tax["platform_hazard_classification"]
+    assert len(mapping) == 6, f"Expected 6 platform hazards, got {len(mapping)}"
+
+
+def test_pcram_materiality_thresholds():
+    """Materiality assessment must return correct levels for known thresholds."""
+    assert assess_materiality(0.05)["level"] == "Low"
+    assert assess_materiality(0.3)["level"] == "Moderate"
+    assert assess_materiality(0.7)["level"] == "High"
+    assert assess_materiality(2.5)["level"] == "Critical"
+
+
+def test_pcram_materiality_boundary():
+    """Boundary values: exactly at threshold should cross to next level."""
+    assert assess_materiality(0.0)["level"] == "Low"
+    assert assess_materiality(MATERIALITY_THRESHOLDS["low"])["level"] == "Moderate"
+    assert assess_materiality(MATERIALITY_THRESHOLDS["moderate"])["level"] == "High"
+    assert assess_materiality(MATERIALITY_THRESHOLDS["critical"])["level"] == "Critical"
+
+
+def test_pcram_case_comparison_basic():
+    """Base Case vs Climate Case comparison must produce sensible values."""
+    comparison = build_case_comparison(
+        asset_id="TEST001",
+        asset_name="Test Asset",
+        asset_value=10_000_000,
+        scenario_id="current_policies",
+        annual_ead=50_000,
+        discount_rate=0.035,
+        horizon_years=25,
+    )
+    assert comparison.base_case_npv == 10_000_000
+    assert comparison.climate_case_npv < comparison.base_case_npv
+    assert comparison.climate_impact_pct > 0
+    assert comparison.climate_case_eal == 50_000
+    assert comparison.climate_case_ealr_pct == 0.5
+    assert comparison.resilience_case_npv is None  # no adaptation
+
+
+def test_pcram_aal_equals_ead():
+    """AAL must equal the sum of EAD at the latest year for a given asset."""
+    df = pd.DataFrame({
+        "asset_id": ["A", "A", "A", "A"],
+        "scenario_id": ["cp", "cp", "cp", "cp"],
+        "year": [2025, 2025, 2050, 2050],
+        "hazard": ["flood", "wind", "flood", "wind"],
+        "ead": [1000, 500, 2000, 1000],
+        "pv": [1000, 500, 1500, 750],
+    })
+    aal = compute_aal(df, "A", "cp")
+    assert aal == 3000.0  # 2000 + 1000 at year 2050
+
+
+def test_pcram_pml_at_p90():
+    """PML must return a reasonable P90 value from the annual EAD."""
+    years = list(range(2025, 2051))
+    rows = []
+    for y in years:
+        rows.append({"asset_id": "A", "scenario_id": "cp", "year": y,
+                      "hazard": "flood", "ead": float(y - 2024) * 100, "pv": 0})
+    df = pd.DataFrame(rows)
+    pml = compute_pml(df, "A", 10_000_000, "cp")
+    # P90 of [100, 200, ..., 2600] should be around 2340
+    assert pml > 2000
+    assert pml < 2600
+
+
+def test_pcram_ratios_zero_value():
+    """PCRAM ratios must handle zero asset value gracefully."""
+    ratios = compute_pcram_ratios(1000, 5000, 0)
+    assert ratios["aal_pct"] == 0.0
+    assert ratios["pml_pct"] == 0.0
+
+
+def test_pcram_ratios_normal():
+    """PCRAM ratios must compute correctly."""
+    ratios = compute_pcram_ratios(10000, 50000, 1_000_000)
+    assert abs(ratios["aal_pct"] - 1.0) < 1e-6
+    assert abs(ratios["pml_pct"] - 5.0) < 1e-6
+    assert abs(ratios["aal_npv_ratio"] - 0.01) < 1e-6
+
+
+def test_pcram_portfolio_materiality_summary():
+    """Portfolio materiality summary must produce one row per asset/hazard."""
+    asset = _make_asset()
+    df = pd.DataFrame({
+        "asset_id": [asset.id, asset.id],
+        "scenario_id": ["cp", "cp"],
+        "year": [2050, 2050],
+        "hazard": ["flood", "heat"],
+        "ead": [50000, 5000],
+        "pv": [40000, 4000],
+    })
+    mat = portfolio_materiality_summary(df, [asset], "cp", 2050)
+    assert len(mat) == 2
+    assert set(mat["hazard"]) == {"flood", "heat"}
+    assert "materiality" in mat.columns
+    assert "hazard_type" in mat.columns
+    # flood EALR = 50000/10M * 100 = 0.5% → High
+    flood_row = mat[mat["hazard"] == "flood"].iloc[0]
+    assert flood_row["materiality"] == "High"
+    # heat EALR = 5000/10M * 100 = 0.05% → Low
+    heat_row = mat[mat["hazard"] == "heat"].iloc[0]
+    assert heat_row["materiality"] == "Low"

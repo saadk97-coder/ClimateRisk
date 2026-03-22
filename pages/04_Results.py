@@ -1191,7 +1191,118 @@ else:
     st.info("Run the damage calculation to perform stranded asset analysis.")
 
 # ══════════════════════════════════════════════════════════════════════════════
-# SECTION 8 — Historical Reference Panel
+# SECTION 8 — PCRAM 2.0 Materiality Assessment
+# ══════════════════════════════════════════════════════════════════════════════
+st.divider()
+st.subheader("PCRAM 2.0 — Materiality Assessment")
+
+with st.popover("ℹ️ What is PCRAM materiality?"):
+    st.markdown("""
+**PCRAM Step 2 — Materiality Assessment**
+
+The IIGCC Physical Climate Risk Appraisal Methodology (PCRAM) 2.0 classifies
+hazard exposure by financial materiality:
+
+| EALR %     | Materiality | PCRAM Action |
+|-----------|-------------|--------------|
+| < 0.1%    | Low         | Monitor; include in risk register |
+| 0.1–0.5%  | Moderate    | Investigate; assess adaptation need |
+| 0.5–1.0%  | High        | Proceed to Resilience Building (Step 3) |
+| > 2.0%    | Critical    | Urgent resilience intervention required |
+
+**Acute vs chronic** (EU Taxonomy Annex A):
+- Acute hazards (flood, wind, wildfire) → maintenance & life-cycle costs
+- Chronic hazards (heat, water stress) → performance impacts
+
+**Resilience metrics** (PCRAM Step 4b):
+- **AAL** (Average Annual Loss) = EAD — expected annual damage
+- **PML** (Probable Maximum Loss) = P90 annual damage — tail risk proxy
+- Ratios AAL/NPV and PML/NPV inform insurability and credit quality
+
+*Reference: IIGCC (2025). PCRAM 2.0. iigcc.org/resources/pcram*
+    """)
+
+if annual_df is not None and not annual_df.empty and assets:
+    from engine.pcram import (
+        portfolio_materiality_summary as _pcram_materiality,
+        compute_aal as _pcram_aal,
+        compute_pml as _pcram_pml,
+        compute_pcram_ratios as _pcram_ratios,
+        classify_hazard as _pcram_classify,
+        assess_materiality as _pcram_assess_mat,
+        MATERIALITY_THRESHOLDS as _MAT_THRESH,
+    )
+
+    # Materiality threshold legend
+    _thresh_cols = st.columns(4)
+    _thresh_items = [
+        (f"< {_MAT_THRESH['low']}%", "Low", "#2A9D8F"),
+        (f"{_MAT_THRESH['low']}–{_MAT_THRESH['moderate']}%", "Moderate", "#E9C46A"),
+        (f"{_MAT_THRESH['moderate']}–{_MAT_THRESH['high']}%", "High", "#F4721A"),
+        (f"> {_MAT_THRESH['critical']}%", "Critical", "#C94040"),
+    ]
+    for _tc, (_rng, _lbl, _clr) in zip(_thresh_cols, _thresh_items):
+        with _tc:
+            st.markdown(
+                f"<div style='background:{_clr}22;border:1px solid {_clr};border-radius:6px;"
+                f"padding:8px;text-align:center;'>"
+                f"<div style='font-weight:700;color:{_clr};'>{_lbl}</div>"
+                f"<div style='font-size:12px;color:#555;'>{_rng}</div></div>",
+                unsafe_allow_html=True,
+            )
+
+    # Materiality table
+    _mat_df = _pcram_materiality(annual_df, assets, view_scenario, 2050)
+    if not _mat_df.empty:
+        # Summary counts
+        _mc1, _mc2, _mc3, _mc4 = st.columns(4)
+        _mc1.metric("Critical", int((_mat_df["materiality"] == "Critical").sum()))
+        _mc2.metric("High", int((_mat_df["materiality"] == "High").sum()))
+        _mc3.metric("Moderate", int((_mat_df["materiality"] == "Moderate").sum()))
+        _mc4.metric("Low", int((_mat_df["materiality"] == "Low").sum()))
+
+        _mat_display = _mat_df[[
+            "asset_name", "hazard", "hazard_type", "ead", "ealr_pct",
+            "materiality", "pcram_action",
+        ]].copy()
+        _mat_display["ead"] = _mat_display["ead"].apply(lambda x: _fmt_cur(x, _cur))
+        _mat_display["ealr_pct"] = _mat_display["ealr_pct"].apply(lambda x: f"{x:.3f}%")
+        _mat_display.columns = ["Asset", "Hazard", "Type", "AAL (EAD)", "EALR %",
+                                "Materiality", "PCRAM Action"]
+        st.dataframe(_mat_display, use_container_width=True, hide_index=True)
+
+        # PCRAM resilience metrics
+        st.markdown("**PCRAM Resilience Metrics — AAL & PML**")
+        st.caption(
+            "AAL (Average Annual Loss) = EAD. PML (Probable Maximum Loss) = P90 annual loss. "
+            "Ratios to NPV (asset value) per PCRAM Step 4b."
+        )
+        _pcram_metric_rows = []
+        for _pa in assets:
+            _aal = _pcram_aal(annual_df, _pa.id, view_scenario)
+            _pml = _pcram_pml(annual_df, _pa.id, _pa.replacement_value, view_scenario)
+            _ratios = _pcram_ratios(_aal, _pml, _pa.replacement_value)
+            _pcram_metric_rows.append({
+                "Asset": _pa.name,
+                "Value": _fmt_cur(_pa.replacement_value, _cur),
+                "AAL": _fmt_cur(_aal, _cur),
+                "AAL/NPV": f"{_ratios['aal_pct']:.3f}%",
+                "PML (P90)": _fmt_cur(_pml, _cur),
+                "PML/NPV": f"{_ratios['pml_pct']:.3f}%",
+            })
+        if _pcram_metric_rows:
+            st.dataframe(pd.DataFrame(_pcram_metric_rows), use_container_width=True, hide_index=True)
+
+    st.caption(
+        "Materiality classification aligned with IIGCC PCRAM 2.0 (2025). "
+        "Thresholds are screening-level guidance — adjust to your organisation's risk appetite. "
+        "EU Taxonomy hazard classification per Delegated Act 2021/2139, Annex A."
+    )
+else:
+    st.info("Run the damage calculation to generate PCRAM materiality assessment.")
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SECTION 9 — Historical Reference Panel
 # ══════════════════════════════════════════════════════════════════════════════
 st.divider()
 st.subheader("Historical Context")

@@ -262,10 +262,32 @@ st.markdown(
 | [TCFD guidance ->](https://www.fsb-tcfd.org/recommendations/)
 
 This module translates physical climate risk into **financial impairment of asset value** using a
-scenario-based discounted cash flow framework. It is suitable for scenario testing and impairment
-screening, not as a substitute for a valuation-grade underwriting or transaction model.
+scenario-based discounted cash flow framework, aligned with **PCRAM 2.0 Step 4 — Value Enhancement**
+(IIGCC, 2025). It is suitable for scenario testing and impairment screening, not as a substitute
+for a valuation-grade underwriting or transaction model.
 """
 )
+
+with st.expander("ℹ️ PCRAM 2.0 Step 4 — Value Enhancement Assessment", expanded=False):
+    st.markdown("""
+**PCRAM Step 4** determines the investment case for resilience and optimises risk transfer:
+
+- **4a) Risk Transfer & Insurability** — explore insurance mechanisms (parametric products,
+  "build back better" models) that complement engineering resilience
+- **4b) Investment Case for Resilience** — compare Base Case vs Climate Case vs Resilience Case
+  via IRR, life-cycle costs, and bespoke resilience metrics (AAL/NPV, PML/NPV)
+
+**Key considerations** (from PCRAM 2.0 case studies):
+- Resilience may reduce nominal returns but improve cash flow stability and credit quality
+- Lower risk on exit: reduced required IRR for new investors due to improved risk profile
+- Climate risk reflected in either cash flows or cost of equity — avoid double-counting
+- Discount rate adjustment for resilient assets is still under industry development
+
+**Resilience value loop** (PCRAM Figure 8):
+Resilience metrics → Improved insurability → Improved credit quality → Enhanced investment value
+
+*Reference: IIGCC (2025). PCRAM 2.0, Steps 4a–4b.*
+    """)
 
 assets = [_Asset.from_dict(asset) if isinstance(asset, dict) else asset for asset in st.session_state.get("assets", [])]
 annual_df = st.session_state.get("annual_damages", pd.DataFrame())

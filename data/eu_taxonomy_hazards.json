@@ -1,0 +1,80 @@
+{
+  "_source": "EU Taxonomy Regulation, Annex A — Climate-related hazards classification (Delegated Act 2021/2139)",
+  "_pcram_ref": "IIGCC PCRAM 2.0 (2025), Appendix A",
+  "_note": "Maps EU Taxonomy hazard categories to this platform's supported hazard types",
+
+  "chronic": {
+    "temperature_related": {
+      "hazards": [
+        {"eu_label": "Changing temperature (air, freshwater, marine water)", "platform_hazard": null},
+        {"eu_label": "Heat stress", "platform_hazard": "heat"},
+        {"eu_label": "Temperature variability", "platform_hazard": null},
+        {"eu_label": "Permafrost thawing", "platform_hazard": null}
+      ]
+    },
+    "wind_related": {
+      "hazards": [
+        {"eu_label": "Changing wind patterns", "platform_hazard": null}
+      ]
+    },
+    "water_related": {
+      "hazards": [
+        {"eu_label": "Changing precipitation patterns and types (rain, hail, snow/ice)", "platform_hazard": null},
+        {"eu_label": "Precipitation or hydrological variability", "platform_hazard": null},
+        {"eu_label": "Ocean acidification", "platform_hazard": null},
+        {"eu_label": "Saline intrusion", "platform_hazard": null},
+        {"eu_label": "Sea level rise", "platform_hazard": "coastal_flood"},
+        {"eu_label": "Water stress", "platform_hazard": "water_stress"}
+      ]
+    },
+    "solid_mass_related": {
+      "hazards": [
+        {"eu_label": "Coastal erosion", "platform_hazard": null},
+        {"eu_label": "Soil degradation", "platform_hazard": null},
+        {"eu_label": "Soil erosion", "platform_hazard": null},
+        {"eu_label": "Solifluction", "platform_hazard": null}
+      ]
+    }
+  },
+
+  "acute": {
+    "temperature_related": {
+      "hazards": [
+        {"eu_label": "Heat wave", "platform_hazard": "heat"},
+        {"eu_label": "Cold wave / frost", "platform_hazard": null},
+        {"eu_label": "Wildfire", "platform_hazard": "wildfire"}
+      ]
+    },
+    "wind_related": {
+      "hazards": [
+        {"eu_label": "Cyclone, hurricane, typhoon", "platform_hazard": "wind"},
+        {"eu_label": "Storm (including blizzards, dust and sandstorms)", "platform_hazard": "wind"},
+        {"eu_label": "Tornado", "platform_hazard": "wind"}
+      ]
+    },
+    "water_related": {
+      "hazards": [
+        {"eu_label": "Drought", "platform_hazard": "water_stress"},
+        {"eu_label": "Heavy precipitation (rain, hail, snow/ice)", "platform_hazard": "flood"},
+        {"eu_label": "Flood (coastal, fluvial, pluvial, ground water)", "platform_hazard": "flood"},
+        {"eu_label": "Glacial lake outburst", "platform_hazard": null}
+      ]
+    },
+    "solid_mass_related": {
+      "hazards": [
+        {"eu_label": "Avalanche", "platform_hazard": null},
+        {"eu_label": "Landslide", "platform_hazard": null},
+        {"eu_label": "Subsidence", "platform_hazard": null}
+      ]
+    }
+  },
+
+  "platform_hazard_classification": {
+    "flood":         {"type": "acute", "eu_category": "water_related",       "impact_pathway": "maintenance_lifecycle", "pcram_impact": ["maintenance", "life_cycle"]},
+    "wind":          {"type": "acute", "eu_category": "wind_related",        "impact_pathway": "maintenance_lifecycle", "pcram_impact": ["maintenance", "performance", "life_cycle"]},
+    "wildfire":      {"type": "acute", "eu_category": "temperature_related", "impact_pathway": "maintenance_lifecycle", "pcram_impact": ["maintenance", "life_cycle"]},
+    "heat":          {"type": "chronic", "eu_category": "temperature_related", "impact_pathway": "performance",        "pcram_impact": ["performance"]},
+    "coastal_flood": {"type": "acute", "eu_category": "water_related",       "impact_pathway": "maintenance_lifecycle", "pcram_impact": ["maintenance", "life_cycle"]},
+    "water_stress":  {"type": "chronic", "eu_category": "water_related",     "impact_pathway": "performance",          "pcram_impact": ["performance"]}
+  }
+}

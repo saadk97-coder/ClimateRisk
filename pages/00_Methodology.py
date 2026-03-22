@@ -637,6 +637,91 @@ _SOURCES = pd.DataFrame([
 
 st.dataframe(_SOURCES, use_container_width=True, hide_index=True)
 
+# ════════════════════════════════════════════════════════════════════════════
+# PCRAM 2.0 ALIGNMENT
+# ════════════════════════════════════════════════════════════════════════════
+st.markdown(f"<h2 style='color:{BSR['navy']};margin-top:32px;'>PCRAM 2.0 Alignment</h2>", unsafe_allow_html=True)
+
+st.markdown(
+    """
+This platform's workflow is aligned with the **IIGCC Physical Climate Risk Appraisal
+Methodology (PCRAM) 2.0** (2025) — a cross-industry framework developed by 35 institutions
+for integrating physical climate risks into investment decision-making.
+
+PCRAM 2.0 defines a four-step process with decision gates:
+    """
+)
+
+_pcram_steps = [
+    {"step": "1", "name": "Scoping & Data Gathering", "gate": "A",
+     "platform": "Portfolio → Scenarios → Hazards",
+     "desc": "Define scope, identify hazards per asset type, fetch baseline data with provenance tracking",
+     "color": BSR["navy"]},
+    {"step": "2", "name": "Materiality Assessment", "gate": "B",
+     "platform": "Results → Audit → Vulnerability",
+     "desc": "Quantify exposure (EAD/EALR), classify acute vs chronic impacts, Base Case vs Climate Case",
+     "color": BSR["orange"]},
+    {"step": "3", "name": "Resilience Building", "gate": "C",
+     "platform": "Adaptation",
+     "desc": "Identify adaptation options, NPV cost-benefit, Resilience Case cashflows",
+     "color": BSR["teal"]},
+    {"step": "4", "name": "Value Enhancement", "gate": "D",
+     "platform": "DCF → Map → Governance",
+     "desc": "Climate-adjusted valuation, IRR comparison, stranded asset analysis, resilience metrics",
+     "color": BSR["green"]},
+]
+
+_pcram_cols = st.columns(4)
+for _pc, _ps in zip(_pcram_cols, _pcram_steps):
+    with _pc:
+        st.markdown(
+            f"""
+            <div style="background:{_ps['color']}14;border:1.5px solid {_ps['color']}44;
+                        border-radius:10px;padding:16px;min-height:180px;position:relative;overflow:hidden;">
+              <div style="position:absolute;top:-14px;left:14px;
+                          background:{_ps['color']};color:white;
+                          font-size:12px;font-weight:800;border-radius:20px;
+                          padding:2px 10px;line-height:1.6;">
+                PCRAM {_ps['step']} · Gate {_ps['gate']}
+              </div>
+              <div style="font-weight:700;font-size:14px;color:{_ps['color']};margin:16px 0 4px 0;">
+                {_ps['name']}
+              </div>
+              <div style="font-size:12px;color:#444;line-height:1.5;margin-bottom:8px;">
+                {_ps['desc']}
+              </div>
+              <div style="font-size:11px;color:#888;border-top:1px solid #ddd;padding-top:6px;">
+                <strong>Pages:</strong> {_ps['platform']}
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+st.markdown(
+    """
+**Acute vs chronic hazard framing** (per PCRAM Step 2b and EU Taxonomy Annex A):
+- **Acute hazards** (flood, wind, wildfire, coastal flood) → maintenance and life-cycle costs
+  (repair, replacement, downtime)
+- **Chronic hazards** (heat, water stress) → ongoing performance impacts (efficiency, availability,
+  operating costs)
+
+**Base Case / Climate Case / Resilience Case** (PCRAM Steps 2d–3c):
+- **Base Case** = asset value without physical climate risk
+- **Climate Case** = asset value reduced by PV of expected annual damages
+- **Resilience Case** = Climate Case with adaptation measures applied — drives the investment case
+
+**PCRAM resilience metrics** (Step 4b): AAL (Average Annual Loss = EAD), PML (Probable Maximum
+Loss), and their ratios to asset NPV (AAL/NPV, PML/NPV) are available on the Results page.
+    """
+)
+
+st.caption(
+    "**Reference:** IIGCC (2025). *Physical Climate Risk Appraisal Methodology (PCRAM) 2.0*. "
+    "[iigcc.org/resources/pcram](https://www.iigcc.org/resources/pcram) · "
+    "EU Taxonomy Delegated Act 2021/2139, Annex A."
+)
+
 st.markdown(
     f"""
     <div style="background:{BSR['light']};border-left:4px solid {BSR['orange']};
@@ -645,6 +730,8 @@ st.markdown(
       science and peer-reviewed vulnerability functions. Uncertainty bounds reflect vulnerability
       function uncertainty only; scenario uncertainty is captured by running multiple scenarios.
       Consult licensed climate risk specialists for regulatory disclosures (TCFD, CSRD, ISSB S2).
+      Full PCRAM compliance requires multi-disciplinary teams (climate science, engineering, finance)
+      and site-specific data beyond automated portfolio screening.
     </div>
     """,
     unsafe_allow_html=True,

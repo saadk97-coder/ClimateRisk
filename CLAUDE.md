@@ -314,6 +314,43 @@ SLR_effect = additive_slr_m  (from COASTAL_SLR_ADDITIVE_M table)
 final_intensity = (depth_above_floor + SLR_effect) × storminess_multiplier
 ```
 
+## PCRAM 2.0 Integration (Session 8)
+
+### IIGCC Physical Climate Risk Appraisal Methodology alignment
+The platform's workflow is now mapped to PCRAM 2.0's four-step framework:
+
+| PCRAM Step | Name | Platform Pages | Key Features |
+|-----------|------|---------------|--------------|
+| Step 1 | Scoping & Data Gathering | Portfolio, Scenarios, Hazards | Hazard identification, SSP selection, ISIMIP data with provenance |
+| Step 2 | Materiality Assessment | Results, Audit, Vulnerability | EALR-based materiality (Low/Moderate/High/Critical), EU Taxonomy acute/chronic classification, AAL/PML metrics |
+| Step 3 | Resilience Building | Adaptation | NPV cost-benefit, adaptation pathways concept, resilience categorisation (preparedness/resistance/recoverability) |
+| Step 4 | Value Enhancement | DCF, Map, Governance | Climate-adjusted DCF, IRR comparison framing, stranded asset analysis, resilience value loop |
+
+### New files
+| File | Purpose |
+|------|---------|
+| `engine/pcram.py` | PCRAM framework engine: EU Taxonomy classification, materiality scoring, Base/Climate/Resilience case comparison, AAL/PML/ratio metrics |
+| `data/eu_taxonomy_hazards.json` | EU Taxonomy Annex A hazard classification mapped to platform's 6 hazards |
+
+### Updated files
+| File | Change |
+|------|--------|
+| `app.py` | PCRAM 2.0 reference in tagline, features, and source citations |
+| `pages/00_Methodology.py` | PCRAM 2.0 alignment section with 4-step cards, acute/chronic framing, Base/Climate/Resilience Case explanation |
+| `pages/04_Results.py` | PCRAM materiality assessment section: threshold legend, materiality table, AAL/PML resilience metrics |
+| `pages/06_Adaptation.py` | PCRAM Step 3 framing in title + expandable methodology reference |
+| `pages/07_DCF.py` | PCRAM Step 4 framing + value enhancement expandable reference |
+| `tests/test_regression.py` | 10 new PCRAM tests (hazard classification, materiality thresholds, case comparison, AAL/PML, portfolio summary) |
+
+### PCRAM metrics
+- **AAL** (Average Annual Loss) = EAD — terminology alignment with PCRAM
+- **PML** (Probable Maximum Loss) = P90 annual damage — screening-level tail proxy
+- **AAL/NPV** and **PML/NPV** ratios per PCRAM Step 4b guidance
+- **Materiality thresholds**: Low (<0.1%), Moderate (0.1–0.5%), High (0.5–1.0%), Critical (>2.0%)
+
+### Test coverage (54 tests after Session 8)
+| `tests/test_regression.py` | 10 new PCRAM tests: EU Taxonomy loading, acute/chronic classification, materiality thresholds, boundary values, case comparison, AAL=EAD, PML P90, zero-value ratios, normal ratios, portfolio materiality summary |
+
 ## Known Limitations (acknowledged, not yet addressed)
 - **ISIMIP flood is a precipitation proxy** — uses Rx1day → empirical depth scaling, NOT a hydraulic model
 - **ISIMIP time chunks** — hardcoded to historical 1991-2014; fewer years (~24) than ideal for GEV

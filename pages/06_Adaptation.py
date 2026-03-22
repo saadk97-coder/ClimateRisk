@@ -42,10 +42,31 @@ with st.sidebar:
 
 st.title("Adaptation Measures")
 st.markdown(
-    "NPV-based multi-year cost-benefit analysis for adaptation investments. "
+    "NPV-based multi-year cost-benefit analysis for adaptation investments, "
+    "aligned with **PCRAM 2.0 Step 3 — Resilience Building** (IIGCC, 2025). "
     "All benefits are computed against the **full 2025-2050 annual damage stream** "
     "so that escalating climate risk is properly captured."
 )
+
+with st.expander("ℹ️ PCRAM 2.0 Step 3 — Resilience Building", expanded=False):
+    st.markdown("""
+**PCRAM Step 3** identifies and evaluates adaptation options for material climate risks:
+
+- **3a) Identify Adaptation Options** — structural (capex) and non-structural (operational)
+  measures, screened by cost, market maturity, and environmental impact
+- **3b) Reassess Materiality** — repeat Step 2 with adaptation in place to quantify
+  residual risk
+- **3c) Cost-Benefit Analysis** — compare Base Case, Climate Case, and Resilience Case
+  cashflows via IRR, NPV, and life-cycle cost comparisons
+- **3d) Adaptation Pathways** — flexible, trigger-based decision sequencing per BS 8631:2021
+
+**Resilience categorisation** (per PCRAM 2.0):
+- **Preparedness**: Early warning, monitoring, contingency plans
+- **Resistance**: Structural interventions (flood barriers, wind reinforcement)
+- **Recoverability**: Post-event response, backup systems, rapid repair
+
+*Reference: IIGCC (2025). PCRAM 2.0, Steps 3a–3d.*
+    """)
 
 from engine.asset_model import Asset as _Asset
 assets = [_Asset.from_dict(a) if isinstance(a, dict) else a for a in st.session_state.get("assets", [])]

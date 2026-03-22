@@ -96,7 +96,8 @@ st.markdown(
 )
 
 st.markdown(
-    "Physical climate risk screening aligned with **BSR Climate Scenarios 2025** (NGFS Phase V). "
+    "Physical climate risk screening aligned with **BSR Climate Scenarios 2025** (NGFS Phase V) "
+    "and the **IIGCC Physical Climate Risk Appraisal Methodology (PCRAM) 2.0** (2025). "
     "Translates hazard exposure into asset-level financial damage estimates with source citations "
     "and audit trails. Suitable for portfolio screening and risk triage — not a substitute for "
     "site-specific engineering assessments or professional catastrophe modelling."
@@ -131,6 +132,8 @@ st.markdown("""
 | 8 | **Audit** | Step-by-step calculation trace for any asset/scenario/year |
 | 9 | **Vulnerability** | Damage functions with structural failure pathways and component-level analysis |
 | 10 | **Governance** | Model scope, validation status, lineage controls, and known limitations |
+
+*Workflow aligned with IIGCC PCRAM 2.0: Steps 1–2 (Scoping & Materiality) → Step 3 (Resilience Building) → Step 4 (Value Enhancement).*
 """)
 
 st.divider()
@@ -142,14 +145,16 @@ with col1:
     st.markdown("""
 - **Climate Exposure Score** (1–10) per hazard per asset — normalised, comparable across portfolio
 - **Expected Annual Loss Ratio (EALR %)** — expected damage as % of asset value
+- **PCRAM materiality assessment** — Low / Moderate / High / Critical classification
+- **AAL/NPV & PML/NPV** resilience metrics (PCRAM 2.0 Step 4b)
 - **Stranded asset flags** — where cumulative climate costs exceed value thresholds
-- **30-year forward risk projection** per scenario
     """)
 with col2:
     st.markdown("### 🌍 Data & Scenarios")
     st.markdown("""
 - **BSR Climate Scenarios 2025** with regional qualitative narratives (incl. *Fragmented World*)
 - **6 hazards**: Flood, Wind, Wildfire, Heat, Coastal Flood, Water Stress
+- **EU Taxonomy Annex A** hazard classification (acute vs chronic)
 - **ISIMIP3b** historical baseline plus coastal and water-stress specialist pathways
 - **WRI Aqueduct 4.0** — water stress projections to 2050
     """)
@@ -183,5 +188,7 @@ st.caption(
     "**Scenario source:** [BSR Climate Scenarios 2025](https://www.bsr.org/en/reports/bsr-climate-scenarios-2025) · "
     "[NGFS Phase V (Nov 2023)](https://www.ngfs.net/ngfs-scenarios-portal/) · "
     "[IPCC AR6 (2021)](https://www.ipcc.ch/report/ar6/wg1/) · "
-    "[IEA WEO 2023](https://www.iea.org/reports/world-energy-outlook-2023)"
+    "[IEA WEO 2023](https://www.iea.org/reports/world-energy-outlook-2023)\n\n"
+    "**Methodology:** [IIGCC PCRAM 2.0 (2025)](https://www.iigcc.org/resources/pcram) · "
+    "EU Taxonomy Delegated Act 2021/2139, Annex A"
 )
