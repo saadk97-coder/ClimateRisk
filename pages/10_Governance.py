@@ -46,7 +46,7 @@ scope_df = pd.DataFrame(
         {"Area": "Core results", "Position": RESULTS_POSITIONING},
         {"Area": "Baseline data pathway", "Position": BASELINE_METHOD},
         {"Area": "DCF", "Position": DCF_POSITIONING},
-        {"Area": "Evidence exports", "Position": "Workbook exports carry run metadata, source lineage, method notes, and manual override provenance where applicable."},
+        {"Area": "Evidence exports", "Position": "Workbook exports carry run metadata, per-asset hazard provenance, provider-event diagnostics, and manual override provenance where a Results run has been executed in this session."},
     ]
 )
 st.dataframe(scope_df, use_container_width=True, hide_index=True)
@@ -63,10 +63,10 @@ st.subheader("Control Expectations")
 st.markdown(
     """
 - Manual hazard overrides require an override basis, evidence note, preparer, and UTC timestamp.
-- Results and audit workbooks include lineage metadata and a dedicated manual-override sheet when overrides are active.
+- Results and audit workbooks include run metadata, per-asset hazard provenance, provider-event diagnostics, and a dedicated manual-override sheet when overrides are active.
 - Vulnerability downloads now expose alias-resolved control points so the reference surface matches the engine path.
 - CSV uploads are validated for required schema, duplicate IDs, coordinate bounds, asset type, and ISO3 region code before import.
-- Scenario weights in the DCF page must total 100%; the model no longer silently normalises them.
+- The DCF page compares scenario-specific valuations side by side; it does not probability-weight scenario NPVs in the current workflow.
 """
 )
 
@@ -90,6 +90,8 @@ st.markdown(
 - Water stress is handled through a chronic pathway using Aqueduct-derived damage fractions rather than event-style EP integration.
 - Zone overrides remain a preview aid on the Hazards page and do not rewrite portfolio country mapping in the Results engine.
 - The DCF module is a scenario-testing tool; replacement-value mode is intentionally labeled as a screening proxy.
+- Portfolio aggregation uses hazard-specific distance-decay correlations and should still be treated as screening-level diversification logic rather than institution-grade dependence modelling.
+- Bundled adaptation outputs now sequence measures on residual hazard loss, but cross-hazard interactions and order sensitivity remain approximate.
 """
 )
 

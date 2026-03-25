@@ -13,13 +13,14 @@ import math
 from engine.fmt import currency_symbol as _currency_symbol, fmt as _fmt_cur
 from engine.adaptation_engine import (
     list_measures,
-    calc_adaptation,
+    classify_measure_mechanism,
+    calc_adaptation_bundle_npv,
     calc_adaptation_npv,
-    portfolio_adaptation_frontier,
     portfolio_adaptation_frontier_npv,
-    AdaptationResult,
+    AdaptationBundleResult,
     AdaptationNPVResult,
 )
+from engine.asset_model import normalize_asset_state
 from engine.scenario_model import SCENARIOS
 from engine.export_engine import export_adaptation_xlsx
 
@@ -32,10 +33,12 @@ _BSR = {
     "light": "#F8F4F0",
 }
 
+assets = normalize_asset_state(st.session_state)
+
 with st.sidebar:
     st.header("Portfolio Summary")
-    n = len(st.session_state.get("assets", []))
-    total_val = sum(a.replacement_value for a in st.session_state.get("assets", []))
+    n = len(assets)
+    total_val = sum(a.replacement_value for a in assets)
     _cur = st.session_state.get("currency_code", "GBP")
     st.metric("Assets", n)
     st.metric("Total Value", _fmt_cur(total_val, _cur))
@@ -47,8 +50,6 @@ st.markdown(
     "so that escalating climate risk is properly captured."
 )
 
-from engine.asset_model import Asset as _Asset
-assets = [_Asset.from_dict(a) if isinstance(a, dict) else a for a in st.session_state.get("assets", [])]
 annual_df: pd.DataFrame = st.session_state.get("annual_damages", pd.DataFrame())
 results = st.session_state.get("results", [])
 discount_rate = st.session_state.get("discount_rate", 0.035)
@@ -63,6 +64,8 @@ if annual_df.empty and not results:
     st.stop()
 
 selected_scenarios = st.session_state.get("selected_scenarios", [])
+bundle_export_df = pd.DataFrame()
+bundle_cashflows_export_df = pd.DataFrame()
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # SECTION 1 — Financial modelling controls
@@ -271,11 +274,267 @@ if sel_asset and total_annual_eads:
                     except Exception as e:
                         st.error(f"Error calculating {mid}: {e}")
 
-            if npv_results:
+            bundle_result: AdaptationBundleResult | None = None
+            try:
+                bundle_result = calc_adaptation_bundle_npv(
+                    new_selected,
+                    sel_asset_id,
+                    sel_asset.replacement_value,
+                    total_annual_eads,
+                    hazard_annual_eads,
+                    adap_discount,
+                    implementation_year=impl_year,
+                    capex_phases=capex_phases,
+                )
+            except Exception as e:
+                st.error(f"Error calculating bundled sequence: {e}")
+
+            if npv_results and bundle_result:
+                standalone_sum_avoided = sum(r.npv_avoided_damages for r in npv_results)
+                bundled_net_npv = bundle_result.bundled_npv_avoided_damages - bundle_result.total_cost
+
+                hm1, hm2, hm3, hm4, hm5 = st.columns(5)
+                hm1.metric(
+                    "Standalone NPV Avoided",
+                    _fmt_cur(standalone_sum_avoided, _cur),
+                    help="Simple sum of standalone avoided damages. This can overstate combined savings when measures overlap.",
+                )
+                hm2.metric(
+                    "Bundled NPV Avoided",
+                    _fmt_cur(bundle_result.bundled_npv_avoided_damages, _cur),
+                    help="Avoided damages after sequencing the selected measures on residual hazard loss.",
+                )
+                hm3.metric(
+                    "Bundled Net NPV",
+                    _fmt_cur(bundled_net_npv, _cur),
+                    help="Bundled avoided damages minus bundled discounted costs.",
+                )
+                hm4.metric(
+                    "Bundled CBR",
+                    f"{bundle_result.cbr:.2f}x",
+                    help="Bundled NPV avoided damages divided by bundled discounted cost.",
+                )
+                hm5.metric(
+                    "Bundled ROI",
+                    f"{bundle_result.roi_pct:.0f}%",
+                    help="(Bundled benefits - bundled costs) / bundled costs.",
+                )
+                st.warning(bundle_result.order_sensitive_warning, icon="⚠️")
+                st.caption(
+                    "Standalone values compare each measure against the original hazard baseline. "
+                    "Bundled values sequence measures on residual hazard loss in the order shown below."
+                )
+
+                standalone_by_id = {result.measure_id: result for result in npv_results}
+                bundle_rows = []
+                for row in bundle_result.measure_rows:
+                    standalone = standalone_by_id.get(row["measure_id"])
+                    bundle_rows.append(
+                        {
+                            "Sequence": row["sequence_order"],
+                            "Measure": row["measure"],
+                            "Hazard": str(row["hazard"]).replace("_", " ").title(),
+                            "Mechanism": row["mechanism"],
+                            f"Standalone NPV Avoided ({_sym})": standalone.npv_avoided_damages if standalone else row["standalone_npv_avoided"],
+                            f"Incremental NPV Avoided ({_sym})": row["incremental_npv_avoided"],
+                            f"Standalone Net NPV ({_sym})": standalone.net_npv if standalone else row["standalone_net_npv"],
+                            f"Incremental Net NPV ({_sym})": row["incremental_net_npv"],
+                            "Standalone CBR": standalone.cbr if standalone else row["standalone_cbr"],
+                            "Incremental CBR": row["incremental_cbr"],
+                            "Design Life (yrs)": row["design_life_years"],
+                        }
+                    )
+
+                bundle_export_df = pd.DataFrame(bundle_rows)
+                bundle_cashflows_export_df = pd.DataFrame(bundle_result.annual_cashflows)
+
+                bundle_display = bundle_export_df.copy()
+                for col in [
+                    f"Standalone NPV Avoided ({_sym})",
+                    f"Incremental NPV Avoided ({_sym})",
+                    f"Standalone Net NPV ({_sym})",
+                    f"Incremental Net NPV ({_sym})",
+                ]:
+                    bundle_display[col] = bundle_display[col].apply(lambda x: _fmt_cur(x, _cur))
+                for col in ["Standalone CBR", "Incremental CBR"]:
+                    bundle_display[col] = bundle_display[col].apply(lambda x: f"{x:.2f}x")
+                st.dataframe(bundle_display, use_container_width=True, hide_index=True)
+
+                st.divider()
+                st.markdown(
+                    f"<h3 style='color:{_BSR['navy']};margin:0;'>Bundled Residual-Risk Cash Flows</h3>",
+                    unsafe_allow_html=True,
+                )
+                cf_df = bundle_cashflows_export_df.copy()
+                tab_chart, tab_table = st.tabs(["Cash Flow Chart", "Detailed Table"])
+
+                with tab_chart:
+                    fig_cf = go.Figure()
+                    fig_cf.add_trace(
+                        go.Bar(
+                            x=cf_df["year"],
+                            y=cf_df["avoided_damage"],
+                            name="Avoided Damage",
+                            marker_color=_BSR["green"],
+                            hovertemplate=f"Avoided: {_sym}%{{y:,.0f}}<extra></extra>",
+                        )
+                    )
+                    fig_cf.add_trace(
+                        go.Bar(
+                            x=cf_df["year"],
+                            y=-cf_df["capex"],
+                            name="Capex",
+                            marker_color=_BSR["red"],
+                            customdata=cf_df["capex"],
+                            hovertemplate=f"Capex: {_sym}%{{customdata:,.0f}}<extra></extra>",
+                        )
+                    )
+                    fig_cf.add_trace(
+                        go.Bar(
+                            x=cf_df["year"],
+                            y=-cf_df["opex"],
+                            name="Opex",
+                            marker_color=_BSR["amber"],
+                            customdata=cf_df["opex"],
+                            hovertemplate=f"Opex: {_sym}%{{customdata:,.0f}}<extra></extra>",
+                        )
+                    )
+                    fig_cf.add_trace(
+                        go.Scatter(
+                            x=cf_df["year"],
+                            y=cf_df["cumulative_npv"],
+                            name="Cumulative NPV",
+                            mode="lines+markers",
+                            line=dict(color=_BSR["navy"], width=2.5),
+                            marker=dict(size=4),
+                            yaxis="y2",
+                            hovertemplate=f"Cum. NPV: {_sym}%{{y:,.0f}}<extra></extra>",
+                        )
+                    )
+                    fig_cf.update_layout(
+                        barmode="relative",
+                        xaxis_title="Year",
+                        yaxis_title=f"Annual Cash Flow ({_sym})",
+                        yaxis2=dict(
+                            title=f"Cumulative NPV ({_sym})",
+                            overlaying="y",
+                            side="right",
+                            showgrid=False,
+                        ),
+                        height=420,
+                        margin=dict(l=20, r=20, t=30, b=20),
+                        legend=dict(orientation="h", yanchor="bottom", y=1.02),
+                        hovermode="x unified",
+                    )
+                    fig_cf.add_hline(y=0, line_dash="solid", line_color="#ccc", line_width=0.8)
+                    st.plotly_chart(fig_cf, use_container_width=True)
+
+                with tab_table:
+                    cf_display = cf_df.copy()
+                    cf_display.columns = [
+                        "Year",
+                        f"Baseline EAD ({_sym})",
+                        f"Avoided Damage ({_sym})",
+                        f"Adapted EAD ({_sym})",
+                        f"Capex ({_sym})",
+                        f"Opex ({_sym})",
+                        f"Net CF ({_sym})",
+                        f"Net CF PV ({_sym})",
+                        f"Cum. NPV ({_sym})",
+                    ]
+                    for col in cf_display.columns[1:]:
+                        cf_display[col] = cf_display[col].apply(lambda x: f"{_sym}{x:,.0f}")
+                    cf_display["Year"] = cf_display["Year"].astype(int)
+                    st.dataframe(cf_display, use_container_width=True, hide_index=True, height=500)
+
+                if len(selected_scenarios) > 1:
+                    st.divider()
+                    st.markdown(
+                        f"<h3 style='color:{_BSR['navy']};margin:0;'>Scenario Sensitivity</h3>",
+                        unsafe_allow_html=True,
+                    )
+                    st.caption("Selected measure sequence re-run under each chosen climate pathway.")
+
+                    sens_rows = []
+                    for sc_id in selected_scenarios:
+                        sc_total_eads = _get_annual_eads(sel_asset_id, sc_id)
+                        sc_hazard_eads = _get_hazard_annual_eads(sel_asset_id, sc_id)
+                        if not sc_total_eads and results:
+                            sc_matches = [r for r in results if r.asset_id == sel_asset_id and r.scenario_id == sc_id]
+                            for match in sc_matches:
+                                sc_total_eads[match.year] = match.total_ead
+                                for hazard, hazard_result in match.hazard_results.items():
+                                    sc_hazard_eads.setdefault(hazard, {})[match.year] = hazard_result.ead
+                        if not sc_total_eads:
+                            continue
+                        try:
+                            sc_bundle = calc_adaptation_bundle_npv(
+                                new_selected,
+                                sel_asset_id,
+                                sel_asset.replacement_value,
+                                sc_total_eads,
+                                sc_hazard_eads,
+                                adap_discount,
+                                implementation_year=impl_year,
+                                capex_phases=capex_phases,
+                            )
+                        except Exception:
+                            continue
+
+                        sens_rows.append(
+                            {
+                                "Scenario": SCENARIOS.get(sc_id, {}).get("label", sc_id),
+                                f"NPV Baseline ({_sym})": sc_bundle.baseline_total_npv_damages,
+                                f"Bundled NPV Avoided ({_sym})": sc_bundle.bundled_npv_avoided_damages,
+                                f"Bundled Net NPV ({_sym})": sc_bundle.bundled_npv_avoided_damages - sc_bundle.total_cost,
+                                "Bundled CBR": sc_bundle.cbr,
+                                "Bundled ROI (%)": sc_bundle.roi_pct,
+                                "color": SCENARIOS.get(sc_id, {}).get("color", "#888"),
+                            }
+                        )
+
+                    if sens_rows:
+                        sens_df = pd.DataFrame(sens_rows)
+                        fig_sens = go.Figure()
+                        fig_sens.add_trace(
+                            go.Bar(
+                                x=sens_df["Scenario"],
+                                y=sens_df[f"Bundled Net NPV ({_sym})"],
+                                marker_color=sens_df["color"].tolist(),
+                                text=[f"{_sym}{value:,.0f}" for value in sens_df[f"Bundled Net NPV ({_sym})"]],
+                                textposition="outside",
+                                hovertemplate=(
+                                    "<b>%{x}</b><br>"
+                                    f"Bundled Net NPV: {_sym}%{{y:,.0f}}<extra></extra>"
+                                ),
+                            )
+                        )
+                        fig_sens.add_hline(y=0, line_dash="solid", line_color="#ccc")
+                        fig_sens.update_layout(
+                            title="Net NPV of selected measure sequence by scenario",
+                            yaxis_title=f"Bundled Net NPV ({_sym})",
+                            height=340,
+                            margin=dict(l=20, r=20, t=50, b=80),
+                            xaxis_tickangle=-20,
+                            showlegend=False,
+                        )
+                        st.plotly_chart(fig_sens, use_container_width=True)
+
+                        sens_display = sens_df.drop(columns=["color"]).copy()
+                        for col in [
+                            f"NPV Baseline ({_sym})",
+                            f"Bundled NPV Avoided ({_sym})",
+                            f"Bundled Net NPV ({_sym})",
+                        ]:
+                            sens_display[col] = sens_display[col].apply(lambda x: _fmt_cur(x, _cur))
+                        sens_display["Bundled CBR"] = sens_display["Bundled CBR"].apply(lambda x: f"{x:.2f}x")
+                        sens_display["Bundled ROI (%)"] = sens_display["Bundled ROI (%)"].apply(lambda x: f"{x:.0f}%")
+                        st.dataframe(sens_display, use_container_width=True, hide_index=True)
+
+            if False and npv_results and bundle_result:
                 # ── Headline metrics ──────────────────────────────────────
-                total_capex = sum(r.capex_total for r in npv_results)
-                total_cost = sum(r.total_cost for r in npv_results)
-                total_npv_avoided = sum(r.npv_avoided_damages for r in npv_results)
+                standalone_sum_avoided = sum(r.npv_avoided_damages for r in npv_results)
+                bundled_net_npv = bundle_result.bundled_npv_avoided_damages - bundle_result.total_cost
 
                 if len(npv_results) > 1:
                     st.warning(
@@ -285,23 +544,23 @@ if sel_asset and total_annual_eads:
                         "actual combined benefit will be less than the sum of individual benefits.",
                         icon="⚠️",
                     )
-                total_net_npv = total_npv_avoided - total_cost
-                combined_cbr = total_npv_avoided / total_cost if total_cost > 0 else 0.0
-                combined_roi = (total_npv_avoided - total_cost) / total_cost * 100 if total_cost > 0 else 0.0
+                total_net_npv = bundled_net_npv
+                combined_cbr = bundle_result.cbr
+                combined_roi = bundle_result.roi_pct
 
                 hm1, hm2, hm3, hm4, hm5 = st.columns(5)
                 hm1.metric(
-                    "Net NPV",
-                    _fmt_cur(total_net_npv, _cur),
-                    help="NPV of avoided damages minus NPV of all costs. Positive = value-creating investment.",
+                    "Standalone NPV Avoided",
+                    _fmt_cur(standalone_sum_avoided, _cur),
+                    help="Simple sum of standalone avoided damages. This can overstate combined savings when measures overlap.",
                 )
                 hm2.metric(
-                    "Adaptation ROI",
-                    f"{combined_roi:.0f}%",
+                    "Bundled NPV Avoided",
+                    _fmt_cur(bundle_result.bundled_npv_avoided_damages, _cur),
                     help="(NPV Benefits − NPV Costs) / NPV Costs × 100.",
                 )
                 hm3.metric(
-                    "Cost-Benefit Ratio",
+                    "Bundled Net NPV",
                     f"{combined_cbr:.2f}×",
                     help="NPV Avoided Damages / NPV Total Cost. >1.0 = net positive.",
                 )
@@ -569,8 +828,8 @@ st.markdown(
     unsafe_allow_html=True,
 )
 st.caption(
-    "All measures ranked by NPV cost-benefit ratio. "
-    "The frontier shows the optimal investment sequence across your entire portfolio."
+    "All measures ranked by standalone NPV cost-benefit ratio. "
+    "This is a screening-level ranking of independent measures, not an optimal bundled investment sequence."
 )
 
 if st.button("📊 Compute Portfolio Frontier", type="primary"):
@@ -607,15 +866,6 @@ if st.button("📊 Compute Portfolio Frontier", type="primary"):
                 all_npv_results.append(ar)
             except Exception:
                 pass
-
-            # Also compute legacy for export compatibility
-            baseline_ead = haz_eads.get(2050, haz_eads.get(max(haz_eads), 0.0))
-            if baseline_ead > 0:
-                try:
-                    lr = calc_adaptation(m["id"], asset.id, asset.replacement_value, baseline_ead, adap_discount)
-                    all_legacy_results.append(lr)
-                except Exception:
-                    pass
 
     if all_npv_results:
         frontier = portfolio_adaptation_frontier_npv(all_npv_results)
@@ -661,7 +911,7 @@ if st.button("📊 Compute Portfolio Frontier", type="primary"):
         st.plotly_chart(fig, use_container_width=True)
 
         # ── Top measures table ────────────────────────────────────────────
-        st.subheader("Top Adaptation Investments by NPV Return")
+        st.subheader("Top Adaptation Investments by Standalone NPV Return")
         top_df = frontier_df[[
             "measure_label", "asset_id", "capex", "npv_avoided", "net_npv", "cbr", "roi_pct",
         ]].head(15).copy()
@@ -689,6 +939,10 @@ if st.button("📊 Compute Portfolio Frontier", type="primary"):
         pm2.metric("Total Capex (all measures)", _fmt_cur(_pf_total_capex, _cur))
         pm3.metric("Total Net NPV", _fmt_cur(_pf_net_npv, _cur))
         pm4.metric("Portfolio CBR", f"{_pf_cbr:.2f}×")
+        st.caption(
+            "Portfolio totals above sum standalone measure economics. They are useful for screening and ranking, "
+            "not as a bundled portfolio business case."
+        )
 
         # ── Export ────────────────────────────────────────────────────────
         st.divider()
@@ -713,8 +967,19 @@ if st.button("📊 Compute Portfolio Frontier", type="primary"):
         col_a, col_b = st.columns(2)
         with col_a:
             try:
+                xlsx_bytes = export_adaptation_xlsx(
+                    export_npv_df,
+                    frontier_df,
+                    bundle_df=bundle_export_df,
+                    bundle_cashflows_df=bundle_cashflows_export_df,
+                )
+                st.download_button(
+                    "⬇️ Export Adaptation Analysis (.xlsx)", data=xlsx_bytes,
+                    file_name="adaptation_results.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
                 # Use legacy results for the existing export format
-                if all_legacy_results:
+                if False and all_legacy_results:
                     legacy_export_df = pd.DataFrame([{
                         "measure_id": r.measure_id,
                         "measure": r.measure_label,

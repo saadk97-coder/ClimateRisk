@@ -7,15 +7,20 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
-from engine.asset_model import Asset as _Asset
+from engine.asset_model import Asset as _Asset, normalize_asset_state
+from engine.hazard_math import (
+    DEFAULT_DISPLAY_RETURN_PERIOD_MAX,
+    compute_effective_intensities,
+    display_return_period_mask,
+)
 import engine.scenario_model as _scenario_model
-from engine.hazard_fetcher import _load_baseline, get_region_zone
+import engine.hazard_fetcher as _hazard_fetcher
 from engine.impact_functions import get_damage_fraction, HAZARD_UNITS
 from engine.ead_calculator import calc_ead
 from engine.data_sources import DATA_SOURCE_REGISTRY
 from engine.export_engine import export_audit_xlsx, df_to_xlsx
 from engine.fmt import currency_symbol as _currency_symbol
-from engine.governance import override_records as build_override_records
+from engine.governance import build_run_manifest, override_records as build_override_records
 
 SCENARIOS = getattr(_scenario_model, "SCENARIOS", {})
 get_warming = getattr(_scenario_model, "get_warming", None)
@@ -23,12 +28,26 @@ get_hazard_multiplier = getattr(_scenario_model, "get_hazard_multiplier", None)
 get_scenario_multipliers = getattr(_scenario_model, "get_scenario_multipliers", None)
 get_slr_additive = getattr(_scenario_model, "get_slr_additive", None)
 HAZARD_SCALING_SOURCES = getattr(_scenario_model, "HAZARD_SCALING_SOURCES", {})
+get_region_zone = getattr(_hazard_fetcher, "get_region_zone")
+generate_conditional_gev_bands = getattr(_hazard_fetcher, "generate_conditional_gev_bands", None)
+uncertainty_status_for_entry = getattr(
+    _hazard_fetcher,
+    "uncertainty_status_for_entry",
+    lambda hazard, entry: "generated" if (entry or {}).get("uncertainty", {}).get("type") == "gev_parameter_uncertainty" else "unavailable",
+)
+entry_supports_gev_bands = getattr(
+    _hazard_fetcher,
+    "entry_supports_gev_bands",
+    lambda hazard, entry: False,
+)
 
 st.set_page_config(page_title="Audit Trail", page_icon="🔍", layout="wide")
 
+assets = normalize_asset_state(st.session_state)
+
 with st.sidebar:
     st.header("Portfolio Summary")
-    n = len(st.session_state.get("assets", []))
+    n = len(assets)
     st.metric("Assets", n)
 
 st.title("Calculation Audit Trail")
@@ -56,8 +75,6 @@ if missing_scenario_helpers:
     )
     st.stop()
 
-assets = [_Asset.from_dict(a) if isinstance(a, dict) else a
-          for a in st.session_state.get("assets", [])]
 annual_df = st.session_state.get("annual_damages", pd.DataFrame())
 hazard_data_all = st.session_state.get("hazard_data", {})
 hazard_data_by_scenario = st.session_state.get("hazard_data_by_scenario", {})
@@ -67,9 +84,70 @@ discount_rate = st.session_state.get("discount_rate", 0.035)
 _sym = _currency_symbol(st.session_state.get("currency_code", "GBP"))
 all_override_rows = build_override_records(hazard_overrides, assets)
 
+
+def _run_manifest_years() -> list[int]:
+    if not annual_df.empty and "year" in annual_df.columns:
+        try:
+            return sorted(int(year) for year in annual_df["year"].dropna().astype(int).unique().tolist())
+        except Exception:
+            pass
+    return list(range(2025, 2051))
+
+
+def _rebuild_run_manifest() -> dict:
+    manifest = build_run_manifest(
+        annual_damages_df=annual_df,
+        selected_scenarios=selected_scenarios,
+        years=_run_manifest_years(),
+        currency_code=st.session_state.get("currency_code", "GBP"),
+        currency_symbol=_sym,
+        discount_rate=discount_rate,
+        fetch_profile=st.session_state.get("hazard_fetch_mode", getattr(_hazard_fetcher, "DEFAULT_FETCH_MODE", "balanced")),
+        override_records=build_override_records(st.session_state.get("hazard_overrides", {}), assets),
+        fetch_failures=st.session_state.get("hazard_fetch_failures", []),
+        reused_assets=int(st.session_state.get("hazard_run_reused_assets", 0) or 0),
+        refreshed_assets=int(st.session_state.get("hazard_run_refreshed_assets", 0) or 0),
+        zone_overrides=st.session_state.get("zone_overrides", {}),
+        hazard_data_all=st.session_state.get("hazard_data", {}),
+    )
+    st.session_state.run_manifest = manifest
+    return manifest
+
+
+def _store_generated_gev_entry(asset: _Asset, hazard: str, scenario_id: str | None = None) -> dict | None:
+    if generate_conditional_gev_bands is None:
+        return None
+    refreshed_entry = generate_conditional_gev_bands(
+        asset.lat,
+        asset.lon,
+        hazard,
+        asset.region,
+        terrain_elevation_asl_m=getattr(asset, "terrain_elevation_asl_m", 0.0),
+        asset_type=asset.asset_type,
+        fetch_mode=st.session_state.get("hazard_fetch_mode", getattr(_hazard_fetcher, "DEFAULT_FETCH_MODE", "balanced")),
+    )
+    hazard_data = dict(st.session_state.get("hazard_data", {}))
+    asset_hazards = dict(hazard_data.get(asset.id, {}))
+    asset_hazards[hazard] = refreshed_entry
+    hazard_data[asset.id] = asset_hazards
+    st.session_state.hazard_data = hazard_data
+    if scenario_id and st.session_state.get("hazard_data_by_scenario"):
+        hazard_data_by_scenario = dict(st.session_state.get("hazard_data_by_scenario", {}))
+        scenario_hazards = dict(hazard_data_by_scenario.get(scenario_id, {}))
+        scenario_asset_hazards = dict(scenario_hazards.get(asset.id, {}))
+        scenario_asset_hazards[hazard] = refreshed_entry
+        scenario_hazards[asset.id] = scenario_asset_hazards
+        hazard_data_by_scenario[scenario_id] = scenario_hazards
+        st.session_state.hazard_data_by_scenario = hazard_data_by_scenario
+    _rebuild_run_manifest()
+    return refreshed_entry
+
 if not assets:
     st.warning("No assets defined.")
     st.stop()
+
+if annual_df is not None and not annual_df.empty and not st.session_state.get("run_manifest"):
+    _rebuild_run_manifest()
 
 # ── Selector ───────────────────────────────────────────────────────────────
 col1, col2, col3, col4 = st.columns(4)
@@ -118,22 +196,24 @@ region_zone = get_region_zone(sel_asset.region)
 mult = get_scenario_multipliers(sel_scenario, sel_year, sel_hazard, region_zone)
 mult_note = f"Region zone: {region_zone} (from {sel_asset.region})"
 
-# Match engine logic: multiplier applied FIRST, then SLR/freeboard offsets.
-# Physical offsets (SLR, freeboard) must NOT be multiplied.
-elev_adj = 0.0
-slr_m = 0.0
-
-if sel_hazard == "coastal_flood":
-    # coastal: scale by storminess, ADD SLR, SUBTRACT freeboard
-    elev_adj = sel_asset.first_floor_height_m
-    slr_m = get_slr_additive(sel_scenario, sel_year, region_zone)
-    scaled_intens = np.clip(base_intens * mult + slr_m - elev_adj, 0.0, None)
-elif sel_hazard == "flood":
-    # flood: scale by multiplier, THEN subtract freeboard
-    elev_adj = sel_asset.first_floor_height_m
-    scaled_intens = np.clip(base_intens * mult - elev_adj, 0.0, None)
-else:
-    scaled_intens = base_intens * mult
+scaled_intens, adjustment_ctx = compute_effective_intensities(
+    sel_hazard,
+    base_intens,
+    mult,
+    sel_asset,
+    scenario_id=sel_scenario,
+    year=sel_year,
+    region_zone=region_zone,
+)
+elev_adj = adjustment_ctx.freeboard_m
+slr_m = adjustment_ctx.slr_additive_m
+terrain_adj = adjustment_ctx.terrain_elevation_asl_m
+visible_mask = display_return_period_mask(rp)
+if not np.any(visible_mask):
+    visible_mask = np.ones(len(rp), dtype=bool)
+uncertainty = (hdata or {}).get("uncertainty", {})
+uncertainty_status = uncertainty_status_for_entry(sel_hazard, hdata)
+uncertainty_detail = str((hdata or {}).get("uncertainty_detail", "")).strip()
 
 damage_fracs = np.array([get_damage_fraction(sel_hazard, sel_asset.asset_type, i) for i in scaled_intens])
 
@@ -219,7 +299,11 @@ steps = [
     ("5", "Asset-specific adjustments",
      f"**Hazard:** {sel_hazard}\n\n" +
      (f"**First-floor height above ground:** {elev_adj:.2f} m → subtracted AFTER multiplier scaling (not multiplied)\n\n"
-      if sel_hazard in ("flood", "coastal_flood") and elev_adj > 0 else "No adjustments applied for this hazard type.\n\n") +
+      if sel_hazard in ("flood", "coastal_flood") else "") +
+     (f"**Terrain elevation above sea level:** {terrain_adj:.2f} m → subtracted from coastal effective depth after storm scaling and SLR\n\n"
+      if sel_hazard == "coastal_flood" else "") +
+     (f"**Applied formula:** `{adjustment_ctx.formula_label}`\n\n"
+      if sel_hazard in ("flood", "coastal_flood") else "No physical offset adjustments applied for this hazard type.\n\n") +
      f"**Asset type:** {sel_asset.asset_type} | **Material:** {sel_asset.construction_material}"),
 
     ("6", "Vulnerability curve applied",
@@ -243,27 +327,68 @@ for step_num, step_title, step_text in steps:
         if step_num == "2":
             after_mult = base_intens * mult
             df_intens = pd.DataFrame({
-                "Return Period (yr)": rp.astype(int),
-                f"Baseline Intensity ({unit})": np.round(base_intens, 4),
-                f"After Multiplier ({unit})": np.round(after_mult, 4),
-                f"Effective (mult{'+SLR' if slr_m > 0 else ''}{'-freeboard' if elev_adj > 0 else ''}) ({unit})": np.round(scaled_intens, 4),
+                "Return Period (yr)": rp[visible_mask].astype(int),
+                f"Baseline Intensity ({unit})": np.round(base_intens[visible_mask], 4),
+                f"After Multiplier ({unit})": np.round(after_mult[visible_mask], 4),
+                f"Effective ({unit})": np.round(scaled_intens[visible_mask], 4),
             })
             st.dataframe(df_intens, use_container_width=True)
+            if np.any(rp > DEFAULT_DISPLAY_RETURN_PERIOD_MAX):
+                st.caption(
+                    f"Standard audit view stops at RP{int(DEFAULT_DISPLAY_RETURN_PERIOD_MAX)}. "
+                    "Longer-tail points remain high-uncertainty screening outputs."
+                )
+            if uncertainty.get("type") == "gev_parameter_uncertainty":
+                df_unc = pd.DataFrame({
+                    "Return Period (yr)": np.asarray(uncertainty.get("return_periods", []), dtype=float)[visible_mask].astype(int),
+                    f"Lower band ({unit})": np.round(np.asarray(uncertainty.get("lower", []), dtype=float)[visible_mask], 4),
+                    f"Central ({unit})": np.round(np.asarray(uncertainty.get("central", []), dtype=float)[visible_mask], 4),
+                    f"Upper band ({unit})": np.round(np.asarray(uncertainty.get("upper", []), dtype=float)[visible_mask], 4),
+                })
+                st.caption(
+                    f"{uncertainty.get('band_label', 'Conditional parameter band')} shown below. "
+                    f"{uncertainty.get('limitation', '')}"
+                )
+                st.dataframe(df_unc, use_container_width=True)
+            elif uncertainty_status == "deferred":
+                st.info(
+                    uncertainty_detail
+                    or "Conditional GEV parameter bands are available on demand and were not generated in the standard run."
+                )
+            elif uncertainty_status == "failed":
+                st.warning(
+                    uncertainty_detail
+                    or "Conditional GEV parameter bands could not be generated from cached basis."
+                )
+            elif uncertainty_status == "unavailable":
+                st.caption(
+                    uncertainty_detail
+                    or "Conditional GEV parameter bands are unavailable for this hazard-source path."
+                )
+            if uncertainty_status in {"deferred", "failed"} and entry_supports_gev_bands(sel_hazard, hdata):
+                if st.button(
+                    "Generate conditional GEV bands",
+                    key=f"audit-generate-gev-{sel_asset.id}-{sel_hazard}",
+                ):
+                    with st.spinner("Generating conditional GEV parameter bands from cached basis..."):
+                        refreshed_entry = _store_generated_gev_entry(sel_asset, sel_hazard, sel_scenario)
+                    if refreshed_entry is not None:
+                        st.rerun()
         elif step_num == "6":
             df_vul = pd.DataFrame({
-                "Return Period (yr)": rp.astype(int),
-                f"Adjusted Intensity ({unit})": np.round(scaled_intens, 4),
-                "Damage Fraction": np.round(damage_fracs, 6),
-                f"Loss ({_sym})": np.round(damage_fracs * sel_asset.replacement_value, 2),
+                "Return Period (yr)": rp[visible_mask].astype(int),
+                f"Adjusted Intensity ({unit})": np.round(scaled_intens[visible_mask], 4),
+                "Damage Fraction": np.round(damage_fracs[visible_mask], 6),
+                f"Loss ({_sym})": np.round((damage_fracs * sel_asset.replacement_value)[visible_mask], 2),
             })
             st.dataframe(df_vul, use_container_width=True)
         elif step_num == "7":
             aep = 1.0 / rp
             df_ead = pd.DataFrame({
-                "Return Period (yr)": rp.astype(int),
-                "AEP": np.round(aep, 6),
-                "Damage Fraction": np.round(damage_fracs, 6),
-                f"Loss ({_sym})": np.round(damage_fracs * sel_asset.replacement_value, 2),
+                "Return Period (yr)": rp[visible_mask].astype(int),
+                "AEP": np.round(aep[visible_mask], 6),
+                "Damage Fraction": np.round(damage_fracs[visible_mask], 6),
+                f"Loss ({_sym})": np.round((damage_fracs * sel_asset.replacement_value)[visible_mask], 2),
             })
             st.dataframe(df_ead, use_container_width=True)
             if sel_hazard in CHRONIC_HAZARDS:
@@ -307,6 +432,7 @@ if not annual_df.empty:
                 "Discount rate": f"{discount_rate*100:.1f}%",
                 "Method pathway": "Chronic RP50 x value" if sel_hazard in CHRONIC_HAZARDS else "Acute EP-curve integration",
             },
+            run_manifest=st.session_state.get("run_manifest"),
             override_records=selected_override_rows,
         )
         col_a, col_b = st.columns(2)

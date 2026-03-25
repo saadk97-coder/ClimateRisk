@@ -24,19 +24,26 @@ Sources:
 """
 
 import io
-import zipfile
 import logging
+import os
+import zipfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextlib import contextmanager
 from functools import lru_cache
+from urllib.parse import urlparse
 import numpy as np
 from typing import Optional, Tuple, List
 
 import xarray as xr
 import pandas as pd
 
+from engine.hazard_math import DEFAULT_DISPLAY_RETURN_PERIOD_MAX
+from engine.uncertainty import fit_gev_central, fit_gev_parameter_bands
+
 logger = logging.getLogger(__name__)
 
 STANDARD_RETURN_PERIODS = np.array([10, 50, 100, 250, 500, 1000], dtype=float)
+GEV_BASIS_VERSION = 1
 
 _SSP_MAP = {
     "SSP1-1.9": "ssp119",
@@ -58,6 +65,43 @@ _TIME_CHUNKS = ["1991_2000", "2001_2010", "2011_2014"]
 # Fixed baseline experiment key — all fetches use this regardless of scenario.
 _BASELINE_SSP = "historical"
 _GCM_FETCH_WORKERS = 2
+_PROXY_ENV_KEYS = (
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "ALL_PROXY",
+    "http_proxy",
+    "https_proxy",
+    "all_proxy",
+)
+_LOOPBACK_PROXY_HOSTS = {"127.0.0.1", "localhost", "::1"}
+
+
+def _is_broken_loopback_proxy(value: str | None) -> bool:
+    if not value:
+        return False
+    raw = str(value).strip()
+    if not raw:
+        return False
+    parsed = urlparse(raw if "://" in raw else f"http://{raw}")
+    host = (parsed.hostname or "").strip("[]").lower()
+    port = parsed.port
+    return host in _LOOPBACK_PROXY_HOSTS and port == 9
+
+
+@contextmanager
+def _bypass_invalid_loopback_proxies():
+    """Temporarily clear obviously broken loopback proxy settings for ISIMIP calls."""
+    saved: dict[str, str] = {}
+    for key in _PROXY_ENV_KEYS:
+        value = os.environ.get(key)
+        if _is_broken_loopback_proxy(value):
+            saved[key] = value
+            os.environ.pop(key, None)
+    try:
+        yield
+    finally:
+        for key, value in saved.items():
+            os.environ[key] = value
 
 
 def _selected_gcms(max_gcms: Optional[int] = None) -> List[str]:
@@ -88,6 +132,183 @@ def _collect_gcm_curves(gcms: List[str], curve_builder) -> List[np.ndarray]:
     return curves
 
 
+def _collect_gcm_curve_records(gcms: List[str], curve_builder) -> List[dict]:
+    if len(gcms) <= 1:
+        records: List[dict] = []
+        for gcm in gcms:
+            record = curve_builder(gcm)
+            if record is not None:
+                records.append(record)
+        return records
+
+    records: List[dict] = []
+    with ThreadPoolExecutor(max_workers=min(_GCM_FETCH_WORKERS, len(gcms))) as executor:
+        futures = {executor.submit(curve_builder, gcm): gcm for gcm in gcms}
+        for future in as_completed(futures):
+            try:
+                record = future.result()
+            except Exception:
+                continue
+            if record is not None:
+                records.append(record)
+    return records
+
+
+def _ensemble_curve_summary(records: List[dict]) -> Optional[dict]:
+    if not records:
+        return None
+    central = np.median(np.stack([record["central"] for record in records]), axis=0)
+    lower = np.median(np.stack([record["lower"] for record in records]), axis=0)
+    upper = np.median(np.stack([record["upper"] for record in records]), axis=0)
+    sample_years = int(np.median([record["sample_years"] for record in records]))
+    bootstrap_draws = int(np.median([record["bootstrap_draws"] for record in records]))
+    return {
+        "central": np.clip(central, 0.0, None),
+        "lower": np.clip(lower, 0.0, None),
+        "upper": np.clip(upper, 0.0, None),
+        "gcm_count": len(records),
+        "sample_years": sample_years,
+        "bootstrap_draws": bootstrap_draws,
+        "band_label": records[0]["band_label"],
+        "method": records[0]["method"],
+        "limitation": records[0]["limitation"],
+    }
+
+
+def _ensemble_central_curve(records: List[dict]) -> Optional[np.ndarray]:
+    if not records:
+        return None
+    return np.median(
+        np.stack([np.asarray(record["central"], dtype=float) for record in records]),
+        axis=0,
+    )
+
+
+def _format_uncertainty_payload(return_periods: np.ndarray, summary: dict) -> dict:
+    advanced_rps = [
+        int(rp) for rp in np.asarray(return_periods, dtype=float)
+        if float(rp) > DEFAULT_DISPLAY_RETURN_PERIOD_MAX
+    ]
+    return {
+        "type": "gev_parameter_uncertainty",
+        "return_periods": [int(rp) for rp in np.asarray(return_periods, dtype=float)],
+        "central": np.asarray(summary["central"], dtype=float).round(6).tolist(),
+        "lower": np.asarray(summary["lower"], dtype=float).round(6).tolist(),
+        "upper": np.asarray(summary["upper"], dtype=float).round(6).tolist(),
+        "band_label": summary["band_label"],
+        "method": summary["method"],
+        "limitation": summary["limitation"],
+        "sample_years": int(summary["sample_years"]),
+        "bootstrap_draws": int(summary["bootstrap_draws"]),
+        "gcm_count": int(summary["gcm_count"]),
+        "display_return_period_max": int(DEFAULT_DISPLAY_RETURN_PERIOD_MAX),
+        "advanced_return_periods": advanced_rps,
+    }
+
+
+def _build_gev_basis(return_periods: np.ndarray, transform: dict, gcm_records: List[dict]) -> dict:
+    return {
+        "version": GEV_BASIS_VERSION,
+        "return_periods": [int(rp) for rp in np.asarray(return_periods, dtype=float)],
+        "transform": dict(transform or {}),
+        "gcm_records": [
+            {
+                "gcm": str(record.get("gcm", "")),
+                "annual_maxima": np.asarray(record.get("annual_maxima", []), dtype=float).round(6).tolist(),
+            }
+            for record in gcm_records
+            if len(record.get("annual_maxima", [])) >= 10
+        ],
+    }
+
+
+def _apply_basis_transform(fit: dict, transform: dict) -> Optional[dict]:
+    kind = str((transform or {}).get("kind", "identity"))
+    if kind == "identity":
+        return {
+            "central": np.asarray(fit["central"], dtype=float),
+            "lower": np.asarray(fit["lower"], dtype=float),
+            "upper": np.asarray(fit["upper"], dtype=float),
+        }
+
+    if kind == "flood_depth":
+        threshold = float(transform.get("drainage_threshold_mm", 25.0))
+        depth_factor = float(transform.get("depth_factor_m_per_mm", 0.012))
+        depth_cap = float(transform.get("depth_cap_m", 8.0))
+
+        def _convert(values):
+            return np.clip((np.asarray(values, dtype=float) - threshold) * depth_factor, 0.0, depth_cap)
+
+        return {
+            "central": _convert(fit["central"]),
+            "lower": _convert(fit["lower"]),
+            "upper": _convert(fit["upper"]),
+        }
+
+    if kind == "wildfire_flame_length":
+        try:
+            from engine.fire_weather import fwi_to_flame_length
+        except Exception:
+            return None
+
+        vegetation = str(transform.get("vegetation", "forest"))
+
+        def _convert(values):
+            return np.array(
+                [fwi_to_flame_length(float(value), vegetation) for value in np.asarray(values, dtype=float)],
+                dtype=float,
+            )
+
+        return {
+            "central": _convert(fit["central"]),
+            "lower": _convert(fit["lower"]),
+            "upper": _convert(fit["upper"]),
+        }
+
+    return None
+
+
+def materialize_gev_uncertainty(gev_basis: Optional[dict]) -> Optional[dict]:
+    if not isinstance(gev_basis, dict):
+        return None
+
+    return_periods = np.asarray(gev_basis.get("return_periods", []), dtype=float)
+    if return_periods.size == 0:
+        return None
+
+    transform = dict(gev_basis.get("transform", {}) or {})
+    gcm_records = list(gev_basis.get("gcm_records", []) or [])
+    if not gcm_records:
+        return None
+
+    records: List[dict] = []
+    for record in gcm_records:
+        annual_maxima = np.asarray(record.get("annual_maxima", []), dtype=float)
+        fit = fit_gev_parameter_bands(annual_maxima, return_periods)
+        if fit is None:
+            continue
+        transformed = _apply_basis_transform(fit, transform)
+        if transformed is None:
+            continue
+        records.append(
+            {
+                "central": transformed["central"],
+                "lower": transformed["lower"],
+                "upper": transformed["upper"],
+                "sample_years": fit["sample_years"],
+                "bootstrap_draws": fit["bootstrap_draws"],
+                "band_label": fit["band_label"],
+                "method": fit["method"],
+                "limitation": fit["limitation"],
+            }
+        )
+
+    summary = _ensemble_curve_summary(records)
+    if summary is None:
+        return None
+    return _format_uncertainty_payload(return_periods, summary)
+
+
 # ---------------------------------------------------------------------------
 # GEV fitting
 # ---------------------------------------------------------------------------
@@ -101,15 +322,10 @@ def _fit_gev(annual_maxima: np.ndarray, return_periods: np.ndarray) -> Optional[
     Reference: Coles (2001) An Introduction to Statistical Modelling of Extreme Values.
     """
     try:
-        from scipy.stats import genextreme
-        vals = annual_maxima[~np.isnan(annual_maxima)]
-        vals = vals[vals > 0]
-        if len(vals) < 10:
+        fit = fit_gev_central(annual_maxima, return_periods)
+        if fit is None:
             return None
-        c, loc, scale = genextreme.fit(vals)
-        probs = 1.0 - 1.0 / return_periods
-        quantiles = genextreme.ppf(probs, c, loc=loc, scale=scale)
-        return np.clip(quantiles, 0.0, None)
+        return np.asarray(fit["central"], dtype=float)
     except Exception as e:
         logger.debug(f"GEV fit failed: {e}")
         return None
@@ -317,13 +533,14 @@ def _query_isimip_paths(
     """
     try:
         from isimip_client.client import ISIMIPClient
-        client = ISIMIPClient()
-        response = client.datasets(
-            simulation_round=simulation_round,
-            climate_scenario=ssp_key,
-            climate_variable=variable,       # lowercase — ISIMIP API is case-sensitive
-            climate_forcing=gcm,
-        )
+        with _bypass_invalid_loopback_proxies():
+            client = ISIMIPClient()
+            response = client.datasets(
+                simulation_round=simulation_round,
+                climate_scenario=ssp_key,
+                climate_variable=variable,       # lowercase — ISIMIP API is case-sensitive
+                climate_forcing=gcm,
+            )
         results = response if isinstance(response, list) else response.get("results", [])
         paths = []
         for dataset in results[:2]:          # limit to 2 datasets
@@ -355,8 +572,9 @@ def _isimip_select_point(
         from isimip_client.client import ISIMIPClient
         import requests as req
 
-        client = ISIMIPClient()
-        result = client.select_point(paths, lat, lon, poll=poll)
+        with _bypass_invalid_loopback_proxies():
+            client = ISIMIPClient()
+            result = client.select_point(paths, lat, lon, poll=poll)
         if not result:
             return None
         status = result.get("status") if isinstance(result, dict) else getattr(result, "status", None)
@@ -367,7 +585,8 @@ def _isimip_select_point(
                     else getattr(result, "file_url", None))
         if not file_url:
             return None
-        r = req.get(file_url, timeout=120)
+        with _bypass_invalid_loopback_proxies():
+            r = req.get(file_url, timeout=120)
         if r.status_code == 200:
             return r.content   # ZIP bytes
         return None
@@ -382,7 +601,7 @@ def _build_direct_paths(ssp_key: str, variable: str, gcm: str) -> List[str]:
     used as fallback when the datasets API returns no results.
     """
     base = (
-        f"ISIMIP3b/SecondaryInputData/climate/atmosphere/bias-adjusted/global/daily"
+        f"ISIMIP3b/InputData/climate/atmosphere/bias-adjusted/global/daily"
         f"/{ssp_key}/{gcm.upper()}"
     )
     return [
@@ -419,7 +638,7 @@ def fetch_isimip3b_heat(
     ssp: str = "SSP2-4.5",
     return_periods: Optional[np.ndarray] = None,
     max_gcms: Optional[int] = None,
-) -> Optional[Tuple[np.ndarray, np.ndarray]]:
+) -> Optional[Tuple[np.ndarray, np.ndarray, dict]]:
     """
     Fetch heat (maximum temperature, °C) return-period curve from ISIMIP3b.
 
@@ -440,9 +659,9 @@ def fetch_isimip3b_heat(
     # Scenario differentiation is handled by multipliers in the damage engine.
     ssp_key = _BASELINE_SSP
 
-    def _heat_curve(gcm: str) -> Optional[np.ndarray]:
+    def _heat_curve(gcm: str) -> Optional[dict]:
         try:
-            paths = _query_isimip_paths("ISIMIP3b", "SecondaryInputData", ssp_key, "tasmax", gcm)
+            paths = _query_isimip_paths("ISIMIP3b", "InputData", ssp_key, "tasmax", gcm)
             if not paths:
                 paths = _build_direct_paths(ssp_key, "tasmax", gcm)
 
@@ -457,22 +676,33 @@ def fetch_isimip3b_heat(
             if annual_max.mean() > 200:
                 annual_max = annual_max - 273.15
 
-            temps = _fit_gev(annual_max, return_periods)
-            if temps is not None:
+            fit = fit_gev_central(annual_max, return_periods)
+            if fit is not None:
                 logger.info(f"ISIMIP3b heat: {gcm}/{ssp_key} → {len(annual_max)} yr, "
-                            f"RP100={temps[2]:.1f}°C")
-                return temps
+                            f"RP100={fit['central'][2]:.1f}°C")
+                return {
+                    "gcm": gcm,
+                    "central": np.asarray(fit["central"], dtype=float),
+                    "annual_maxima": np.asarray(annual_max, dtype=float),
+                }
         except Exception:
             return None
 
         return None
 
-    gcm_curves = _collect_gcm_curves(_selected_gcms(max_gcms), _heat_curve)
-    median = _ensemble_median(gcm_curves)
-    if median is not None:
-        logger.info(f"ISIMIP3b heat ensemble: {len(gcm_curves)} GCMs, "
-                    f"median RP100={median[2]:.1f}°C")
-        return return_periods, median
+    gcm_records = _collect_gcm_curve_records(_selected_gcms(max_gcms), _heat_curve)
+    central = _ensemble_central_curve(gcm_records)
+    if central is not None:
+        logger.info(f"ISIMIP3b heat ensemble: {len(gcm_records)} GCMs, "
+                    f"median RP100={central[2]:.1f}°C")
+        return return_periods, central, {
+            "uncertainty_status": "deferred",
+            "gev_basis": _build_gev_basis(
+                return_periods,
+                {"kind": "identity", "hazard": "heat"},
+                gcm_records,
+            ),
+        }
     return None
 
 
@@ -482,7 +712,7 @@ def fetch_isimip3b_wind(
     ssp: str = "SSP2-4.5",
     return_periods: Optional[np.ndarray] = None,
     max_gcms: Optional[int] = None,
-) -> Optional[Tuple[np.ndarray, np.ndarray]]:
+) -> Optional[Tuple[np.ndarray, np.ndarray, dict]]:
     """
     Fetch wind speed return-period curve from ISIMIP3b (ensemble median).
 
@@ -497,9 +727,9 @@ def fetch_isimip3b_wind(
     # Always use historical baseline — ssp parameter ignored.
     ssp_key = _BASELINE_SSP
 
-    def _wind_curve(gcm: str) -> Optional[np.ndarray]:
+    def _wind_curve(gcm: str) -> Optional[dict]:
         try:
-            paths = _query_isimip_paths("ISIMIP3b", "SecondaryInputData", ssp_key, "sfcwind", gcm)
+            paths = _query_isimip_paths("ISIMIP3b", "InputData", ssp_key, "sfcwind", gcm)
             if not paths:
                 paths = _build_direct_paths(ssp_key, "sfcwind", gcm)
 
@@ -514,22 +744,33 @@ def fetch_isimip3b_wind(
                 return None
 
             annual_max_gust = annual_max * 1.5
-            speeds = _fit_gev(annual_max_gust, return_periods)
-            if speeds is not None:
+            fit = fit_gev_central(annual_max_gust, return_periods)
+            if fit is not None:
                 logger.info(f"ISIMIP3b wind: {gcm}/{ssp_key} → {len(annual_max)} yr, "
-                            f"RP100={speeds[2]:.1f} m/s")
-                return speeds
+                            f"RP100={fit['central'][2]:.1f} m/s")
+                return {
+                    "gcm": gcm,
+                    "central": np.asarray(fit["central"], dtype=float),
+                    "annual_maxima": np.asarray(annual_max_gust, dtype=float),
+                }
         except Exception:
             return None
 
         return None
 
-    gcm_curves = _collect_gcm_curves(_selected_gcms(max_gcms), _wind_curve)
-    median = _ensemble_median(gcm_curves)
-    if median is not None:
-        logger.info(f"ISIMIP3b wind ensemble: {len(gcm_curves)} GCMs, "
-                    f"median RP100={median[2]:.1f} m/s")
-        return return_periods, median
+    gcm_records = _collect_gcm_curve_records(_selected_gcms(max_gcms), _wind_curve)
+    central = _ensemble_central_curve(gcm_records)
+    if central is not None:
+        logger.info(f"ISIMIP3b wind ensemble: {len(gcm_records)} GCMs, "
+                    f"median RP100={central[2]:.1f} m/s")
+        return return_periods, central, {
+            "uncertainty_status": "deferred",
+            "gev_basis": _build_gev_basis(
+                return_periods,
+                {"kind": "identity", "hazard": "wind"},
+                gcm_records,
+            ),
+        }
     return None
 
 
@@ -539,7 +780,7 @@ def fetch_isimip3b_flood(
     ssp: str = "SSP2-4.5",
     return_periods: Optional[np.ndarray] = None,
     max_gcms: Optional[int] = None,
-) -> Optional[Tuple[np.ndarray, np.ndarray]]:
+) -> Optional[Tuple[np.ndarray, np.ndarray, dict]]:
     """
     Derive flood depth return-period curve from ISIMIP3b precipitation extremes.
 
@@ -605,9 +846,9 @@ def fetch_isimip3b_flood(
 
     DRAINAGE_THRESHOLD_MM, DEPTH_FACTOR = _REGIONAL_FLOOD_PARAMS.get(zone, _REGIONAL_FLOOD_PARAMS["global"])
 
-    def _flood_curve(gcm: str) -> Optional[np.ndarray]:
+    def _flood_curve(gcm: str) -> Optional[dict]:
         try:
-            paths = _query_isimip_paths("ISIMIP3b", "SecondaryInputData", ssp_key, "pr", gcm)
+            paths = _query_isimip_paths("ISIMIP3b", "InputData", ssp_key, "pr", gcm)
             if not paths:
                 paths = _build_direct_paths(ssp_key, "pr", gcm)
 
@@ -622,25 +863,44 @@ def fetch_isimip3b_flood(
             if annual_max_pr.mean() < 1.0:
                 annual_max_pr = annual_max_pr * 86400.0
 
-            rx1day = _fit_gev(annual_max_pr, return_periods)
-            if rx1day is None:
+            fit = fit_gev_central(annual_max_pr, return_periods)
+            if fit is None:
                 return None
 
-            depths = np.clip((rx1day - DRAINAGE_THRESHOLD_MM) * DEPTH_FACTOR, 0.0, 8.0)
+            central = np.asarray(fit["central"], dtype=float)
+            depths = np.clip((central - DRAINAGE_THRESHOLD_MM) * DEPTH_FACTOR, 0.0, 8.0)
             logger.info(f"ISIMIP3b flood (pr-derived, zone={zone}): {gcm}/{ssp_key} → {len(annual_max_pr)} yr, "
-                        f"RP100 Rx1day={rx1day[2]:.0f}mm → depth={depths[2]:.2f}m")
-            return depths
+                        f"RP100 Rx1day={central[2]:.0f}mm → depth={depths[2]:.2f}m")
+            return {
+                "gcm": gcm,
+                "central": depths,
+                "annual_maxima": np.asarray(annual_max_pr, dtype=float),
+            }
         except Exception:
             return None
 
         return None
 
-    gcm_curves = _collect_gcm_curves(_selected_gcms(max_gcms), _flood_curve)
-    median = _ensemble_median(gcm_curves)
-    if median is not None:
-        logger.info(f"ISIMIP3b flood ensemble: {len(gcm_curves)} GCMs, "
-                    f"median RP100 depth={median[2]:.2f}m")
-        return return_periods, median
+    gcm_records = _collect_gcm_curve_records(_selected_gcms(max_gcms), _flood_curve)
+    central = _ensemble_central_curve(gcm_records)
+    if central is not None:
+        logger.info(f"ISIMIP3b flood ensemble: {len(gcm_records)} GCMs, "
+                    f"median RP100 depth={central[2]:.2f}m")
+        return return_periods, central, {
+            "uncertainty_status": "deferred",
+            "gev_basis": _build_gev_basis(
+                return_periods,
+                {
+                    "kind": "flood_depth",
+                    "hazard": "flood",
+                    "zone": zone,
+                    "drainage_threshold_mm": DRAINAGE_THRESHOLD_MM,
+                    "depth_factor_m_per_mm": DEPTH_FACTOR,
+                    "depth_cap_m": 8.0,
+                },
+                gcm_records,
+            ),
+        }
     return None
 
 
@@ -651,7 +911,7 @@ def fetch_isimip3b_wildfire(
     return_periods: Optional[np.ndarray] = None,
     vegetation: str = "forest",
     max_gcms: Optional[int] = None,
-) -> Optional[Tuple[np.ndarray, np.ndarray]]:
+) -> Optional[Tuple[np.ndarray, np.ndarray, dict]]:
     """
     Derive wildfire flame length return periods from ISIMIP3b multi-variable extraction.
 
@@ -685,11 +945,11 @@ def fetch_isimip3b_wildfire(
 
     WILDFIRE_VARS = ["tasmax", "pr", "hurs", "sfcwind"]
 
-    def _wildfire_curve(gcm: str) -> Optional[np.ndarray]:
+    def _wildfire_curve(gcm: str) -> Optional[dict]:
         try:
             all_paths: List[str] = []
             for var in WILDFIRE_VARS:
-                paths = _query_isimip_paths("ISIMIP3b", "SecondaryInputData", ssp_key, var, gcm)
+                paths = _query_isimip_paths("ISIMIP3b", "InputData", ssp_key, var, gcm)
                 if not paths:
                     paths = _build_direct_paths(ssp_key, var, gcm)
                 all_paths.extend(paths[:2])
@@ -714,12 +974,12 @@ def fetch_isimip3b_wildfire(
             if len(ann_fwi) < 10:
                 return None
 
-            fwi_quantiles = _fit_gev(ann_fwi, return_periods)
-            if fwi_quantiles is None:
+            fit = fit_gev_central(ann_fwi, return_periods)
+            if fit is None:
                 return None
 
             flame_lengths = np.array([
-                fwi_to_flame_length(float(q), vegetation) for q in fwi_quantiles
+                fwi_to_flame_length(float(q), vegetation) for q in fit["central"]
             ])
 
             logger.info(
@@ -727,16 +987,27 @@ def fetch_isimip3b_wildfire(
                 f"→ {len(ann_fwi)} yr, median FWI={np.median(ann_fwi):.1f}, "
                 f"RP100 flame={flame_lengths[2]:.2f}m"
             )
-            return flame_lengths
+            return {
+                "gcm": gcm,
+                "central": flame_lengths,
+                "annual_maxima": np.asarray(ann_fwi, dtype=float),
+            }
         except Exception:
             return None
 
         return None
 
-    gcm_curves = _collect_gcm_curves(_selected_gcms(max_gcms), _wildfire_curve)
-    median = _ensemble_median(gcm_curves)
-    if median is not None:
-        logger.info(f"ISIMIP3b wildfire ensemble: {len(gcm_curves)} GCMs, "
-                    f"median RP100 flame={median[2]:.2f}m")
-        return return_periods, median
+    gcm_records = _collect_gcm_curve_records(_selected_gcms(max_gcms), _wildfire_curve)
+    central = _ensemble_central_curve(gcm_records)
+    if central is not None:
+        logger.info(f"ISIMIP3b wildfire ensemble: {len(gcm_records)} GCMs, "
+                    f"median RP100 flame={central[2]:.2f}m")
+        return return_periods, central, {
+            "uncertainty_status": "deferred",
+            "gev_basis": _build_gev_basis(
+                return_periods,
+                {"kind": "wildfire_flame_length", "hazard": "wildfire", "vegetation": vegetation},
+                gcm_records,
+            ),
+        }
     return None

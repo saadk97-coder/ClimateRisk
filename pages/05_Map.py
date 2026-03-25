@@ -9,25 +9,25 @@ import numpy as np
 import requests
 import json
 
-from engine.asset_model import Asset as _Asset
+from engine.asset_model import Asset as _Asset, normalize_asset_state
 from engine.scenario_model import SCENARIOS
 from engine.portfolio_aggregator import results_to_dataframe
 from engine.fmt import fmt as _fmt_cur, currency_symbol as _currency_symbol
+from engine.governance import PRIVACY_DISCLOSURE
 
 st.set_page_config(page_title="Map", page_icon="🗺️", layout="wide")
 
+assets = normalize_asset_state(st.session_state)
+
 with st.sidebar:
     st.header("Portfolio Summary")
-    n = len(st.session_state.get("assets", []))
-    total_val = sum(a.replacement_value for a in st.session_state.get("assets", []))
+    n = len(assets)
+    total_val = sum(a.replacement_value for a in assets)
     st.metric("Assets", n)
     _cur = st.session_state.get("currency_code", "GBP")
     st.metric("Total Value", _fmt_cur(total_val, _cur))
 
 st.title("Risk Map")
-
-assets = [_Asset.from_dict(a) if isinstance(a, dict) else a
-          for a in st.session_state.get("assets", [])]
 results = st.session_state.get("results", [])
 annual_df = st.session_state.get("annual_damages", pd.DataFrame())
 _cur = st.session_state.get("currency_code", "GBP")
@@ -86,6 +86,10 @@ with col_tc:
     )
 
 # ── Build map dataframe ────────────────────────────────────────────────────
+st.caption(
+    f"External-provider note: {PRIVACY_DISCLOSURE} The map water-stress overlay is a raw Aqueduct indicator and will fall back to regional medians when provider calls fail."
+)
+
 colour_map = {
     "EAD %": "ead_pct", f"Total EAD ({_sym})": "total_ead",
     "Flood EAD": "ead_flood", "Wind EAD": "ead_wind",
@@ -111,6 +115,7 @@ else:
 
 # ── Water stress fetch ─────────────────────────────────────────────────────
 water_stress_scores: dict = {}
+water_stress_fallback_assets: list[str] = []
 if show_water_stress or colour_by == "Water Stress":
     from engine.water_stress import fetch_aqueduct_bws, get_water_stress_rating
     ws_status = st.empty()
@@ -124,8 +129,14 @@ if show_water_stress or colour_by == "Water Stress":
                     from engine.hazard_fetcher import get_region_zone
                     zone = get_region_zone(asset.region)
                     bws = _REGIONAL_BWS_BASELINE.get(zone, 2.0)
+                    water_stress_fallback_assets.append(asset.name)
                 water_stress_scores[asset.id] = float(bws)
     ws_status.empty()
+    if water_stress_fallback_assets:
+        st.warning(
+            f"Water-stress overlay degraded to regional fallback for {len(water_stress_fallback_assets)} asset(s). "
+            "These map values are screening indicators, not the run-faithful hazard provenance used in Results exports."
+        )
 
 rows = []
 for asset in assets:

@@ -1,29 +1,18 @@
 """
-Hazard data fetcher — priority cascade:
-  1. ISIMIP3b REST API v2  (https://www.isimip.org/)
-  2. NASA NEX-GDDP-CMIP6  (https://www.nccs.nasa.gov/services/data-collections/land-based-products/nex-gddp-cmip6)
-  3. CHELSA CMIP6          (https://chelsa-climate.org/)
-  4. LOCA2                 (https://loca.ucsd.edu/loca2/)
-  5. ClimateNA/AdaptWest   (https://adaptwest.databasin.org/)
-  6. Built-in regional baseline (compiled; see data/ngfs_hazard_baseline.json)
+Hazard data fetcher for the live screening baseline path.
 
-Built-in fallback values are compiled from:
-  • IPCC AR6 WG1 regional hazard assessments
-    https://www.ipcc.ch/report/ar6/wg1/
-  • ISIMIP3b global flood medians (Sauer et al. 2021)
-    https://doi.org/10.1029/2020EF001901
-  • HAZUS regional wind speed data (FEMA, 2022)
-    https://www.fema.gov/flood-maps/products-tools/hazus
-  • EFFIS fire danger climatology (JRC, 2021)
-    https://effis.jrc.ec.europa.eu/
-  • Copernicus C3S ERA5-Land temperature climatology
-    https://cds.climate.copernicus.eu/
+Active baseline path:
+  1. ISIMIP3b historical baseline for flood, heat, wind, and full-mode wildfire
+  2. WRI Aqueduct 4.0 for water stress
+  3. Coastal baseline screening pathway for coastal flood
+  4. Built-in regional fallback when provider refresh fails
 """
 
 import inspect
 import json
 import logging
 import os
+import hashlib
 from functools import lru_cache
 from threading import Lock
 import requests
@@ -43,8 +32,20 @@ FETCH_MODE_MAX_GCMS = {
     "full": 4,
 }
 _GRID_CELL_HAZARDS = {"flood", "heat", "wind", "wildfire"}
+_DEFERRED_UNCERTAINTY_HAZARDS = {"flood", "heat", "wind", "wildfire"}
+_UNCERTAINTY_STATUSES = {"deferred", "generated", "unavailable", "failed"}
+_PREFERRED_SOURCES = {
+    "flood": "isimip3b",
+    "heat": "isimip3b",
+    "wind": "isimip3b",
+    "coastal_flood": "coastal_slr_baseline",
+}
 _FETCH_KEY_LOCKS: dict[tuple, Lock] = {}
 _FETCH_KEY_LOCKS_GUARD = Lock()
+_DISK_CACHE_DIR = os.path.normpath(
+    os.path.join(os.path.dirname(__file__), "..", ".hazard_cache")
+)
+_DISK_CACHE_VERSION = 1
 
 _BASELINE: Optional[dict] = None
 
@@ -58,6 +59,44 @@ def _normalize_fetch_mode(fetch_mode: str) -> str:
 
 def _grid_cell_coord(value: float) -> float:
     return round(round(float(value) * 2.0) / 2.0, 2)
+
+
+def preferred_source_for_hazard(hazard: str, fetch_mode: str = DEFAULT_FETCH_MODE) -> str | None:
+    mode = _normalize_fetch_mode(fetch_mode)
+    hazard_key = str(hazard or "").strip()
+    if hazard_key == "wildfire":
+        return "isimip3b" if mode == "full" else None
+    return _PREFERRED_SOURCES.get(hazard_key)
+
+
+def asset_requires_provider_refresh(
+    hazard_data: Optional[dict],
+    hazards: list,
+    fetch_mode: str = DEFAULT_FETCH_MODE,
+) -> bool:
+    """Return True when cached data should be refreshed for the requested source path.
+
+    This prevents a transient degraded cache (for example, fallback_baseline from an
+    earlier provider failure) from being reused indefinitely after the upstream issue
+    has been fixed.
+    """
+    if not isinstance(hazard_data, dict):
+        return True
+
+    ordered_hazards = list(dict.fromkeys(str(hazard) for hazard in hazards))
+    for hazard in ordered_hazards:
+        preferred_source = preferred_source_for_hazard(hazard, fetch_mode)
+        if preferred_source is None:
+            continue
+        entry = hazard_data.get(hazard)
+        if not isinstance(entry, dict):
+            return True
+        source = str(entry.get("source", "")).strip()
+        if source == "manual_override":
+            continue
+        if source != preferred_source:
+            return True
+    return False
 
 
 def build_fetch_signature(
@@ -78,6 +117,66 @@ def build_fetch_signature(
         str(asset_type or "default"),
         _normalize_fetch_mode(fetch_mode),
     )
+
+
+def _finalize_uncertainty_diagnostics(hazard: str, source: str, diagnostics: Optional[dict]) -> dict:
+    final = dict(diagnostics or {})
+    uncertainty = dict(final.get("uncertainty", {}) or {})
+    explicit_status = str(final.get("uncertainty_status", "")).strip().lower()
+    if (
+        hazard not in _DEFERRED_UNCERTAINTY_HAZARDS
+        and not uncertainty
+        and explicit_status not in _UNCERTAINTY_STATUSES
+    ):
+        return final
+
+    if uncertainty.get("type") == "gev_parameter_uncertainty":
+        status = "generated"
+    elif explicit_status in _UNCERTAINTY_STATUSES:
+        status = explicit_status
+    elif source == "isimip3b" and hazard in _DEFERRED_UNCERTAINTY_HAZARDS and final.get("gev_basis"):
+        status = "deferred"
+    else:
+        status = "unavailable"
+
+    final["uncertainty_status"] = status
+    if status == "generated":
+        final.setdefault(
+            "uncertainty_detail",
+            "Conditional GEV parameter bands have been generated for this asset-hazard pair.",
+        )
+    elif status == "deferred":
+        final.setdefault(
+            "uncertainty_detail",
+            "Conditional GEV parameter bands are available on demand and were not generated in the standard run.",
+        )
+    elif status == "failed":
+        final.setdefault(
+            "uncertainty_detail",
+            final.get("uncertainty_error")
+            or "Conditional GEV parameter bands could not be generated from cached basis.",
+        )
+    else:
+        final.setdefault(
+            "uncertainty_detail",
+            "Conditional GEV parameter bands are unavailable for this hazard-source path.",
+        )
+    return final
+
+
+def uncertainty_status_for_entry(hazard: str, entry: Optional[dict]) -> str:
+    if not isinstance(entry, dict):
+        return "unavailable"
+    diagnostics = _finalize_uncertainty_diagnostics(
+        str(hazard or "").strip(),
+        str(entry.get("source", "")).strip(),
+        entry,
+    )
+    return str(diagnostics.get("uncertainty_status", "unavailable"))
+
+
+def entry_supports_gev_bands(hazard: str, entry: Optional[dict]) -> bool:
+    return uncertainty_status_for_entry(hazard, entry) in {"deferred", "generated", "failed"}
 
 
 @lru_cache(maxsize=32)
@@ -154,6 +253,66 @@ def _get_cache_lock(cache_key: tuple) -> Lock:
             lock = Lock()
             _FETCH_KEY_LOCKS[cache_key] = lock
         return lock
+
+
+def _cache_file_path(cache_key: tuple) -> str:
+    payload = json.dumps(list(cache_key), sort_keys=False)
+    digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+    return os.path.join(_DISK_CACHE_DIR, f"{digest}.json")
+
+
+def _json_safe(value):
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    if isinstance(value, np.generic):
+        return value.item()
+    if isinstance(value, tuple):
+        return list(value)
+    raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
+
+
+def _load_fetch_from_disk(cache_key: tuple) -> tuple | None:
+    path = _cache_file_path(cache_key)
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path, encoding="utf-8") as handle:
+            payload = json.load(handle)
+        if payload.get("version") != _DISK_CACHE_VERSION:
+            return None
+        return (
+            tuple(float(v) for v in payload.get("return_periods", [])),
+            tuple(float(v) for v in payload.get("intensities", [])),
+            str(payload.get("source", "")),
+            dict(payload.get("diagnostics", {}) or {}),
+        )
+    except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        return None
+
+
+def _save_fetch_to_disk(
+    cache_key: tuple,
+    rp: tuple,
+    intensities: tuple,
+    source: str,
+    diagnostics: dict,
+) -> None:
+    try:
+        os.makedirs(_DISK_CACHE_DIR, exist_ok=True)
+        path = _cache_file_path(cache_key)
+        tmp_path = f"{path}.tmp"
+        payload = {
+            "version": _DISK_CACHE_VERSION,
+            "return_periods": list(rp),
+            "intensities": list(intensities),
+            "source": source,
+            "diagnostics": diagnostics or {},
+        }
+        with open(tmp_path, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle, default=_json_safe)
+        os.replace(tmp_path, path)
+    except OSError:
+        return
 
 
 def _load_baseline() -> dict:
@@ -301,6 +460,54 @@ def _fallback_intensities(hazard: str, region_iso3: str) -> Tuple[np.ndarray, np
     return np.array(rps_list, dtype=float), np.array(intensities, dtype=float)
 
 
+def _parse_fetch_result(result: tuple) -> Tuple[np.ndarray, np.ndarray, str, dict]:
+    if len(result) == 4:
+        rp, intensities, source, diagnostics = result
+    elif len(result) == 3:
+        rp, intensities, source = result
+        diagnostics = {}
+    else:
+        raise ValueError(f"Unexpected fetch result length: {len(result)}")
+    return (
+        np.asarray(rp, dtype=float),
+        np.asarray(intensities, dtype=float),
+        str(source),
+        dict(diagnostics or {}),
+    )
+
+
+def _hazard_entry_from_fetch(
+    hazard: str,
+    lat: float,
+    lon: float,
+    source: str,
+    rp: np.ndarray,
+    intensities: np.ndarray,
+    diagnostics: Optional[dict],
+) -> dict:
+    diagnostics = _finalize_uncertainty_diagnostics(hazard, source, diagnostics)
+    src_info = DATA_SOURCE_REGISTRY.get(source, {})
+    entry = {
+        "return_periods": np.asarray(rp, dtype=float).tolist(),
+        "intensities": np.asarray(intensities, dtype=float).tolist(),
+        "source": source,
+        "source_name": src_info.get("name", source),
+        "citation": src_info.get("citation", ""),
+        "source_url": src_info.get("url", ""),
+    }
+    if diagnostics:
+        entry.update(diagnostics)
+    if hazard == "wind":
+        try:
+            from engine.tropical_cyclone import get_cyclone_exposure_summary
+            tc_info = get_cyclone_exposure_summary(lat, lon)
+            if tc_info is not None:
+                entry["cyclone_basin"] = tc_info
+        except Exception:
+            pass
+    return entry
+
+
 def _fetch_hazard_intensities_impl(
     lat: float,
     lon: float,
@@ -311,14 +518,14 @@ def _fetch_hazard_intensities_impl(
     terrain_elevation_asl_m: float = 0.0,
     asset_type: str = "default",
     fetch_mode: str = DEFAULT_FETCH_MODE,
-) -> Tuple[np.ndarray, np.ndarray, str]:
+) -> Tuple[np.ndarray, np.ndarray, str, dict]:
     """
     Fetch hazard return-period intensity profile for a location.
 
     Priority cascade (highest resolution first):
-      1. ISIMIP3b — point extraction via isimip-client (flood, heat, wind) [0.25–0.5°]
-      2. NASA NEX-GDDP-CMIP6 — S3 NetCDF point extraction (heat, wind) [0.25°]
-      3. CHELSA CMIP6 — GeoTIFF point extraction (heat) [30 arc-sec]
+      1. ISIMIP3b — point extraction via isimip-client (flood, heat, wind, full-mode wildfire)
+      2. WRI Aqueduct 4.0 — dedicated water stress pathway
+      3. Coastal baseline — storm-surge screening pathway for coastal assets
       4. Regional baseline — compiled medians from IPCC AR6 / ISIMIP [continental]
 
     The returned intensities represent a SCENARIO-AGNOSTIC baseline (historical
@@ -329,7 +536,7 @@ def _fetch_hazard_intensities_impl(
 
     Returns
     -------
-    (return_periods, intensities, source_key)
+    (return_periods, intensities, source_key, diagnostics)
     source_key maps to DATA_SOURCE_REGISTRY for full citation.
     """
     mode = _normalize_fetch_mode(fetch_mode)
@@ -344,12 +551,12 @@ def _fetch_hazard_intensities_impl(
                     elevation_m=0.0,  # first_floor_height applied in damage_engine
                     terrain_elevation_asl_m=terrain_elevation_asl_m,
                 )
-                return rp, intensities, "coastal_slr_baseline"
+                return rp, intensities, "coastal_slr_baseline", {}
         except Exception as e:
             logger.warning(f"Coastal flood fetch failed ({lat},{lon}): {e}")
         # Non-coastal or error: return zero intensities
         rps = np.array([10, 50, 100, 250, 500, 1000], dtype=float)
-        return rps, np.zeros(len(rps)), "coastal_slr_baseline"
+        return rps, np.zeros(len(rps)), "coastal_slr_baseline", {}
 
     # ── 0b. Water stress — WRI Aqueduct 4.0 (dedicated pipeline) ───────────
     if hazard == "water_stress":
@@ -361,12 +568,12 @@ def _fetch_hazard_intensities_impl(
             )
             # Map source key to DATA_SOURCE_REGISTRY key
             src_key = "aqueduct" if ws_source == "aqueduct" else "fallback_baseline"
-            return rp, damages, src_key
+            return rp, damages, src_key, {}
         except Exception as e:
             logger.warning(f"Water stress fetch failed ({lat},{lon}): {e}")
         # Minimal fallback for water stress if everything fails
         rps = np.array([10, 50, 100, 250, 500, 1000], dtype=float)
-        return rps, np.zeros(len(rps)), "fallback_baseline"
+        return rps, np.zeros(len(rps)), "fallback_baseline", {}
 
     # ── 1. ISIMIP3b (full extraction pipeline) ─────────────────────────────
     # NOTE: ISIMIP fetchers always use the HISTORICAL experiment (scenario-agnostic).
@@ -380,25 +587,28 @@ def _fetch_hazard_intensities_impl(
         if hazard == "flood":
             result = fetch_isimip3b_flood(lat, lon, max_gcms=max_gcms)
             if result is not None:
-                return result[0], result[1], "isimip3b"
+                rp, intensities, _, diagnostics = _parse_fetch_result(result)
+                return rp, intensities, "isimip3b", diagnostics
         elif hazard == "heat":
             result = fetch_isimip3b_heat(lat, lon, max_gcms=max_gcms)
             if result is not None:
-                return result[0], result[1], "isimip3b"
+                rp, intensities, _, diagnostics = _parse_fetch_result(result)
+                return rp, intensities, "isimip3b", diagnostics
         elif hazard == "wind":
             result = fetch_isimip3b_wind(lat, lon, max_gcms=max_gcms)
             if result is not None:
-                rp_w, int_w = result[0], result[1]
+                rp_w, int_w, _, diagnostics = _parse_fetch_result(result)
                 try:
                     from engine.tropical_cyclone import get_cyclone_wind_intensities
                     rp_w, int_w, _basin = get_cyclone_wind_intensities(lat, lon, rp_w, int_w)
                 except Exception as e:
                     logger.debug(f"Cyclone amplification skipped: {e}")
-                return rp_w, int_w, "isimip3b"
+                return rp_w, int_w, "isimip3b", diagnostics
         elif hazard == "wildfire" and mode == "full":
             result = fetch_isimip3b_wildfire(lat, lon, max_gcms=max_gcms)
             if result is not None:
-                return result[0], result[1], "isimip3b"
+                rp, intensities, _, diagnostics = _parse_fetch_result(result)
+                return rp, intensities, "isimip3b", diagnostics
     except Exception as e:
         logger.warning(f"ISIMIP3b {hazard} fetch failed ({lat},{lon}): {e}")
 
@@ -425,7 +635,7 @@ def _fetch_hazard_intensities_impl(
         except Exception:
             pass
 
-    return rp, intensities, source
+    return rp, intensities, source, {}
 
 
 @lru_cache(maxsize=2048)
@@ -440,7 +650,7 @@ def _fetch_hazard_intensities_cached(
     asset_type: str,
     fetch_mode: str,
 ) -> tuple:
-    rp, intensities, source = _fetch_hazard_intensities_impl(
+    disk_cached = _load_fetch_from_disk((
         lat,
         lon,
         hazard,
@@ -450,8 +660,43 @@ def _fetch_hazard_intensities_cached(
         terrain_elevation_asl_m,
         asset_type,
         fetch_mode,
+    ))
+    if disk_cached is not None:
+        rp, intensities, source, diagnostics = disk_cached
+        diagnostics = _finalize_uncertainty_diagnostics(hazard, source, diagnostics)
+        return rp, intensities, source, diagnostics
+    rp, intensities, source, diagnostics = _parse_fetch_result(
+        _fetch_hazard_intensities_impl(
+            lat,
+            lon,
+            hazard,
+            region_iso3,
+            scenario_ssp,
+            time_period,
+            terrain_elevation_asl_m,
+            asset_type,
+            fetch_mode,
+        )
     )
-    return tuple(np.asarray(rp, dtype=float).tolist()), tuple(np.asarray(intensities, dtype=float).tolist()), source
+    diagnostics = _finalize_uncertainty_diagnostics(hazard, source, diagnostics)
+    result = (
+        tuple(np.asarray(rp, dtype=float).tolist()),
+        tuple(np.asarray(intensities, dtype=float).tolist()),
+        source,
+        diagnostics,
+    )
+    _save_fetch_to_disk((
+        lat,
+        lon,
+        hazard,
+        region_iso3,
+        scenario_ssp,
+        time_period,
+        terrain_elevation_asl_m,
+        asset_type,
+        fetch_mode,
+    ), *result)
+    return result
 
 
 def fetch_hazard_intensities(
@@ -464,7 +709,8 @@ def fetch_hazard_intensities(
     terrain_elevation_asl_m: float = 0.0,
     asset_type: str = "default",
     fetch_mode: str = DEFAULT_FETCH_MODE,
-) -> Tuple[np.ndarray, np.ndarray, str]:
+    include_diagnostics: bool = False,
+) -> Tuple[np.ndarray, np.ndarray, str] | Tuple[np.ndarray, np.ndarray, str, dict]:
     cache_key = _normalized_cache_args(
         lat,
         lon,
@@ -475,8 +721,81 @@ def fetch_hazard_intensities(
         fetch_mode,
     )
     with _get_cache_lock(cache_key):
-        rp, intensities, source = _fetch_hazard_intensities_cached(*cache_key)
-    return np.array(rp, dtype=float), np.array(intensities, dtype=float), source
+        rp, intensities, source, diagnostics = _fetch_hazard_intensities_cached(*cache_key)
+    rp_arr = np.array(rp, dtype=float)
+    intens_arr = np.array(intensities, dtype=float)
+    if include_diagnostics:
+        return rp_arr, intens_arr, source, dict(diagnostics or {})
+    return rp_arr, intens_arr, source
+
+
+def generate_conditional_gev_bands(
+    lat: float,
+    lon: float,
+    hazard: str,
+    region_iso3: str,
+    *,
+    terrain_elevation_asl_m: float = 0.0,
+    asset_type: str = "default",
+    fetch_mode: str = DEFAULT_FETCH_MODE,
+) -> dict:
+    cache_key = _normalized_cache_args(
+        lat,
+        lon,
+        hazard,
+        region_iso3,
+        terrain_elevation_asl_m,
+        asset_type,
+        fetch_mode,
+    )
+    with _get_cache_lock(cache_key):
+        rp, intensities, source, diagnostics = _fetch_hazard_intensities_cached(*cache_key)
+        diagnostics = _finalize_uncertainty_diagnostics(hazard, source, diagnostics)
+        status = diagnostics.get("uncertainty_status", "unavailable")
+        if status != "generated":
+            if source == "isimip3b" and hazard in _DEFERRED_UNCERTAINTY_HAZARDS and diagnostics.get("gev_basis"):
+                try:
+                    from engine.isimip_fetcher import materialize_gev_uncertainty
+
+                    uncertainty = materialize_gev_uncertainty(diagnostics.get("gev_basis"))
+                    if uncertainty is not None:
+                        diagnostics["uncertainty"] = uncertainty
+                        diagnostics["uncertainty_status"] = "generated"
+                        diagnostics["uncertainty_detail"] = (
+                            "Conditional GEV parameter bands have been generated for this asset-hazard pair."
+                        )
+                        diagnostics.pop("uncertainty_error", None)
+                    else:
+                        diagnostics["uncertainty_status"] = "failed"
+                        diagnostics["uncertainty_error"] = (
+                            "Conditional GEV parameter bands could not be generated from cached basis."
+                        )
+                except Exception as exc:
+                    diagnostics["uncertainty_status"] = "failed"
+                    diagnostics["uncertainty_error"] = (
+                        f"Conditional GEV parameter band generation failed: {exc}"
+                    )
+            else:
+                diagnostics["uncertainty_status"] = "unavailable"
+        diagnostics = _finalize_uncertainty_diagnostics(hazard, source, diagnostics)
+        result = (
+            tuple(np.asarray(rp, dtype=float).tolist()),
+            tuple(np.asarray(intensities, dtype=float).tolist()),
+            source,
+            diagnostics,
+        )
+        _save_fetch_to_disk(cache_key, *result)
+        _fetch_hazard_intensities_cached.cache_clear()
+
+    return _hazard_entry_from_fetch(
+        hazard,
+        lat,
+        lon,
+        source,
+        np.asarray(rp, dtype=float),
+        np.asarray(intensities, dtype=float),
+        diagnostics,
+    )
 
 
 def _build_hazard_entry(
@@ -490,35 +809,44 @@ def _build_hazard_entry(
     asset_type: str,
     fetch_mode: str,
 ) -> tuple[str, dict]:
-    rp, intensities, source = fetch_hazard_intensities(
+    try:
+        fetch_result = fetch_hazard_intensities(
+            lat,
+            lon,
+            hazard,
+            region_iso3,
+            scenario_ssp,
+            time_period,
+            terrain_elevation_asl_m=terrain_elevation_asl_m,
+            asset_type=asset_type,
+            fetch_mode=fetch_mode,
+            include_diagnostics=True,
+        )
+    except TypeError as exc:
+        if "include_diagnostics" not in str(exc):
+            raise
+        fetch_result = fetch_hazard_intensities(
+            lat,
+            lon,
+            hazard,
+            region_iso3,
+            scenario_ssp,
+            time_period,
+            terrain_elevation_asl_m=terrain_elevation_asl_m,
+            asset_type=asset_type,
+            fetch_mode=fetch_mode,
+        )
+
+    rp, intensities, source, diagnostics = _parse_fetch_result(fetch_result)
+    return hazard, _hazard_entry_from_fetch(
+        hazard,
         lat,
         lon,
-        hazard,
-        region_iso3,
-        scenario_ssp,
-        time_period,
-        terrain_elevation_asl_m=terrain_elevation_asl_m,
-        asset_type=asset_type,
-        fetch_mode=fetch_mode,
+        source,
+        rp,
+        intensities,
+        diagnostics,
     )
-    src_info = DATA_SOURCE_REGISTRY.get(source, {})
-    entry = {
-        "return_periods": rp.tolist(),
-        "intensities": intensities.tolist(),
-        "source": source,
-        "source_name": src_info.get("name", source),
-        "citation": src_info.get("citation", ""),
-        "source_url": src_info.get("url", ""),
-    }
-    if hazard == "wind":
-        try:
-            from engine.tropical_cyclone import get_cyclone_exposure_summary
-            tc_info = get_cyclone_exposure_summary(lat, lon)
-            if tc_info is not None:
-                entry["cyclone_basin"] = tc_info
-        except Exception:
-            pass
-    return hazard, entry
 
 
 def fetch_all_hazards(

@@ -5,6 +5,7 @@ selector, regional qualitative narratives, financial parameters, warming traject
 
 import streamlit as st
 import plotly.graph_objects as go
+from engine.asset_model import normalize_asset_state
 from engine.fmt import fmt as _fmt_cur
 from engine.scenario_model import (
     SCENARIOS, SCENARIO_PROVIDERS, PROVIDER_SOURCES, list_scenarios,
@@ -12,12 +13,12 @@ from engine.scenario_model import (
 )
 
 st.set_page_config(page_title="Scenarios", page_icon="🌡️", layout="wide")
+assets = normalize_asset_state(st.session_state)
 
 with st.sidebar:
     st.header("Portfolio Summary")
-    n = len(st.session_state.get("assets", []))
-    _raw_assets = st.session_state.get("assets", [])
-    total_val = sum((a.replacement_value if hasattr(a, 'replacement_value') else a.get('replacement_value', 0)) for a in _raw_assets)
+    n = len(assets)
+    total_val = sum(a.replacement_value for a in assets)
     st.metric("Assets", n)
     st.metric("Total Value", _fmt_cur(total_val, st.session_state.get("currency_code", "GBP")))
 

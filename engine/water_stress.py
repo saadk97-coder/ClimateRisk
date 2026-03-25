@@ -39,6 +39,7 @@ CDP (2023). Scaling Up: The Case for Ambitious Corporate Water Targets.
 """
 
 import logging
+from functools import lru_cache
 import numpy as np
 from typing import Optional, Tuple, Dict
 
@@ -191,7 +192,8 @@ def _interp_scenario(scenario_key: str, year: int) -> float:
 # WRI Aqueduct API fetcher
 # ---------------------------------------------------------------------------
 
-def fetch_aqueduct_bws(lat: float, lon: float) -> Optional[float]:
+@lru_cache(maxsize=2048)
+def _fetch_aqueduct_bws_cached(lat_key: float, lon_key: float) -> Optional[float]:
     """
     Fetch baseline water stress (BWS) from the WRI Aqueduct Analyzer API.
 
@@ -208,7 +210,7 @@ def fetch_aqueduct_bws(lat: float, lon: float) -> Optional[float]:
         # WRI Aqueduct public API — point query
         # The Aqueduct analyzer API accepts GeoJSON point geometry
         params = {
-            "geometry": f'{{"type":"Point","coordinates":[{lon},{lat}]}}',
+            "geometry": f'{{"type":"Point","coordinates":[{lon_key},{lat_key}]}}',
             "indicators": "bws",
             "year": "2023",
         }
@@ -231,6 +233,10 @@ def fetch_aqueduct_bws(lat: float, lon: float) -> Optional[float]:
     except Exception as e:
         logger.debug(f"Aqueduct API failed: {e}")
         return None
+
+
+def fetch_aqueduct_bws(lat: float, lon: float) -> Optional[float]:
+    return _fetch_aqueduct_bws_cached(round(float(lat), 4), round(float(lon), 4))
 
 
 def fetch_aqueduct_projected(

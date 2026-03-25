@@ -6,6 +6,7 @@ Run with: streamlit run app.py
 """
 
 import streamlit as st
+from engine.asset_model import normalize_asset_state
 from engine.fmt import fmt as _fmt, CURRENCIES
 
 st.set_page_config(
@@ -30,6 +31,8 @@ if "results" not in st.session_state:
     st.session_state.results = []
 if "currency_code" not in st.session_state:
     st.session_state.currency_code = "USD"
+
+assets = normalize_asset_state(st.session_state)
 
 # ---------------------------------------------------------------------------
 # Sidebar
@@ -60,8 +63,8 @@ with st.sidebar:
 
     st.divider()
     st.header("📊 Portfolio Summary")
-    n = len(st.session_state.assets)
-    total_val = sum(a.replacement_value for a in st.session_state.assets)
+    n = len(assets)
+    total_val = sum(a.replacement_value for a in assets)
     st.metric("Assets", n)
     st.metric("Total Value", _fmt(total_val, _cur))
 
@@ -104,10 +107,10 @@ st.markdown(
 
 # ── Headline metrics strip ───────────────────────────────────────────────────
 total_val = sum(
-    (a.replacement_value if hasattr(a, 'replacement_value') else a.get('replacement_value', 0))
-    for a in st.session_state.assets
+    a.replacement_value
+    for a in assets
 )
-n_assets  = len(st.session_state.assets)
+n_assets  = len(assets)
 col_m1, col_m2, col_m3, col_m4 = st.columns(4)
 col_m1.metric("Assets", n_assets)
 col_m2.metric("Portfolio Value", _fmt(total_val, _cur) if total_val > 0 else "—")
@@ -159,7 +162,7 @@ with col3:
 - EAD via trapezoidal EP curve integration (screening-level)
 - Annual 2025–2050 timeline, discounted to PV
 - Adaptation Return on Investment (ROI %) with NPV benefits
-- Climate-adjusted DCF — scenario-weighted NPV impairment
+- Climate-adjusted DCF — scenario-specific NPV impairment
 - Multi-sheet XLSX export for all outputs
     """)
 

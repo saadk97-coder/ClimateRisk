@@ -1,9 +1,15 @@
 """
-Monte Carlo uncertainty quantification: 1000 draws → 5th / 95th percentile CI on EAD.
-Sources of uncertainty modelled:
-  1. Hazard intensity: log-normal spread (~20% CV) — perturbed BEFORE vulnerability curve
-  2. Vulnerability curve: uniform ±15% additive noise on damage fraction AFTER curve lookup
-  3. Asset value: normal ±10% CV
+Uncertainty helpers.
+
+This module currently supports two separate screening-level uncertainty views:
+  1. Monte Carlo perturbation around an already-built EP curve
+  2. Conditional parameter-uncertainty bands for GEV return levels
+
+The GEV bands are conditional on:
+  - the fitted GEV model form being appropriate
+  - the historical annual-maxima sample being representative
+
+They are not full climate-model, structural, or decision uncertainty.
 """
 
 import numpy as np
@@ -15,6 +21,150 @@ INTENSITY_CV = 0.20       # coefficient of variation on hazard intensity
 VULNERABILITY_SPREAD = 0.15  # fraction spread on damage fractions
 VALUE_CV = 0.10           # coefficient of variation on asset replacement value
 RNG_SEED = 42
+GEV_PARAMETER_DRAWS = 300
+GEV_BAND_QUANTILES = (10.0, 90.0)
+
+
+def _clean_annual_maxima(annual_maxima: np.ndarray) -> np.ndarray:
+    vals = np.asarray(annual_maxima, dtype=float)
+    vals = vals[~np.isnan(vals)]
+    vals = vals[np.isfinite(vals)]
+    vals = vals[vals > 0]
+    return vals
+
+
+def fit_gev_central(
+    annual_maxima: np.ndarray,
+    return_periods: np.ndarray,
+) -> Optional[dict]:
+    """
+    Fit a GEV by MLE and return only the central return-level curve.
+
+    This is the precision-preserving hot-path fit used during standard runs.
+    It intentionally excludes the expensive bootstrap-refit uncertainty step.
+    """
+    try:
+        from scipy.stats import genextreme
+    except Exception:
+        return None
+
+    vals = _clean_annual_maxima(annual_maxima)
+    rp = np.asarray(return_periods, dtype=float)
+    if len(vals) < 10 or rp.size == 0:
+        return None
+
+    try:
+        shape, loc, scale = genextreme.fit(vals)
+        if not np.isfinite(scale) or scale <= 0:
+            return None
+        probs = 1.0 - 1.0 / rp
+        central = np.clip(genextreme.ppf(probs, shape, loc=loc, scale=scale), 0.0, None)
+        return {
+            "central": central,
+            "params": {
+                "shape": float(shape),
+                "loc": float(loc),
+                "scale": float(scale),
+            },
+            "sample_years": int(len(vals)),
+        }
+    except Exception:
+        return None
+
+
+def fit_gev_parameter_bands(
+    annual_maxima: np.ndarray,
+    return_periods: np.ndarray,
+    *,
+    central_fit: Optional[dict] = None,
+) -> Optional[dict]:
+    """
+    Fit a GEV and compute conditional parameter-uncertainty bands.
+
+    The uncertainty bands are generated with a parametric bootstrap:
+      1. fit GEV by MLE to the observed annual maxima
+      2. simulate synthetic annual maxima from that fitted GEV
+      3. refit the GEV to each synthetic sample
+      4. compute pointwise return levels across the requested RP grid
+
+    Returns a diagnostics dictionary or None if the fit is not stable enough.
+    """
+    try:
+        from scipy.stats import genextreme
+    except Exception:
+        return None
+
+    vals = _clean_annual_maxima(annual_maxima)
+    rp = np.asarray(return_periods, dtype=float)
+    if len(vals) < 10 or rp.size == 0:
+        return None
+
+    fit = central_fit or fit_gev_central(vals, rp)
+    if fit is None:
+        return None
+
+    try:
+        params = fit["params"]
+        shape = float(params["shape"])
+        loc = float(params["loc"])
+        scale = float(params["scale"])
+        probs = 1.0 - 1.0 / rp
+        central = np.asarray(fit["central"], dtype=float)
+
+        rng = np.random.default_rng(RNG_SEED)
+        samples = np.empty((GEV_PARAMETER_DRAWS, len(rp)), dtype=float)
+        filled = 0
+        for _ in range(GEV_PARAMETER_DRAWS):
+            synthetic = genextreme.rvs(shape, loc=loc, scale=scale, size=len(vals), random_state=rng)
+            synthetic = _clean_annual_maxima(synthetic)
+            if len(synthetic) < 10:
+                continue
+            try:
+                s_shape, s_loc, s_scale = genextreme.fit(synthetic)
+                if not np.isfinite(s_scale) or s_scale <= 0:
+                    continue
+                samples[filled, :] = np.clip(
+                    genextreme.ppf(probs, s_shape, loc=s_loc, scale=s_scale),
+                    0.0,
+                    None,
+                )
+                filled += 1
+            except Exception:
+                continue
+
+        if filled == 0:
+            return None
+
+        draws = samples[:filled, :]
+        lower_q, upper_q = GEV_BAND_QUANTILES
+        lower = np.percentile(draws, lower_q, axis=0)
+        upper = np.percentile(draws, upper_q, axis=0)
+        return {
+            "central": central,
+            "lower": lower,
+            "upper": upper,
+            "params": dict(params),
+            "sample_years": int(fit["sample_years"]),
+            "bootstrap_draws": int(filled),
+            "band_label": f"P{int(lower_q)}-P{int(upper_q)} parameter band",
+            "method": "GEV MLE with parametric bootstrap refits",
+            "limitation": (
+                "Conditional parameter uncertainty only. Does not include model-form, "
+                "climate-model, exposure, or vulnerability uncertainty."
+            ),
+        }
+    except Exception:
+        return None
+
+
+def fit_gev_return_levels(
+    annual_maxima: np.ndarray,
+    return_periods: np.ndarray,
+) -> Optional[dict]:
+    """
+    Backward-compatible wrapper returning central levels plus conditional bands.
+    """
+    return fit_gev_parameter_bands(annual_maxima, return_periods)
 
 
 def run_monte_carlo(

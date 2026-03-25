@@ -11,7 +11,7 @@ import uuid
 import json
 import requests
 
-from engine.asset_model import Asset, load_asset_types
+from engine.asset_model import Asset, load_asset_types, normalize_asset_state
 from engine.fmt import fmt as _fmt, CURRENCIES
 from engine.insights import portfolio_health_check, render_insights_html
 from engine.portfolio_validation import REQUIRED_COLUMNS, validate_portfolio_df
@@ -70,6 +70,7 @@ st.set_page_config(page_title="Portfolio", page_icon="🏗️", layout="wide")
 # ── Session state defaults ───────────────────────────────────────────────────
 if "assets" not in st.session_state:
     st.session_state.assets = []
+assets = normalize_asset_state(st.session_state)
 if "geo_lat" not in st.session_state:
     st.session_state.geo_lat = 0.0
 if "geo_lon" not in st.session_state:
@@ -162,8 +163,8 @@ def _reset_geo_defaults():
 # ── Sidebar ──────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.header("Portfolio Summary")
-    n = len(st.session_state.assets)
-    total_val = sum(a.replacement_value for a in st.session_state.assets)
+    n = len(assets)
+    total_val = sum(a.replacement_value for a in assets)
     st.metric("Assets", n)
     st.metric("Total Value", _fmt(total_val, _cur))
     if "last_run" in st.session_state:

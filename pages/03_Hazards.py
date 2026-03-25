@@ -12,12 +12,14 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 
-from engine.asset_model import Asset as _Asset, load_asset_types
+from engine.asset_model import Asset as _Asset, load_asset_types, normalize_asset_state
+from engine.ead_calculator import calc_ead
 from engine.fmt import fmt as _fmt_cur
 import engine.hazard_fetcher as _hazard_fetcher
+from engine.hazard_math import DEFAULT_DISPLAY_RETURN_PERIOD_MAX, display_return_period_mask
 from engine.data_sources import DATA_SOURCE_REGISTRY
 from engine.impact_functions import get_damage_curve, get_damage_fraction, HAZARD_UNITS
-from engine.governance import current_operator, utc_now_iso
+from engine.governance import PRIVACY_DISCLOSURE, current_operator, utc_now_iso
 from engine.scenario_model import SCENARIOS
 
 fetch_all_hazards = _hazard_fetcher.fetch_all_hazards
@@ -48,6 +50,11 @@ def _fallback_build_fetch_signature(
 
 
 build_fetch_signature = getattr(_hazard_fetcher, "build_fetch_signature", _fallback_build_fetch_signature)
+asset_requires_provider_refresh = getattr(
+    _hazard_fetcher,
+    "asset_requires_provider_refresh",
+    lambda hazard_data, hazards, fetch_mode=DEFAULT_FETCH_MODE: False,
+)
 
 
 def _fallback_call_fetch_all_hazards_compat(fetch_callable, lat, lon, region_iso3, hazards, **kwargs):
@@ -79,10 +86,12 @@ call_fetch_all_hazards_compat = getattr(
 
 st.set_page_config(page_title="Hazard Data", page_icon="🌊", layout="wide")
 
+assets = normalize_asset_state(st.session_state)
+
 with st.sidebar:
     st.header("Portfolio Summary")
-    n = len(st.session_state.get("assets", []))
-    total_val = sum(a.replacement_value for a in st.session_state.get("assets", []))
+    n = len(assets)
+    total_val = sum(a.replacement_value for a in assets)
     st.metric("Assets", n)
     st.metric("Total Value", _fmt_cur(total_val, st.session_state.get("currency_code", "GBP")))
 
@@ -93,8 +102,6 @@ st.markdown(
     "coverage, and methodology details."
 )
 
-assets = [_Asset.from_dict(a) if isinstance(a, dict) else a
-          for a in st.session_state.get("assets", [])]
 if not assets:
     st.warning("No assets defined. Go to the Portfolio page first.")
     st.stop()
@@ -108,7 +115,7 @@ FETCH_MODE_LABELS = {
     "full": "Full - deepest review",
 }
 FETCH_MODE_NOTES = {
-    "balanced": "Balanced uses a 2-GCM ensemble median for acute hazards. This avoids the instability of a single-model extreme-value fit while staying materially faster than the full 4-GCM path.",
+    "balanced": "Balanced uses a 2-GCM ensemble median for flood, heat, and wind. Wildfire remains on the screening fallback baseline unless Full is selected.",
     "full": "Full uses a 4-GCM ensemble median and the full ISIMIP wildfire pipeline. Use it for a smaller set of priority assets when you want the deepest baseline review.",
 }
 MAX_FETCH_WORKERS = max(1, min(8, os.cpu_count() or 4))
@@ -244,7 +251,7 @@ HAZARD_UNIT_LABELS = {
     "wind": "3-s gust wind speed (m/s)",
     "wildfire": "Flame length (m)",
     "heat": "Max daily temperature (°C)",
-    "coastal_flood": "Storm surge depth (m)",
+    "coastal_flood": "Baseline storm surge level (m above MHWS)",
     "water_stress": "Damage fraction (chronic)",
 }
 
@@ -378,6 +385,9 @@ st.caption(FETCH_MODE_NOTES[fetch_mode])
 st.caption(
     "Single-GCM mode is intentionally not exposed in the standard UI because a single model can materially shift return-period extremes for an individual asset."
 )
+st.caption(
+    f"Privacy and degraded-mode note: {PRIVACY_DISCLOSURE} Results runs record fallback use, manual overrides, and provider refresh failures in the run manifest and XLSX export."
+)
 force_refresh = st.checkbox(
     "Force refresh cached assets",
     value=False,
@@ -412,6 +422,11 @@ if fetch_btn:
         if force_refresh
         or hazard_data_meta.get(asset.id) != requested_signatures[asset.id]
         or asset.id not in fetched_data
+        or asset_requires_provider_refresh(
+            fetched_data.get(asset.id),
+            _hazards_for_asset(asset),
+            st.session_state.hazard_fetch_mode,
+        )
     ]
     reused_assets = len(assets) - len(assets_to_fetch)
     failures = []
@@ -715,6 +730,11 @@ if sel_asset_obj and st.session_state.hazard_data.get(sel_asset_detail):
                 rp_vals = hd["return_periods"]
                 int_vals = hd["intensities"]
                 unit = HAZARD_UNIT_LABELS.get(hazard, "")
+                visible_mask = display_return_period_mask(np.asarray(rp_vals, dtype=float))
+                if not np.any(visible_mask):
+                    visible_mask = np.ones(len(rp_vals), dtype=bool)
+                rp_visible = np.asarray(rp_vals, dtype=float)[visible_mask]
+                int_visible = np.asarray(int_vals, dtype=float)[visible_mask]
 
                 # Build spatial reference label for table
                 if src_key == "fallback_baseline":
@@ -727,19 +747,19 @@ if sel_asset_obj and st.session_state.hazard_data.get(sel_asset_detail):
                     spatial_ref = f"({sel_asset_obj.lat:.4f}°, {sel_asset_obj.lon:.4f}°)"
 
                 int_df = pd.DataFrame({
-                    "Return Period (yr)": [int(r) for r in rp_vals],
-                    "Annual Exceedance Prob.": [f"1-in-{int(r)}-yr = {1/r*100:.2f}%/yr" for r in rp_vals],
-                    f"Baseline Intensity ({unit})": [round(v, 3) for v in int_vals],
-                    "Source": [DATA_SOURCE_REGISTRY.get(src_key, {}).get("name", src_key)] * len(rp_vals),
-                    "Spatial Reference": [spatial_ref] * len(rp_vals),
+                    "Return Period (yr)": [int(r) for r in rp_visible],
+                    "Annual Exceedance Prob.": [f"1-in-{int(r)}-yr = {1/r*100:.2f}%/yr" for r in rp_visible],
+                    f"Baseline Intensity ({unit})": [round(v, 3) for v in int_visible],
+                    "Source": [DATA_SOURCE_REGISTRY.get(src_key, {}).get("name", src_key)] * len(rp_visible),
+                    "Spatial Reference": [spatial_ref] * len(rp_visible),
                 })
                 st.dataframe(int_df, use_container_width=True)
 
                 # Chart
                 fig = go.Figure()
                 fig.add_trace(go.Bar(
-                    x=[f"RP{int(r)}" for r in rp_vals],
-                    y=int_vals,
+                    x=[f"RP{int(r)}" for r in rp_visible],
+                    y=int_visible,
                     name=f"Baseline intensity",
                     marker_color="#2980b9",
                     hovertemplate=f"RP%{{x}}<br>Intensity: %{{y:.3f}} {unit}<extra></extra>",
@@ -752,13 +772,18 @@ if sel_asset_obj and st.session_state.hazard_data.get(sel_asset_detail):
                     showlegend=False,
                 )
                 st.plotly_chart(fig, use_container_width=True)
+                if np.any(np.asarray(rp_vals, dtype=float) > DEFAULT_DISPLAY_RETURN_PERIOD_MAX):
+                    st.caption(
+                        f"Standard analyst view stops at RP{int(DEFAULT_DISPLAY_RETURN_PERIOD_MAX)}. "
+                        "Longer-tail points remain available in the engine but are treated as high-uncertainty screening outputs."
+                    )
 
                 if src_key == "fallback_baseline":
                     st.caption(
                         f"**Granularity note:** The {zone} zone represents continental-scale median values. "
                         f"Actual site-level intensity may vary significantly. "
-                        f"Use the override panel below to enter site-specific data, or set "
-                        f"ISIMIP3b as the preferred source for 0.5° gridded extraction."
+                        "Use the override panel below to enter site-specific evidence if the screening baseline "
+                        "is not decision-grade for this asset."
                     )
 
                 # Cyclone exposure info for wind hazard
@@ -817,8 +842,8 @@ into the damage and risk calculations on the Results page:
 with st.container(border=True):
     st.markdown("""
 **Step 1 — Hazard Intensity (this page)**
-Each asset gets a return-period curve: intensity values at RP10, RP50, RP100, RP250, RP500, RP1000.
-These represent "a 1-in-10-year event produces X intensity" through "a 1-in-1000-year event produces Y intensity".
+Each asset gets a return-period curve: intensity values at RP10, RP50, RP100, RP250, RP500, and an optional advanced RP1000 screening tail.
+The standard analyst view stops at RP500 because the longest-tail extrapolations are materially less stable.
 
 **Step 2 — Scenario Scaling (Scenarios page)**
 Each intensity is multiplied by a **hazard multiplier** for the selected scenario and year.
@@ -849,27 +874,32 @@ if sel_asset_obj and st.session_state.hazard_data.get(sel_asset_detail):
             rp_ex = np.array(hd_ex["return_periods"], dtype=float)
             int_ex = np.array(hd_ex["intensities"], dtype=float)
             unit_ex = HAZARD_UNIT_LABELS.get(example_hazard, "")
+            visible_mask_ex = display_return_period_mask(rp_ex)
+            if not np.any(visible_mask_ex):
+                visible_mask_ex = np.ones(len(rp_ex), dtype=bool)
 
             # Compute damage fractions
             dmg_fracs = np.array([
                 get_damage_fraction(example_hazard, sel_asset_obj.asset_type, i)
                 for i in int_ex
             ])
-            aep = 1.0 / rp_ex
             losses = dmg_fracs * sel_asset_obj.replacement_value
-            _trapz = getattr(np, "trapezoid", None) or getattr(np, "trapz")
-            order = np.argsort(aep)
-            ead = float(_trapz(losses[order], aep[order]))
+            ead = calc_ead(rp_ex, dmg_fracs, sel_asset_obj.replacement_value)
 
             ccy = st.session_state.get("currency_code", "GBP")
             worked_df = pd.DataFrame({
-                "Return Period (yr)": [int(r) for r in rp_ex],
-                "AEP (1/RP)": [f"{1/r:.4f}" for r in rp_ex],
-                f"Intensity ({unit_ex})": [round(v, 3) for v in int_ex],
-                "Damage Fraction": [f"{d*100:.2f}%" for d in dmg_fracs],
-                f"Loss ({ccy})": [_fmt_cur(l, ccy) for l in losses],
+                "Return Period (yr)": [int(r) for r in rp_ex[visible_mask_ex]],
+                "AEP (1/RP)": [f"{1/r:.4f}" for r in rp_ex[visible_mask_ex]],
+                f"Intensity ({unit_ex})": [round(v, 3) for v in int_ex[visible_mask_ex]],
+                "Damage Fraction": [f"{d*100:.2f}%" for d in dmg_fracs[visible_mask_ex]],
+                f"Loss ({ccy})": [_fmt_cur(l, ccy) for l in losses[visible_mask_ex]],
             })
             st.dataframe(worked_df, use_container_width=True)
+            if np.any(rp_ex > DEFAULT_DISPLAY_RETURN_PERIOD_MAX):
+                st.caption(
+                    f"Worked example shown through RP{int(DEFAULT_DISPLAY_RETURN_PERIOD_MAX)}. "
+                    "Longer-tail points are treated as high-uncertainty screening outputs."
+                )
             st.metric(
                 "Expected Annual Damage (EAD)",
                 _fmt_cur(max(ead, 0), ccy),

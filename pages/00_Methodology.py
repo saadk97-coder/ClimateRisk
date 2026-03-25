@@ -89,8 +89,8 @@ st.markdown(
         </div>
         <div style="background:rgba(255,255,255,0.08);border-radius:8px;
                     padding:12px 20px;text-align:center;min-width:100px;">
-          <div style="font-size:24px;font-weight:800;color:{BSR['green']};">1,000</div>
-          <div style="font-size:11px;color:#8fb3d5;">MC draws / asset</div>
+          <div style="font-size:24px;font-weight:800;color:{BSR['green']};">On-demand</div>
+          <div style="font-size:11px;color:#8fb3d5;">GEV parameter bands</div>
         </div>
       </div>
     </div>
@@ -125,7 +125,7 @@ STEPS = [
         "icon": "🌊",
         "title": "Hazard Data",
         "subtitle": "ISIMIP3b + Aqueduct",
-        "desc": "Granular point-level GCM data per asset. GEV-fitted return periods for flood, wind, heat, and wildfire.",
+        "desc": "Screening baselines per asset with central GEV-fitted return levels by default and conditional parameter bands available on demand.",
         "color": BSR["orange"],
     },
     {
@@ -141,7 +141,7 @@ STEPS = [
         "icon": "📊",
         "title": "EAD + Scores",
         "subtitle": "Financial quantification",
-        "desc": "Trapezoidal integration of Loss EP curve gives EAD. Climate Exposure Scores, EALR, stranded-asset flags.",
+        "desc": "EP-curve integration gives EAD. Standard analyst views stop at RP500; longer tails remain high-uncertainty screening outputs.",
         "color": BSR["red"],
     },
     {
@@ -149,7 +149,7 @@ STEPS = [
         "icon": "🛡️",
         "title": "Adaptation & DCF",
         "subtitle": "Decision outputs",
-        "desc": "NPV cost-benefit for 19+ adaptation measures. Climate-adjusted DCF valuation with scenario-weighted NPV impairment.",
+        "desc": "Standalone measure ranking plus bundled residual-risk sequencing for adaptation. Climate-adjusted DCF remains scenario-specific screening.",
         "color": BSR["green"],
     },
 ]
@@ -222,11 +222,11 @@ _NODE_DATA = [
 
     # EAD
     dict(id=12, x=3.3, y=2.5, label="Return Period Grid",    cat="EAD",
-         desc="Standard RPs: 2, 5, 10, 25, 50, 100, 250, 500, 1000 yrs. GEV MLE fitting to ISIMIP annual maxima."),
+         desc="Screening RPs: 10, 50, 100, 250, 500 yrs in the standard analyst view, with RP1000 retained only as an advanced high-uncertainty tail."),
     dict(id=13, x=3.3, y=1.2, label="EAD Integration",       cat="EAD",
          desc="Trapezoidal integration under the Loss EP curve. Discounted to PV at chosen rate. Annual 2025–2050 timeline."),
-    dict(id=14, x=3.3, y=0.0, label="Monte Carlo (planned)",  cat="EAD",
-         desc="Engine supports 1,000-draw MC uncertainty (intensity/vulnerability/value channels). Not yet wired to UI outputs — planned for future release."),
+    dict(id=14, x=3.3, y=0.0, label="Tail Uncertainty",  cat="EAD",
+         desc="Conditional GEV parameter bands can be generated on demand from bootstrap refits around the fitted return-level curve. This is not total climate or model uncertainty."),
 
     # Outputs
     dict(id=15, x=4.4, y=4.0, label="Annual EAD 2025–50",    cat="Output",
@@ -234,9 +234,9 @@ _NODE_DATA = [
     dict(id=16, x=4.4, y=2.8, label="Exposure Scores",       cat="Output",
          desc="Climate Exposure Score 1–10 per asset × hazard. EALR (%). Stranded-asset flags."),
     dict(id=17, x=4.4, y=1.6, label="Adaptation ROI",        cat="Output",
-         desc="NPV of avoided EAD for 19+ measures. Cost-benefit ratio, payback period, investment frontier."),
+         desc="Standalone NPV measure ranking plus bundled residual-risk sequencing. Bundle order and cross-hazard interactions remain approximate."),
     dict(id=18, x=4.4, y=0.4, label="DCF Impairment",        cat="Output",
-         desc="Climate-adjusted NPV = base DCF − PV damages. Scenario-weighted impairment %. TCFD-ready."),
+         desc="Climate-adjusted NPV = base DCF − PV damages. Scenario-specific impairment screening; no probability weighting in the current UI."),
 ]
 
 _EDGES = [
@@ -327,7 +327,7 @@ with st.expander(_step_header("1", "🏗️", "Asset Definition", BSR["navy"]), 
 | **Asset type** | Selects vulnerability curve family (HAZUS occupancy class) |
 | **Construction material** | Adjusts damage fraction within the curve |
 | **Year built** | Post-1994 = modern construction standards (HAZUS) |
-| **Elevation (m ASL)** | Directly subtracted from flood depth; 1 m can halve EAD |
+| **Elevation / freeboard** | Terrain elevation informs coastal screening; first-floor height is subtracted after hazard scaling for flood and coastal effective depth |
 | **Roof type** | Flat = higher wind uplift; gable/hip sheds wind |
 | **Floor area (m²)** | Scales heat cooling cost and productivity loss |
 | **Region (ISO3)** | Selects regional DDF: JRC for Europe, HAZUS elsewhere |
@@ -439,6 +439,10 @@ with st.expander(_step_header("3", "🌊", "Hazard Data Retrieval", BSR["orange"
 c, loc, scale = scipy.stats.genextreme.fit(annual_maxima)  # MLE
 intensity_rp  = genextreme.ppf(1 - 1/return_period, c, loc, scale)
 ```
+
+Standard analyst views stop at RP500. Where sufficient annual-maxima data exist, the Results and Audit pages
+can generate a conditional GEV parameter band on demand from bootstrap refits. That band is parameter
+uncertainty conditional on the fitted GEV form, not total climate or model uncertainty.
     """)
 
 # Step 4
@@ -460,8 +464,16 @@ with st.expander(_step_header("4", "📉", "Vulnerability Functions", "#8e44ad")
 
 **First-floor height adjustment for flood:**
 ```python
-effective_depth = max(0.0, flood_depth_m - first_floor_height_m)
+effective_depth = max(0.0, flood_depth_m * flood_mult - first_floor_height_m)
 damage_fraction = curve.evaluate(effective_depth)
+```
+
+**Coastal screening adjustment:**
+```python
+effective_depth = max(
+    0.0,
+    base_surge_m * storm_mult + slr_additive_m - terrain_elevation_asl_m - first_floor_height_m,
+)
 ```
 
 **Curve alias system:** New asset types (e.g. `data_center`, `hotel_resort`) are mapped to the
@@ -498,7 +510,7 @@ with st.expander(_step_header("5", "📊", "EAD Calculation & Scores", BSR["red"
 
 ```python
 # Return periods → annual exceedance probabilities
-aep = 1.0 / np.array([2, 5, 10, 25, 50, 100, 250, 500, 1000])
+aep = 1.0 / np.array([10, 50, 100, 250, 500])
 losses = damage_fractions * asset_value
 
 # Trapezoidal integration of the Loss EP curve
@@ -522,11 +534,14 @@ Log-normalised so all scores use the full 1–10 range even when one asset domin
 **Expected Annual Loss Ratio (EALR):**  `EALR% = EAD_2050 / replacement_value × 100`
 (Note: This is an expected-loss ratio, not a tail Value-at-Risk measure.)
 
-**Monte Carlo uncertainty (planned):** Engine supports 1,000-draw MC simulation with ±20% vulnerability CoV. Not yet rendered in UI outputs — planned for future release.
+**Portfolio aggregation:** diversification diagnostics use hazard-specific distance-decay correlations.
+Displayed portfolio EAD remains additive expected loss; the dependence model is a screening approximation, not institution-grade tail modelling.
+
+**Uncertainty:** Scenario comparison shows scenario range across selected pathways, not a statistical uncertainty interval. Formal uncertainty is only shown where conditional GEV parameter bands are explicitly computed and labelled.
         """)
     with col_b:
         try:
-            rps = np.array([2, 5, 10, 25, 50, 100, 250, 500, 1000])
+            rps = np.array([10, 50, 100, 250, 500])
             aep_ex = 1.0 / rps
             losses_ex = 0.01 * (1 - np.exp(-0.003 * rps)) * 10_000_000
             _trapz = getattr(np, "trapezoid", None) or getattr(np, "trapz")
@@ -575,6 +590,10 @@ payback_years = capex / avoided_ead
 
 A measure is justified when **CBR > 1.0**; strongly beneficial at **CBR > 2.0**.
 
+Standalone results compare each measure with the original hazard baseline. When multiple measures are selected on
+the Adaptation page, bundled outputs sequence them on residual hazard loss so overlapping savings are not simply summed.
+Order effects and cross-hazard interactions remain approximate.
+
 **19+ measure catalog:**
 - 🌊 Flood: barriers, elevated foundations, sump pumps, permeable paving
 - 🌬️ Wind: roof reinforcement, storm shutters, anchor bolts, wind-rated glazing
@@ -597,9 +616,9 @@ dcf_adjusted = dcf_base - total_pv_damages
 impairment_pct = (dcf_base - dcf_adjusted) / dcf_base * 100
 ```
 
-**Scenario-weighted:**
+**Scenario-specific comparison:**
 ```python
-weighted_npv = mean(dcf_adjusted_per_scenario)
+scenario_npvs = {scenario_id: dcf_adjusted}
 ```
 
 **Stranded asset flag:**
@@ -642,8 +661,9 @@ st.markdown(
     <div style="background:{BSR['light']};border-left:4px solid {BSR['orange']};
                 border-radius:6px;padding:14px 18px;margin-top:16px;font-size:13px;color:#555;">
       <strong>Disclaimer:</strong> Results are quantitative estimates based on published climate
-      science and peer-reviewed vulnerability functions. Uncertainty bounds reflect vulnerability
-      function uncertainty only; scenario uncertainty is captured by running multiple scenarios.
+      science and peer-reviewed vulnerability functions. Scenario comparison shows scenario range
+      across selected pathways, not a statistical uncertainty interval. Conditional GEV parameter
+      bands are shown only where explicitly computed and labelled.
       Consult licensed climate risk specialists for regulatory disclosures (TCFD, CSRD, ISSB S2).
     </div>
     """,

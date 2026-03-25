@@ -21,6 +21,7 @@ from typing import List, Dict, Optional
 
 from engine.asset_model import Asset
 from engine.hazard_fetcher import get_region_zone
+from engine.hazard_math import compute_effective_intensities
 from engine.scenario_model import get_scenario_multipliers, get_warming, get_slr_additive
 from engine.ead_calculator import calc_ead_from_intensities
 
@@ -79,17 +80,16 @@ def compute_annual_damages(
             mult = multipliers[idx]
 
             intens = base_intens.copy()
-            if hazard == "coastal_flood":
-                # Correct order: scale by storminess, ADD SLR, SUBTRACT freeboard.
-                # SLR and freeboard are physical offsets — must NOT be multiplied.
-                slr_m = get_slr_additive(scenario_id, year, region_zone)
-                intens = np.clip(intens * mult + slr_m - asset.first_floor_height_m, 0.0, None)
-                ead, damage_fracs = calc_ead_from_intensities(
-                    rp, intens, asset.asset_type, hazard, asset.replacement_value, 1.0
+            if hazard in ("coastal_flood", "flood"):
+                intens, _ = compute_effective_intensities(
+                    hazard,
+                    intens,
+                    mult,
+                    asset,
+                    scenario_id=scenario_id,
+                    year=year,
+                    region_zone=region_zone,
                 )
-            elif hazard == "flood":
-                # Correct order: scale by multiplier, THEN subtract freeboard.
-                intens = np.clip(intens * mult - asset.first_floor_height_m, 0.0, None)
                 ead, damage_fracs = calc_ead_from_intensities(
                     rp, intens, asset.asset_type, hazard, asset.replacement_value, 1.0
                 )

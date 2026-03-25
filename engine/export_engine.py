@@ -12,11 +12,19 @@ import pandas as pd
 
 from engine.data_sources import DATA_SOURCE_REGISTRY
 from engine.governance import (
+    ADAPTATION_BUNDLE_DISCLOSURE,
     BASELINE_METHOD,
     DCF_POSITIONING,
     MODEL_SCOPE,
+    PORTFOLIO_DEPENDENCE_DISCLOSURE,
     PLATFORM_NAME,
     RESULTS_POSITIONING,
+    TAIL_UNCERTAINTY_DISCLOSURE,
+    run_manifest_gev_rows,
+    run_manifest_gev_status_rows,
+    run_manifest_metadata,
+    run_manifest_provenance_rows,
+    run_manifest_provider_rows,
     runtime_metadata,
 )
 from engine.scenario_model import HAZARD_SCALING_SOURCES, SCENARIOS
@@ -101,30 +109,31 @@ def _write_df(ws, df: pd.DataFrame, start_row: int = 1, header_fill: str = HDR_F
     _autofit(ws)
 
 
-def _ordered_metadata(metadata: Optional[dict]) -> dict:
+def _ordered_metadata(metadata: Optional[dict], run_manifest: Optional[dict] = None) -> dict:
     merged = runtime_metadata()
+    merged.update(run_manifest_metadata(run_manifest))
     if metadata:
         merged.update({k: v for k, v in metadata.items() if v not in (None, "")})
     return merged
 
 
-def _add_cover(ws, metadata: Optional[dict]) -> int:
+def _add_cover(ws, metadata: Optional[dict], run_manifest: Optional[dict] = None) -> int:
     ws.cell(1, 1, PLATFORM_NAME)
     ws.cell(1, 1).font = Font(bold=True, size=14)
     ws.cell(2, 1, MODEL_SCOPE)
     ws.cell(3, 1, RESULTS_POSITIONING)
     ws.cell(4, 1, BASELINE_METHOD)
     row = 6
-    for key, value in _ordered_metadata(metadata).items():
+    for key, value in _ordered_metadata(metadata, run_manifest).items():
         ws.cell(row, 1, key)
         ws.cell(row, 2, str(value))
         row += 1
     return row + 1
 
 
-def _metadata_df(metadata: Optional[dict]) -> pd.DataFrame:
+def _metadata_df(metadata: Optional[dict], run_manifest: Optional[dict] = None) -> pd.DataFrame:
     return pd.DataFrame(
-        [{"Field": key, "Value": value} for key, value in _ordered_metadata(metadata).items()]
+        [{"Field": key, "Value": value} for key, value in _ordered_metadata(metadata, run_manifest).items()]
     )
 
 
@@ -208,6 +217,26 @@ def _method_notes_df(annual_damages_df: Optional[pd.DataFrame], override_records
                 "across the discrete return-period curve."
             ),
         },
+        {
+            "Topic": "Scenario comparison",
+            "Detail": "Scenario charts show scenario range across selected pathways. They are not statistical uncertainty bands.",
+        },
+        {
+            "Topic": "Tail uncertainty",
+            "Detail": TAIL_UNCERTAINTY_DISCLOSURE,
+        },
+        {
+            "Topic": "GEV diagnostics availability",
+            "Detail": (
+                "Standard runs and standard XLSX exports do not auto-generate conditional GEV parameter bands. "
+                "The workbook records GEV status per eligible asset-hazard pair, and the detailed GEV Diagnostics "
+                "sheet appears only after those bands are explicitly generated."
+            ),
+        },
+        {
+            "Topic": "Portfolio dependence",
+            "Detail": PORTFOLIO_DEPENDENCE_DISCLOSURE,
+        },
     ]
 
     if "water_stress" in hazards_used:
@@ -235,8 +264,8 @@ def _method_notes_df(annual_damages_df: Optional[pd.DataFrame], override_records
             {
                 "Topic": "Coastal flood method",
                 "Detail": (
-                    "Coastal flood combines multiplicative scenario scaling with additive sea-level rise and "
-                    "asset freeboard adjustments."
+                    "Coastal flood uses a screening baseline storm-surge level and applies "
+                    "effective_depth = max(0, base_surge * storm_mult + slr_additive - terrain_elevation - freeboard)."
                 ),
             }
         )
@@ -260,6 +289,7 @@ def export_results_xlsx(
     portfolio_summary: Optional[dict],
     scenarios: list,
     metadata: dict,
+    run_manifest: Optional[dict] = None,
     override_records: Optional[list[dict]] = None,
 ) -> bytes:
     if not _HAS_OPENPYXL:
@@ -271,13 +301,13 @@ def export_results_xlsx(
 
     ws_sum = wb.active
     ws_sum.title = "Portfolio Summary"
-    next_row = _add_cover(ws_sum, metadata)
+    next_row = _add_cover(ws_sum, metadata, run_manifest)
     if portfolio_summary:
         _write_df(ws_sum, pd.DataFrame([{"Metric": k, "Value": v} for k, v in portfolio_summary.items()]), start_row=next_row)
     _autofit(ws_sum)
 
     ws_meta = wb.create_sheet("Run Metadata")
-    _write_df(ws_meta, _metadata_df(metadata))
+    _write_df(ws_meta, _metadata_df(metadata, run_manifest))
 
     ws_ar = wb.create_sheet("Asset Results")
     _write_df(ws_ar, asset_results_df)
@@ -320,6 +350,24 @@ def export_results_xlsx(
     ws_method = wb.create_sheet("Method Notes")
     _write_df(ws_method, _method_notes_df(annual_damages_df, override_records))
 
+    provenance_rows = run_manifest_provenance_rows(run_manifest)
+    if provenance_rows:
+        ws_prov = wb.create_sheet("Hazard Provenance")
+        _write_df(ws_prov, pd.DataFrame(provenance_rows))
+
+    ws_gev_status = wb.create_sheet("GEV Status")
+    _write_df(ws_gev_status, pd.DataFrame(run_manifest_gev_status_rows(run_manifest)))
+
+    gev_rows = run_manifest_gev_rows(run_manifest)
+    if gev_rows:
+        ws_gev = wb.create_sheet("GEV Diagnostics")
+        _write_df(ws_gev, pd.DataFrame(gev_rows))
+
+    provider_rows = run_manifest_provider_rows(run_manifest)
+    if provider_rows:
+        ws_diag = wb.create_sheet("Provider Events")
+        _write_df(ws_diag, pd.DataFrame(provider_rows))
+
     if override_records:
         ws_ov = wb.create_sheet("Manual Overrides")
         _write_df(ws_ov, pd.DataFrame(override_records))
@@ -332,6 +380,7 @@ def export_results_xlsx(
 def export_audit_xlsx(
     audit_df: pd.DataFrame,
     metadata: dict,
+    run_manifest: Optional[dict] = None,
     override_records: Optional[list[dict]] = None,
 ) -> bytes:
     if not _HAS_OPENPYXL:
@@ -342,13 +391,13 @@ def export_audit_xlsx(
     wb = Workbook()
     ws = wb.active
     ws.title = "Calculation Audit"
-    next_row = _add_cover(ws, metadata)
+    next_row = _add_cover(ws, metadata, run_manifest)
     ws.cell(next_row, 1, "Step-by-step calculation trace")
     ws.cell(next_row, 1).font = Font(bold=True, italic=True)
     _write_df(ws, audit_df, start_row=next_row + 2)
 
     ws_meta = wb.create_sheet("Run Metadata")
-    _write_df(ws_meta, _metadata_df(metadata))
+    _write_df(ws_meta, _metadata_df(metadata, run_manifest))
 
     ws_method = wb.create_sheet("Method Notes")
     _write_df(
@@ -361,6 +410,15 @@ def export_audit_xlsx(
                     "Topic": "Audit purpose",
                     "Detail": "This workbook is a calculation trace for the selected asset, scenario, year, and hazard.",
                 },
+                {"Topic": "Tail uncertainty", "Detail": TAIL_UNCERTAINTY_DISCLOSURE},
+                {
+                    "Topic": "GEV diagnostics availability",
+                    "Detail": (
+                        "Standard runs and standard XLSX exports do not auto-generate conditional GEV parameter bands. "
+                        "The workbook records GEV status per eligible asset-hazard pair, and the detailed GEV Diagnostics "
+                        "sheet appears only after those bands are explicitly generated."
+                    ),
+                },
             ]
         ),
     )
@@ -369,12 +427,35 @@ def export_audit_xlsx(
         ws_ov = wb.create_sheet("Manual Overrides")
         _write_df(ws_ov, pd.DataFrame(override_records))
 
+    provenance_rows = run_manifest_provenance_rows(run_manifest)
+    if provenance_rows:
+        ws_prov = wb.create_sheet("Hazard Provenance")
+        _write_df(ws_prov, pd.DataFrame(provenance_rows))
+
+    ws_gev_status = wb.create_sheet("GEV Status")
+    _write_df(ws_gev_status, pd.DataFrame(run_manifest_gev_status_rows(run_manifest)))
+
+    gev_rows = run_manifest_gev_rows(run_manifest)
+    if gev_rows:
+        ws_gev = wb.create_sheet("GEV Diagnostics")
+        _write_df(ws_gev, pd.DataFrame(gev_rows))
+
+    provider_rows = run_manifest_provider_rows(run_manifest)
+    if provider_rows:
+        ws_diag = wb.create_sheet("Provider Events")
+        _write_df(ws_diag, pd.DataFrame(provider_rows))
+
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()
 
 
-def export_adaptation_xlsx(adaptation_df: pd.DataFrame, frontier_df: pd.DataFrame) -> bytes:
+def export_adaptation_xlsx(
+    adaptation_df: pd.DataFrame,
+    frontier_df: pd.DataFrame,
+    bundle_df: Optional[pd.DataFrame] = None,
+    bundle_cashflows_df: Optional[pd.DataFrame] = None,
+) -> bytes:
     if not _HAS_OPENPYXL:
         buf = io.BytesIO()
         adaptation_df.to_excel(buf, index=False)
@@ -388,15 +469,24 @@ def export_adaptation_xlsx(adaptation_df: pd.DataFrame, frontier_df: pd.DataFram
     ws2 = wb.create_sheet("Portfolio Frontier")
     _write_df(ws2, frontier_df)
 
+    if bundle_df is not None and not bundle_df.empty:
+        ws_bundle = wb.create_sheet("Bundled Sequence")
+        _write_df(ws_bundle, bundle_df)
+
+    if bundle_cashflows_df is not None and not bundle_cashflows_df.empty:
+        ws_cash = wb.create_sheet("Bundled Cashflows")
+        _write_df(ws_cash, bundle_cashflows_df)
+
     ws3 = wb.create_sheet("Methodology")
     notes = [
         ["Metric", "Formula", "Source"],
         ["Capex", "asset_value x capex_pct/100", "FEMA BCA Guide; EA FCERM"],
         ["Annual Opex", "capex x opex_annual_pct/100", "FEMA BCA Guide"],
-        ["NPV Benefits", "Sum of avoided_EAD discounted over design life", "Standard NPV"],
-        ["Cost-Benefit Ratio", "NPV Benefits / (capex + NPV opex)", "FEMA BCA; HM Treasury Green Book"],
-        ["Payback Period", "capex / avoided_EAD_annual", "Standard payback formula"],
-        ["Avoided EAD", "baseline_EAD x damage_reduction_pct/100", "Per-measure effectiveness"],
+        ["Standalone NPV Benefits", "Discounted avoided damages vs the original hazard baseline", "Standard NPV"],
+        ["Bundled NPV Benefits", "Discounted avoided damages after sequencing each measure on residual hazard loss", "Screening bundle sequence"],
+        ["Cost-Benefit Ratio", "NPV Benefits / total discounted cost", "FEMA BCA; HM Treasury Green Book"],
+        ["Avoided EAD", "residual_baseline x damage_reduction_pct/100 while the measure is active", "Per-measure effectiveness"],
+        ["Bundle limitation", ADAPTATION_BUNDLE_DISCLOSURE, ""],
         ["Scope", RESULTS_POSITIONING, ""],
     ]
     _write_df(ws3, pd.DataFrame(notes[1:], columns=notes[0]))

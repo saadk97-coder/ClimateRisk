@@ -7,6 +7,7 @@ from typing import Dict, List, Optional
 from dataclasses import dataclass, field
 
 from engine.asset_model import Asset
+from engine.hazard_math import compute_effective_intensities
 from engine.scenario_model import SCENARIOS, get_scenario_multipliers, get_slr_additive
 from engine.hazard_fetcher import fetch_all_hazards
 from engine.ead_calculator import calc_ead_from_intensities, calc_ead, STANDARD_RETURN_PERIODS
@@ -41,6 +42,8 @@ class AssetResult:
     total_ead_pct: float
     hazard_results: Dict[str, AssetHazardResult] = field(default_factory=dict)
     region: str = "global"  # ISO3 country code for correlation grouping
+    lat: float = 0.0
+    lon: float = 0.0
 
 
 def _get_hazards_for_asset(asset: Asset) -> List[str]:
@@ -123,19 +126,16 @@ def run_asset_scenario(
         # Scenario hazard multiplier — applied uniformly to ALL sources.
         mult = get_scenario_multipliers(scenario_id, year, hazard, region_zone)
 
-        if hazard == "coastal_flood":
-            # Correct order: scale baseline by storminess, ADD SLR, SUBTRACT freeboard.
-            # SLR and freeboard are physical offsets — must NOT be multiplied.
-            slr_m = get_slr_additive(scenario_id, year, region_zone)
-            intens = np.clip(intens * mult + slr_m - asset.first_floor_height_m, 0.0, None)
-            # Pass mult=1.0 because scaling is already applied above
-            ead, damage_fracs = calc_ead_from_intensities(
-                rp, intens, asset.asset_type, hazard, asset.replacement_value, 1.0
+        if hazard in ("coastal_flood", "flood"):
+            intens, _ = compute_effective_intensities(
+                hazard,
+                intens,
+                mult,
+                asset,
+                scenario_id=scenario_id,
+                year=year,
+                region_zone=region_zone,
             )
-        elif hazard == "flood":
-            # Correct order: scale baseline by multiplier, THEN subtract freeboard.
-            # Freeboard is a physical offset — must NOT be multiplied.
-            intens = np.clip(intens * mult - asset.first_floor_height_m, 0.0, None)
             ead, damage_fracs = calc_ead_from_intensities(
                 rp, intens, asset.asset_type, hazard, asset.replacement_value, 1.0
             )
@@ -176,6 +176,8 @@ def run_asset_scenario(
         total_ead_pct=total_ead / asset.replacement_value if asset.replacement_value > 0 else 0.0,
         hazard_results=hazard_results,
         region=asset.region,
+        lat=float(asset.lat),
+        lon=float(asset.lon),
     )
 
 

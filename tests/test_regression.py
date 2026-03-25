@@ -338,7 +338,7 @@ def test_water_stress_data_center_spelling():
 
 # ── Test 17: Negative terrain increases coastal flood depth ───────────────
 
-def test_negative_terrain_increases_coastal_depth():
+def _legacy_test_negative_terrain_increases_coastal_depth():
     """Below-sea-level terrain (e.g. polders) must INCREASE effective surge
     depth, not be skipped."""
     from engine.coastal import get_coastal_flood_intensities
@@ -434,7 +434,7 @@ def test_coastal_flood_ordering():
     SLR and freeboard must NOT be multiplied."""
     from engine.scenario_model import get_slr_additive, get_scenario_multipliers
 
-    asset = _make_asset(first_floor_height_m=0.3)
+    asset = _make_asset(first_floor_height_m=0.3, terrain_elevation_asl_m=0.0)
     rp = np.array([10, 50, 100, 250, 500, 1000], dtype=float)
     base_intens = np.array([0.2, 0.5, 0.8, 1.2, 1.6, 2.0], dtype=float)
     hdata = {
@@ -451,12 +451,12 @@ def test_coastal_flood_ordering():
     mult = get_scenario_multipliers("current_policies", 2050, "coastal_flood", "EUR")
     slr = get_slr_additive("current_policies", 2050, "EUR")
 
-    # Expected: max(0, 0.8 * mult + slr - 0.3)
-    expected = max(0, 0.8 * mult + slr - 0.3)
+    # Expected: max(0, 0.8 * mult + slr - terrain - 0.3)
+    expected = max(0, 0.8 * mult + slr - asset.terrain_elevation_asl_m - 0.3)
     actual = row["adjusted_intensity_rp100"]
 
     assert abs(actual - expected) < 0.01, \
-        f"Coastal effective intensity should be max(0, 0.8*{mult}+{slr}-0.3)={expected:.4f}, got {actual:.4f}"
+        f"Coastal effective intensity should be max(0, 0.8*{mult}+{slr}-{asset.terrain_elevation_asl_m}-0.3)={expected:.4f}, got {actual:.4f}"
 
 
 # ── Test 23: SLR and freeboard are NOT multiplied ────────────────────────
@@ -741,6 +741,8 @@ def test_acute_hazard_cache_uses_grid_resolution():
     import engine.hazard_fetcher as hf
 
     original_impl = hf._fetch_hazard_intensities_impl
+    original_disk_load = hf._load_fetch_from_disk
+    original_disk_save = hf._save_fetch_to_disk
     hf._fetch_hazard_intensities_cached.cache_clear()
     calls = []
 
@@ -750,11 +752,15 @@ def test_acute_hazard_cache_uses_grid_resolution():
         return np.array([10.0, 100.0]), np.array([1.0, 2.0]), "fallback_baseline"
 
     hf._fetch_hazard_intensities_impl = _fake_impl
+    hf._load_fetch_from_disk = lambda cache_key: None
+    hf._save_fetch_to_disk = lambda cache_key, rp, intensities, source, diagnostics: None
     try:
         hf.fetch_hazard_intensities(51.49, -0.11, "heat", "GBR", fetch_mode="full")
         hf.fetch_hazard_intensities(51.51, -0.09, "heat", "GBR", fetch_mode="full")
     finally:
         hf._fetch_hazard_intensities_impl = original_impl
+        hf._load_fetch_from_disk = original_disk_load
+        hf._save_fetch_to_disk = original_disk_save
         hf._fetch_hazard_intensities_cached.cache_clear()
 
     assert len(calls) == 1, f"Expected one shared grid-cell fetch, got {len(calls)}"
@@ -859,3 +865,186 @@ def test_fetch_all_hazards_compat_filters_unsupported_kwargs():
         "scenario_ssp": "SSP2-4.5",
         "time_period": "2021_2040",
     }
+
+
+def test_isimip_fetcher_imports_cleanly():
+    """The ISIMIP fetcher module must import without decorator/runtime errors."""
+    import importlib
+
+    module = importlib.import_module("engine.isimip_fetcher")
+
+    assert callable(getattr(module, "_query_isimip_paths", None))
+    assert callable(getattr(module, "_isimip_select_point", None))
+
+
+def test_isimip_direct_paths_use_inputdata_root():
+    """Direct ISIMIP fallback paths should target the actual InputData tree."""
+    from engine.isimip_fetcher import _build_direct_paths
+
+    paths = _build_direct_paths("historical", "tasmax", "gfdl-esm4")
+
+    assert paths
+    assert all("ISIMIP3b/InputData/" in path for path in paths)
+    assert all("SecondaryInputData" not in path for path in paths)
+
+
+def test_isimip_queries_bypass_broken_loopback_proxy(monkeypatch):
+    """ISIMIP dataset discovery should ignore obviously broken localhost:9 proxies."""
+    import os
+    import isimip_client.client as client_mod
+    from engine import isimip_fetcher as isimip
+
+    isimip._query_isimip_paths.cache_clear()
+    seen = {}
+
+    class FakeClient:
+        def datasets(self, **kwargs):
+            seen["https_proxy"] = os.environ.get("HTTPS_PROXY")
+            seen["http_proxy"] = os.environ.get("HTTP_PROXY")
+            return [{"files": [{"name": "fake_1991_2000.nc", "path": "ISIMIP3b/InputData/fake.nc"}]}]
+
+    monkeypatch.setattr(client_mod, "ISIMIPClient", FakeClient)
+    monkeypatch.setenv("HTTPS_PROXY", "http://127.0.0.1:9")
+    monkeypatch.setenv("HTTP_PROXY", "http://127.0.0.1:9")
+
+    paths = isimip._query_isimip_paths("ISIMIP3b", "InputData", "historical", "tasmax", "gfdl-esm4")
+
+    assert paths == ["ISIMIP3b/InputData/fake.nc"]
+    assert seen["https_proxy"] is None
+    assert seen["http_proxy"] is None
+    isimip._query_isimip_paths.cache_clear()
+
+
+def test_isimip_select_point_bypasses_broken_loopback_proxy(monkeypatch):
+    """Point extraction should bypass broken localhost:9 proxies before it falls back."""
+    import os
+    import requests
+    import isimip_client.client as client_mod
+    from engine import isimip_fetcher as isimip
+
+    seen = {}
+
+    class FakeClient:
+        def select_point(self, paths, lat, lon, poll=None):
+            seen["https_proxy"] = os.environ.get("HTTPS_PROXY")
+            seen["paths"] = list(paths)
+            seen["lat"] = lat
+            seen["lon"] = lon
+            return {"status": "finished", "file_url": "https://example.test/output.zip"}
+
+    class FakeResponse:
+        status_code = 200
+        content = b"zip-bytes"
+
+    def _fake_get(url, timeout=120, **kwargs):
+        seen["download_url"] = url
+        return FakeResponse()
+
+    monkeypatch.setattr(client_mod, "ISIMIPClient", FakeClient)
+    monkeypatch.setattr(requests, "get", _fake_get)
+    monkeypatch.setenv("HTTPS_PROXY", "http://127.0.0.1:9")
+
+    data = isimip._isimip_select_point(["ISIMIP3b/InputData/fake.nc"], 51.5, -0.1, poll=1)
+
+    assert data == b"zip-bytes"
+    assert seen["https_proxy"] is None
+    assert seen["paths"] == ["ISIMIP3b/InputData/fake.nc"]
+    assert seen["download_url"] == "https://example.test/output.zip"
+
+
+def test_cached_fallback_acute_hazards_require_refresh():
+    """Acute-hazard caches stuck on fallback should be re-fetched automatically."""
+    from engine.hazard_fetcher import asset_requires_provider_refresh
+
+    degraded_cache = {
+        "flood": {"source": "fallback_baseline"},
+        "heat": {"source": "isimip3b"},
+        "wind": {"source": "isimip3b"},
+        "wildfire": {"source": "fallback_baseline"},
+    }
+    healthy_balanced_cache = {
+        "flood": {"source": "isimip3b"},
+        "heat": {"source": "isimip3b"},
+        "wind": {"source": "isimip3b"},
+        "wildfire": {"source": "fallback_baseline"},
+    }
+
+    assert asset_requires_provider_refresh(
+        degraded_cache,
+        ["flood", "heat", "wind", "wildfire"],
+        fetch_mode="balanced",
+    )
+    assert not asset_requires_provider_refresh(
+        healthy_balanced_cache,
+        ["flood", "heat", "wind", "wildfire"],
+        fetch_mode="balanced",
+    )
+    assert asset_requires_provider_refresh(
+        healthy_balanced_cache,
+        ["flood", "heat", "wind", "wildfire"],
+        fetch_mode="full",
+    )
+
+
+def test_results_and_hazards_pages_use_provider_refresh_guard():
+    """Pages should not keep reusing degraded fallback caches once the provider recovers."""
+    import importlib
+
+    for module_name in ["pages.03_Hazards", "pages.04_Results"]:
+        spec = importlib.util.find_spec(module_name)
+        with open(spec.origin, encoding="utf-8") as handle:
+            source = handle.read()
+        assert "asset_requires_provider_refresh" in source
+
+
+def test_hazard_fetch_disk_cache_survives_process_cache_clear(monkeypatch):
+    """Successful hazard fetches should be reusable from disk without refetching."""
+    import engine.hazard_fetcher as hf
+    from pathlib import Path
+    import uuid
+
+    cache_dir = Path(__file__).resolve().parents[1] / f".hazard-cache-test-{uuid.uuid4().hex}"
+    cache_dir.mkdir(parents=True, exist_ok=False)
+    monkeypatch.setattr(hf, "_DISK_CACHE_DIR", str(cache_dir))
+    hf._fetch_hazard_intensities_cached.cache_clear()
+    calls = []
+
+    def _fake_impl(lat, lon, hazard, region_iso3, scenario_ssp="baseline", time_period="historical",
+                   terrain_elevation_asl_m=0.0, asset_type="default", fetch_mode="balanced"):
+        calls.append((hazard, fetch_mode))
+        return np.array([10.0, 100.0]), np.array([1.25, 2.5]), "isimip3b", {"band": "cached"}
+
+    monkeypatch.setattr(hf, "_fetch_hazard_intensities_impl", _fake_impl)
+
+    first = hf.fetch_hazard_intensities(
+        51.5,
+        -0.1,
+        "heat",
+        "GBR",
+        fetch_mode="balanced",
+        include_diagnostics=True,
+    )
+    assert len(calls) == 1
+
+    hf._fetch_hazard_intensities_cached.cache_clear()
+
+    def _fail_impl(*args, **kwargs):
+        raise AssertionError("disk cache should satisfy the second fetch")
+
+    monkeypatch.setattr(hf, "_fetch_hazard_intensities_impl", _fail_impl)
+
+    second = hf.fetch_hazard_intensities(
+        51.5,
+        -0.1,
+        "heat",
+        "GBR",
+        fetch_mode="balanced",
+        include_diagnostics=True,
+    )
+
+    assert first[2] == "isimip3b"
+    assert second[2] == "isimip3b"
+    assert np.allclose(first[0], second[0])
+    assert np.allclose(first[1], second[1])
+    assert second[3]["band"] == "cached"
+    assert second[3]["uncertainty_status"] == "unavailable"

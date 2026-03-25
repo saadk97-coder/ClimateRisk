@@ -500,25 +500,23 @@ def get_coastal_flood_intensities(
     terrain_elevation_asl_m: float = 0.0,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
-    Return (return_periods, inundation_depth_m) for a coastal location.
+    Return (return_periods, baseline_storm_surge_m) for a coastal location.
 
     Storm surge baseline intensities are region-dependent and derived from:
       • Muis et al. (2020) — GTSM global tide and surge reanalysis
       • Vousdoukas et al. (2018) — probabilistic extreme sea levels
 
-    The returned intensities represent **water depth above ground**, computed as:
-      depth = max(0, water_level_above_sea_level - terrain_elevation_asl_m)
+    The returned intensities represent a baseline storm-surge screening level before
+    terrain elevation, sea-level rise, and first-floor-height adjustments. The live
+    damage path applies:
 
-    where water_level_above_sea_level = MHWS + storm_surge.
-    Terrain elevation converts the vertical datum (MHWS) to a ground-relative
-    depth that is comparable to flood vulnerability curves.
-
-    Note: first_floor_height (freeboard) is NOT subtracted here — that is done
-    in the damage engine, consistently with fluvial flood.
+      effective_depth = max(
+          0,
+          base_surge * storm_mult + slr_additive - terrain_elevation - freeboard,
+      )
 
     Intensities are adjusted by:
       1. Distance from coast (linear decay beyond 5 km)
-      2. Terrain elevation (converts water level to depth above ground)
     """
     rps = np.array([10, 50, 100, 250, 500, 1000], dtype=float)
 
@@ -546,14 +544,5 @@ def get_coastal_flood_intensities(
         # Linear decay from 5 km to threshold
         attenuation = max(0.0, 1.0 - (dist - 5.0) / (COASTAL_ZONE_KM - 5.0))
         surge *= attenuation
-
-    # Convert water level (above MHWS) to depth above ground.
-    # For low-lying coastal assets, terrain elevation determines how much
-    # of the surge actually inundates the site.
-    # Assumption: MHWS ≈ 0 m ASL (reasonable for many tidal datums).
-    # depth_above_ground = max(0, surge_level - terrain_elevation)
-    # For below-sea-level terrain (e.g. polders, deltas), negative elevation
-    # INCREASES the effective surge depth (the site is already below MHWS).
-    surge = np.clip(surge - terrain_elevation_asl_m, 0.0, None)
 
     return rps, surge

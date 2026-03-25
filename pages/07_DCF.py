@@ -8,7 +8,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from engine.asset_model import Asset as _Asset
+from engine.asset_model import Asset as _Asset, normalize_asset_state
 from engine.dcf_engine import DCFInputs, DCFResult, compute_climate_dcf
 from engine.export_engine import export_dcf_xlsx
 from engine.fmt import currency_symbol as _currency_symbol, fmt as _fmt_cur
@@ -242,14 +242,12 @@ Evaluate adaptation measures on the Adaptation page and compare avoided-damage b
     )
 
 
+assets = normalize_asset_state(st.session_state)
+
 with st.sidebar:
     st.header("Portfolio Summary")
-    raw_assets = st.session_state.get("assets", [])
-    n_assets = len(raw_assets)
-    total_value = sum(
-        asset.replacement_value if hasattr(asset, "replacement_value") else asset.get("replacement_value", 0)
-        for asset in raw_assets
-    )
+    n_assets = len(assets)
+    total_value = sum(asset.replacement_value for asset in assets)
     currency_code = st.session_state.get("currency_code", "GBP")
     st.metric("Assets", n_assets)
     st.metric("Total Value", _fmt_cur(total_value, currency_code))
@@ -267,7 +265,6 @@ screening, not as a substitute for a valuation-grade underwriting or transaction
 """
 )
 
-assets = [_Asset.from_dict(asset) if isinstance(asset, dict) else asset for asset in st.session_state.get("assets", [])]
 annual_df = st.session_state.get("annual_damages", pd.DataFrame())
 selected_scenarios = st.session_state.get("selected_scenarios", [])
 currency_code = st.session_state.get("currency_code", "GBP")

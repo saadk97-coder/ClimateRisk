@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field, asdict
-from typing import Optional
+from typing import Iterable, MutableMapping, Optional
 import json
 import os
 
@@ -94,3 +94,17 @@ def load_asset_types() -> dict:
 def get_default_asset_params(asset_type: str) -> dict:
     catalog = load_asset_types()
     return catalog.get(asset_type, catalog.get("residential_masonry", {}))
+
+
+def normalize_assets(raw_assets: Iterable) -> list[Asset]:
+    """Normalize mixed session-state assets into Asset dataclasses."""
+    normalized: list[Asset] = []
+    for asset in raw_assets or []:
+        normalized.append(Asset.from_dict(asset) if isinstance(asset, dict) else asset)
+    return normalized
+
+
+def normalize_asset_state(state: MutableMapping, key: str = "assets") -> list[Asset]:
+    assets = normalize_assets(state.get(key, []))
+    state[key] = assets
+    return assets

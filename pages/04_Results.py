@@ -15,15 +15,21 @@ import plotly.express as px
 import io
 from datetime import datetime
 
-from engine.asset_model import Asset as _Asset, load_asset_types
+from engine.asset_model import Asset as _Asset, load_asset_types, normalize_asset_state
 from engine.fmt import currency_symbol as _currency_symbol, fmt as _fmt_cur
 from engine.damage_engine import run_portfolio
+from engine.hazard_math import (
+    DEFAULT_DISPLAY_RETURN_PERIOD_MAX,
+    compute_effective_intensities,
+    display_return_period_mask,
+)
 from engine.annual_risk import compute_portfolio_annual_damages, summarise_annual, DEFAULT_YEARS
 from engine.portfolio_aggregator import results_to_dataframe, aggregate_portfolio, scenario_comparison_table
-from engine.scenario_model import SCENARIOS
+from engine.scenario_model import SCENARIOS, get_scenario_multipliers
 import engine.hazard_fetcher as _hazard_fetcher
 from engine.export_engine import export_results_xlsx, df_to_xlsx
-from engine.governance import override_records as build_override_records
+from engine.governance import PRIVACY_DISCLOSURE, build_run_manifest, override_records as build_override_records
+from engine.impact_functions import get_damage_fraction
 from engine.risk_scorer import (
     score_portfolio,
     portfolio_climate_var,
@@ -59,6 +65,26 @@ def _fallback_build_fetch_signature(
 
 
 build_fetch_signature = getattr(_hazard_fetcher, "build_fetch_signature", _fallback_build_fetch_signature)
+asset_requires_provider_refresh = getattr(
+    _hazard_fetcher,
+    "asset_requires_provider_refresh",
+    lambda hazard_data, hazards, fetch_mode=DEFAULT_FETCH_MODE: False,
+)
+generate_conditional_gev_bands = getattr(
+    _hazard_fetcher,
+    "generate_conditional_gev_bands",
+    None,
+)
+uncertainty_status_for_entry = getattr(
+    _hazard_fetcher,
+    "uncertainty_status_for_entry",
+    lambda hazard, entry: "generated" if (entry or {}).get("uncertainty", {}).get("type") == "gev_parameter_uncertainty" else "unavailable",
+)
+entry_supports_gev_bands = getattr(
+    _hazard_fetcher,
+    "entry_supports_gev_bands",
+    lambda hazard, entry: False,
+)
 
 
 def _fallback_call_fetch_all_hazards_compat(fetch_callable, lat, lon, region_iso3, hazards, **kwargs):
@@ -92,19 +118,18 @@ st.set_page_config(page_title="Results", page_icon="📊", layout="wide")
 
 with st.sidebar:
     st.header("Portfolio Summary")
-    n = len(st.session_state.get("assets", []))
-    _raw = st.session_state.get("assets", [])
-    total_val = sum((a.replacement_value if hasattr(a, 'replacement_value') else a.get('replacement_value', 0)) for a in _raw)
+    assets = normalize_asset_state(st.session_state)
+    n = len(assets)
+    total_val = sum(a.replacement_value for a in assets)
     st.metric("Assets", n)
     _cur = st.session_state.get("currency_code", "GBP")
     st.metric("Total Value", _fmt_cur(total_val, _cur))
     if "last_run" in st.session_state:
         st.caption(f"Last run: {st.session_state.last_run}")
 
-st.title("Damage Results")
+assets = normalize_asset_state(st.session_state)
 
-assets: list = [_Asset.from_dict(a) if isinstance(a, dict) else a
-                for a in st.session_state.get("assets", [])]
+st.title("Damage Results")
 if not assets:
     st.warning("No assets defined. Go to the Portfolio page first.")
     st.stop()
@@ -124,7 +149,7 @@ FETCH_MODE_LABELS = {
     "full": "Full - deepest review",
 }
 FETCH_MODE_NOTES = {
-    "balanced": "Balanced uses a 2-GCM ensemble median for acute hazards. This avoids the instability of a single-model extreme-value fit while staying materially faster than the full 4-GCM path.",
+    "balanced": "Balanced uses a 2-GCM ensemble median for flood, heat, and wind. Wildfire remains on the screening fallback baseline unless Full is selected.",
     "full": "Full uses a 4-GCM ensemble median and the full ISIMIP wildfire pipeline. Use it for a smaller set of priority assets when you want the deepest baseline review.",
 }
 MAX_FETCH_WORKERS = max(1, min(8, os.cpu_count() or 4))
@@ -181,6 +206,82 @@ def _optimal_fetch_workers(asset_batch: list[_Asset], fetch_mode: str) -> int:
     target_workers = 3 if fetch_mode == "balanced" else 2
     return max(1, min(MAX_FETCH_WORKERS, len(asset_batch), target_workers))
 
+
+def _asset_lookup(asset_id: str) -> _Asset | None:
+    return next((asset for asset in assets if asset.id == asset_id), None)
+
+
+def _loss_curve_from_baseline(asset: _Asset, hazard: str, scenario_id: str, year: int, baseline_curve: np.ndarray) -> np.ndarray:
+    region_zone = _hazard_fetcher.get_region_zone(asset.region)
+    multiplier = get_scenario_multipliers(scenario_id, year, hazard, region_zone)
+    effective, _ = compute_effective_intensities(
+        hazard,
+        baseline_curve,
+        multiplier,
+        asset,
+        scenario_id=scenario_id,
+        year=year,
+        region_zone=region_zone,
+    )
+    damage_fracs = np.array(
+        [get_damage_fraction(hazard, asset.asset_type, float(value)) for value in effective],
+        dtype=float,
+    )
+    return damage_fracs * asset.replacement_value
+
+
+def _run_manifest_years() -> list[int]:
+    annual_damages = st.session_state.get("annual_damages", pd.DataFrame())
+    if not annual_damages.empty and "year" in annual_damages.columns:
+        try:
+            return sorted(int(year) for year in annual_damages["year"].dropna().astype(int).unique().tolist())
+        except Exception:
+            pass
+    return years
+
+
+def _rebuild_run_manifest() -> dict:
+    manifest = build_run_manifest(
+        annual_damages_df=st.session_state.get("annual_damages", pd.DataFrame()),
+        selected_scenarios=selected_scenarios,
+        years=_run_manifest_years(),
+        currency_code=_cur,
+        currency_symbol=_sym,
+        discount_rate=discount_rate,
+        fetch_profile=st.session_state.get("hazard_fetch_mode", DEFAULT_FETCH_MODE),
+        override_records=build_override_records(st.session_state.get("hazard_overrides", {}), assets),
+        fetch_failures=st.session_state.get("hazard_fetch_failures", []),
+        reused_assets=int(st.session_state.get("hazard_run_reused_assets", 0) or 0),
+        refreshed_assets=int(st.session_state.get("hazard_run_refreshed_assets", 0) or 0),
+        zone_overrides=st.session_state.get("zone_overrides", {}),
+        hazard_data_all=st.session_state.get("hazard_data", {}),
+    )
+    st.session_state.run_manifest = manifest
+    return manifest
+
+
+def _store_generated_gev_entry(asset: _Asset, hazard: str) -> dict | None:
+    if generate_conditional_gev_bands is None:
+        return None
+    refreshed_entry = generate_conditional_gev_bands(
+        asset.lat,
+        asset.lon,
+        hazard,
+        asset.region,
+        terrain_elevation_asl_m=getattr(asset, "terrain_elevation_asl_m", 0.0),
+        asset_type=asset.asset_type,
+        fetch_mode=st.session_state.get("hazard_fetch_mode", DEFAULT_FETCH_MODE),
+    )
+    hazard_data_all = dict(st.session_state.get("hazard_data", {}))
+    asset_hazards = dict(hazard_data_all.get(asset.id, {}))
+    asset_hazards[hazard] = refreshed_entry
+    hazard_data_all[asset.id] = asset_hazards
+    st.session_state.hazard_data = hazard_data_all
+    st.session_state.pop("results_xlsx_with_bands", None)
+    st.session_state.pop("results_xlsx_with_bands_note", None)
+    _rebuild_run_manifest()
+    return refreshed_entry
+
 if not selected_scenarios:
     st.warning("No scenarios selected. Go to the Scenarios page.")
     st.stop()
@@ -207,8 +308,12 @@ st.caption(FETCH_MODE_NOTES[fetch_mode])
 st.caption(
     "Single-GCM mode is intentionally not exposed in the standard UI because a single model can materially shift return-period extremes for an individual asset."
 )
+st.caption(
+    f"Privacy and degraded-mode note: {PRIVACY_DISCLOSURE} This page records fallback use, manual overrides, and provider refresh failures in a run manifest carried into Audit and XLSX exports."
+)
 
 if run_btn:
+    st.session_state.pop("results_xlsx_with_bands", None)
     hazard_data_flat = dict(st.session_state.get("hazard_data", {}))
     hazard_data_meta = dict(st.session_state.get("hazard_data_meta", {}))
     requested_signatures = {
@@ -220,6 +325,11 @@ if run_btn:
         for asset in assets
         if hazard_data_meta.get(asset.id) != requested_signatures[asset.id]
         or asset.id not in hazard_data_flat
+        or asset_requires_provider_refresh(
+            hazard_data_flat.get(asset.id),
+            _hazards_for_asset(asset),
+            st.session_state.hazard_fetch_mode,
+        )
     ]
     reused_assets = len(assets) - len(assets_to_fetch)
     failures = []
@@ -273,6 +383,9 @@ if run_btn:
             + "; ".join(failures[:5])
             + ("; ..." if len(failures) > 5 else "")
         )
+    st.session_state.hazard_fetch_failures = failures
+    st.session_state.hazard_run_reused_assets = reused_assets
+    st.session_state.hazard_run_refreshed_assets = len(assets_to_fetch)
 
     st.session_state.hazard_data = hazard_data_flat
     st.session_state.hazard_data_meta = hazard_data_meta
@@ -331,6 +444,21 @@ if run_btn:
     st.session_state.annual_damages = ann_df
     st.session_state.results = coarse_results
     st.session_state.last_run = datetime.now().strftime("%Y-%m-%d %H:%M")
+    st.session_state.run_manifest = build_run_manifest(
+        annual_damages_df=ann_df,
+        selected_scenarios=selected_scenarios,
+        years=years,
+        currency_code=_cur,
+        currency_symbol=_sym,
+        discount_rate=discount_rate,
+        fetch_profile=st.session_state.hazard_fetch_mode,
+        override_records=override_rows,
+        fetch_failures=failures,
+        reused_assets=reused_assets,
+        refreshed_assets=len(assets_to_fetch),
+        zone_overrides=st.session_state.get("zone_overrides", {}),
+        hazard_data_all=hazard_data_flat,
+    )
     prog.empty()
     st.success(
         f"Calculation complete - {len(ann_df):,} data points across {len(assets)} assets, "
@@ -425,12 +553,27 @@ if annual_df.empty:
     st.info("Click 'Run Damage Calculation' to generate results.")
     st.stop()
 
+run_manifest = st.session_state.get("run_manifest")
+if not run_manifest:
+    run_manifest = _rebuild_run_manifest()
+
 if override_rows:
     st.warning(
         f"{len(override_rows)} manual override record(s) are active in this results set. "
         "Review the evidence trail before treating the outputs as decision-ready.",
         icon="⚠️",
     )
+
+if run_manifest.get("Provider failure count", 0) or run_manifest.get("Fallback asset-hazard pairs", 0):
+    st.warning(
+        f"Degraded-mode summary: {run_manifest.get('Fallback asset-hazard pairs', 0)} asset-hazard pair(s) used the built-in regional fallback baseline and "
+        f"{run_manifest.get('Provider failure count', 0)} provider refresh failure(s) were recorded for this run.",
+    )
+
+provider_events = run_manifest.get("Provider events", [])
+if provider_events:
+    with st.expander("Run Provenance and Diagnostics", expanded=False):
+        st.dataframe(pd.DataFrame(provider_events), use_container_width=True, hide_index=True)
 
 # ── View controls ──────────────────────────────────────────────────────────
 st.divider()
@@ -456,6 +599,10 @@ m3.metric("EAD (2050 projected)",     _fmt_cur(total_ead_2050, _cur),
           delta=f"+{(total_ead_2050-total_ead_2025)/max(total_ead_2025,1)*100:.1f}%" if total_ead_2025 > 0 else None)
 m4.metric("Total PV Damages 2025–50", _fmt_cur(total_pv, _cur))
 m5.metric("EAD as % of Value (2050)", f"{total_ead_2050/total_value*100:.3f}%")
+st.caption(
+    "Displayed portfolio EAD and EALR are additive expected-loss metrics. "
+    "Any diversification diagnostic remains a hazard-aware distance-decay screening approximation, not institution-grade portfolio tail modelling."
+)
 
 # ── Risk Hotspot Insights ─────────────────────────────────────────────────
 _hotspots = results_hotspots(annual_df, assets, view_scenario, year=2050)
@@ -511,6 +658,8 @@ with tab1:
     )
     st.plotly_chart(fig_ann, use_container_width=True)
     st.caption("EAD = Expected Annual Damage — probability-weighted average loss in each year, discounted to present value on the PV metrics above.")
+    if len(selected_scenarios) > 1:
+        st.caption("Shaded band = scenario range across selected pathways, not a statistical uncertainty interval.")
 
 # ── TAB 2: Stacked area by hazard ─────────────────────────────────────────
 with tab2:
@@ -760,31 +909,115 @@ if coarse_results:
         ep_asset_id = st.selectbox("Asset", [a.id for a in assets],
                                    format_func=lambda i: next((a.name for a in assets if a.id == i), i))
     with col_b:
-        ep_hazard = st.selectbox("Hazard", ["flood", "wind", "wildfire", "heat"])
+        ep_asset_matches = [
+            r for r in coarse_results
+            if r.asset_id == ep_asset_id and r.scenario_id == view_scenario and r.year == 2050
+        ]
+        ep_hazard_options = [
+            hazard for hazard in ["flood", "coastal_flood", "wind", "wildfire", "heat"]
+            if ep_asset_matches and hazard in ep_asset_matches[0].hazard_results
+        ] or ["flood", "wind", "wildfire", "heat"]
+        ep_hazard = st.selectbox("Hazard", ep_hazard_options)
 
-    ep_matches = [r for r in coarse_results
-                  if r.asset_id == ep_asset_id and r.scenario_id == view_scenario and r.year == 2050]
+    ep_matches = ep_asset_matches
     if ep_matches and ep_hazard in ep_matches[0].hazard_results:
+        ep_asset = _asset_lookup(ep_asset_id)
         hr = ep_matches[0].hazard_results[ep_hazard]
-        rps = np.array(hr.return_periods)
-        dfs = np.array(hr.damage_fractions)
+        rps = np.array(hr.return_periods, dtype=float)
+        dfs = np.array(hr.damage_fractions, dtype=float)
         aep = 1.0 / rps
         losses = dfs * ep_matches[0].asset_value
-        order = np.argsort(aep)
+        visible_mask = display_return_period_mask(rps)
+        if not np.any(visible_mask):
+            visible_mask = np.ones(len(rps), dtype=bool)
+        visible_rps = rps[visible_mask]
+        visible_aep = aep[visible_mask]
+        visible_losses = losses[visible_mask]
+        order = np.argsort(visible_aep)
+        hazard_entry = (
+            st.session_state.get("hazard_data", {})
+            .get(ep_asset_id, {})
+            .get(ep_hazard, {})
+        )
+        visible_uncertainty = dict((hazard_entry or {}).get("uncertainty", {}) or {})
+        uncertainty_status = uncertainty_status_for_entry(ep_hazard, hazard_entry)
+        uncertainty_detail = str((hazard_entry or {}).get("uncertainty_detail", "")).strip()
 
         fig_ep = go.Figure()
+        if ep_asset and visible_uncertainty.get("type") == "gev_parameter_uncertainty":
+            try:
+                lower_base = np.asarray(visible_uncertainty.get("lower", []), dtype=float)[visible_mask]
+                upper_base = np.asarray(visible_uncertainty.get("upper", []), dtype=float)[visible_mask]
+                lower_losses = _loss_curve_from_baseline(ep_asset, ep_hazard, view_scenario, 2050, lower_base)
+                upper_losses = _loss_curve_from_baseline(ep_asset, ep_hazard, view_scenario, 2050, upper_base)
+                band_low = np.minimum(lower_losses, upper_losses)
+                band_high = np.maximum(lower_losses, upper_losses)
+                fig_ep.add_trace(go.Scatter(
+                    x=band_high[order], y=visible_aep[order],
+                    mode="lines",
+                    line=dict(width=0),
+                    showlegend=False,
+                    hoverinfo="skip",
+                ))
+                fig_ep.add_trace(go.Scatter(
+                    x=band_low[order], y=visible_aep[order],
+                    mode="lines",
+                    line=dict(width=0),
+                    fill="tonexty",
+                    fillcolor="rgba(244, 114, 26, 0.16)",
+                    name=visible_uncertainty.get("band_label", "Conditional parameter band"),
+                    hovertemplate="Conditional parameter band<extra></extra>",
+                ))
+            except Exception:
+                pass
         fig_ep.add_trace(go.Scatter(
-            x=losses[order], y=aep[order],
+            x=visible_losses[order], y=visible_aep[order],
             mode="lines+markers",
             line=dict(color="#2980b9", width=2),
             fill="tozeroy", fillcolor="rgba(41,128,185,0.1)",
             hovertemplate=f"Loss: {_sym}%{{x:,.0f}}<br>AEP: %{{y:.4f}}<extra></extra>",
+            name="Central estimate",
         ))
         fig_ep.update_layout(
             xaxis_title=f"Loss ({_sym})", yaxis_title="Annual Exceedance Probability",
             yaxis_type="log", height=320, margin=dict(l=20, r=20, t=20, b=20),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02),
         )
         st.plotly_chart(fig_ep, use_container_width=True)
+        if np.any(rps > DEFAULT_DISPLAY_RETURN_PERIOD_MAX):
+            st.caption(
+                f"Standard analyst view stops at RP{int(DEFAULT_DISPLAY_RETURN_PERIOD_MAX)}. "
+                "Any longer-tail point remains a high-uncertainty screening tail and is not shown by default."
+            )
+        if visible_uncertainty.get("type") == "gev_parameter_uncertainty":
+            st.caption(
+                f"{visible_uncertainty.get('band_label', 'Conditional parameter band')}: "
+                f"{visible_uncertainty.get('limitation', '')}"
+            )
+        elif uncertainty_status == "deferred":
+            st.info(
+                uncertainty_detail
+                or "Conditional GEV parameter bands are available on demand and were not generated in the standard run."
+            )
+        elif uncertainty_status == "failed":
+            st.warning(
+                uncertainty_detail
+                or "Conditional GEV parameter bands could not be generated from cached basis."
+            )
+        elif uncertainty_status == "unavailable":
+            st.caption(
+                uncertainty_detail
+                or "Conditional GEV parameter bands are unavailable for this hazard-source path."
+            )
+
+        if ep_asset and uncertainty_status in {"deferred", "failed"} and entry_supports_gev_bands(ep_hazard, hazard_entry):
+            if st.button(
+                "Generate conditional GEV bands",
+                key=f"results-generate-gev-{ep_asset_id}-{ep_hazard}",
+            ):
+                with st.spinner("Generating conditional GEV parameter bands from cached basis..."):
+                    _store_generated_gev_entry(ep_asset, ep_hazard)
+                st.rerun()
 
         with st.expander("📖 Understanding this chart — EP Curves & Return Periods"):
             st.markdown(f"""
@@ -797,10 +1030,14 @@ A "1-in-100-year event" has a **1% annual probability** — not that it happens 
 With climate change, these probabilities are shifting: a former 1-in-100-year flood may become a 1-in-50-year event by 2050.
 
 **What does the EP curve show?**
-The EP curve plots losses at discrete return periods (RP10 through RP1000).
+The standard EP curve plots losses at discrete return periods up to RP500.
 It shows how much you could lose in events of different severity, but it is **not** a continuous probability
 distribution and does **not** compute formal tail-risk metrics (TVaR/CVaR). For tail-risk quantification,
 dedicated catastrophe modelling with stochastic event sets would be required.
+
+When explicitly generated, the orange band is a **conditional GEV parameter band** from bootstrap refits
+around the fitted return-level curve. It is not total climate uncertainty. Standard runs show the central
+curve first and let you generate the band on demand.
 
 **How to use these outputs:**
 - **EAD** for annual budgeting and insurance procurement
@@ -808,7 +1045,7 @@ dedicated catastrophe modelling with stochastic event sets would be required.
 - **Scenario comparison** to understand how climate trajectories affect loss severity
 
 **Limitations:**
-- Return-period intensities beyond RP100 are extrapolated from limited historical data (GEV fitting from ~24 years)
+- RP500+ tail points are high-uncertainty screening outputs because they extrapolate beyond a short historical annual-maxima sample
 - Flood intensities are screening-level proxies derived from precipitation, not hydraulic models
 - This is a portfolio screening tool, not an insurance-grade catastrophe model
 
@@ -819,43 +1056,72 @@ dedicated catastrophe modelling with stochastic event sets would be required.
 st.divider()
 st.subheader("Download Results")
 
-col_e1, col_e2, col_e3 = st.columns(3)
+scenario_labels = ", ".join(
+    SCENARIOS.get(sc, {}).get("label", sc) for sc in selected_scenarios
+)
+scenario_providers = ", ".join(
+    sorted({SCENARIOS.get(sc, {}).get("provider", "Unknown") for sc in selected_scenarios})
+)
+data_sources_used = ", ".join(
+    sorted(set(annual_df.get("data_source", pd.Series(dtype=str)).dropna().astype(str)))
+)
+
+
+def _results_export_metadata() -> dict:
+    return {
+        "Run timestamp": st.session_state.get("last_run", ""),
+        "Scenario providers": scenario_providers,
+        "Scenarios": scenario_labels,
+        "Currency": _cur,
+        "currency_symbol": _sym,
+        "Analysis period": "2025-2050",
+        "Discount rate": f"{discount_rate*100:.1f}%",
+        "Data sources used": data_sources_used,
+        "Manual override records": len(override_rows),
+    }
+
+
+def _results_portfolio_summary() -> dict:
+    return {
+        f"Total Portfolio Value ({_sym})": _fmt_cur(total_value, _cur),
+        "Scenarios analysed": scenario_labels,
+        "Analysis period": "2025â€“2050 (annual)",
+        "Discount rate": f"{discount_rate*100:.1f}%",
+        "Run date": st.session_state.get("last_run", ""),
+        "Manual override records": len(override_rows),
+    }
+
+
+def _prepare_full_results_with_bands() -> tuple[int, int]:
+    generated_count = 0
+    attempted_count = 0
+    for asset in assets:
+        asset_hazards = dict(st.session_state.get("hazard_data", {}).get(asset.id, {}))
+        for hazard, entry in asset_hazards.items():
+            status = uncertainty_status_for_entry(hazard, entry)
+            if status not in {"deferred", "failed"}:
+                continue
+            if not entry_supports_gev_bands(hazard, entry):
+                continue
+            attempted_count += 1
+            refreshed_entry = _store_generated_gev_entry(asset, hazard)
+            if uncertainty_status_for_entry(hazard, refreshed_entry) == "generated":
+                generated_count += 1
+    return generated_count, attempted_count
+
+
+col_e1, col_e2, col_e3, col_e4 = st.columns(4)
 
 with col_e1:
     if not annual_df.empty:
         try:
-            scenario_labels = ", ".join(
-                SCENARIOS.get(sc, {}).get("label", sc) for sc in selected_scenarios
-            )
-            scenario_providers = ", ".join(
-                sorted({SCENARIOS.get(sc, {}).get("provider", "Unknown") for sc in selected_scenarios})
-            )
-            data_sources_used = ", ".join(
-                sorted(set(annual_df.get("data_source", pd.Series(dtype=str)).dropna().astype(str)))
-            )
             xlsx_bytes = export_results_xlsx(
                 asset_results_df=df_coarse if coarse_results else pd.DataFrame(),
                 annual_damages_df=annual_df,
-                portfolio_summary={
-                    f"Total Portfolio Value ({_sym})": _fmt_cur(total_value, _cur),
-                    "Scenarios analysed": scenario_labels,
-                    "Analysis period": "2025–2050 (annual)",
-                    "Discount rate": f"{discount_rate*100:.1f}%",
-                    "Run date": st.session_state.get("last_run", ""),
-                    "Manual override records": len(override_rows),
-                },
+                portfolio_summary=_results_portfolio_summary(),
                 scenarios=selected_scenarios,
-                metadata={
-                    "Run timestamp": st.session_state.get("last_run", ""),
-                    "Scenario providers": scenario_providers,
-                    "Scenarios": scenario_labels,
-                    "Currency": _cur,
-                    "currency_symbol": _sym,
-                    "Analysis period": "2025-2050",
-                    "Discount rate": f"{discount_rate*100:.1f}%",
-                    "Data sources used": data_sources_used,
-                    "Manual override records": len(override_rows),
-                },
+                metadata=_results_export_metadata(),
+                run_manifest=run_manifest,
                 override_records=override_rows,
             )
             st.download_button("⬇️ Full Results (.xlsx)", data=xlsx_bytes,
@@ -866,11 +1132,40 @@ with col_e1:
 
 with col_e2:
     if not annual_df.empty:
+        st.caption("Standard export records deferred GEV status without auto-generating diagnostics.")
+        if st.button("Prepare Full Results + GEV Bands (.xlsx)", key="prepare-results-with-gev"):
+            with st.spinner("Generating conditional GEV parameter bands from cached basis for the current run..."):
+                generated_count, attempted_count = _prepare_full_results_with_bands()
+                refreshed_manifest = _rebuild_run_manifest()
+                st.session_state["results_xlsx_with_bands"] = export_results_xlsx(
+                    asset_results_df=df_coarse if coarse_results else pd.DataFrame(),
+                    annual_damages_df=annual_df,
+                    portfolio_summary=_results_portfolio_summary(),
+                    scenarios=selected_scenarios,
+                    metadata=_results_export_metadata(),
+                    run_manifest=refreshed_manifest,
+                    override_records=override_rows,
+                )
+                st.session_state["results_xlsx_with_bands_note"] = (
+                    f"Generated GEV diagnostics for {generated_count} of {attempted_count} deferred or failed asset-hazard pair(s)."
+                )
+        if st.session_state.get("results_xlsx_with_bands"):
+            st.caption(st.session_state.get("results_xlsx_with_bands_note", "GEV diagnostics prepared."))
+            st.download_button(
+                "⬇️ Full Results + GEV Bands (.xlsx)",
+                data=st.session_state["results_xlsx_with_bands"],
+                file_name="climate_risk_results_with_gev_bands.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="download-results-with-gev",
+            )
+
+with col_e3:
+    if not annual_df.empty:
         csv_bytes = annual_df.to_csv(index=False).encode()
         st.download_button("⬇️ Annual Damages (.csv)", data=csv_bytes,
                            file_name="annual_damages.csv", mime="text/csv")
 
-with col_e3:
+with col_e4:
     if coarse_results:
         df_c = results_to_dataframe(coarse_results)
         csv2 = df_c.to_csv(index=False).encode()
@@ -923,7 +1218,7 @@ with _var_col:
     )
 with _info_col:
     with st.popover("ℹ️ How scores are calculated"):
-        st.markdown("""
+        st.markdown(f"""
 **Climate Exposure Score — Methodology**
 
 Each asset × hazard cell is scored on a **1–10 scale** derived from the asset's
@@ -942,6 +1237,7 @@ score   = 1 + 9 × log(1 + raw_pct / midpoint) / log(1 + max_pct / midpoint)
 | Hazard | Midpoint EAD% | Max EAD% |
 |---|---|---|
 | Flood | 0.5% | 5.0% |
+| Coastal Flood | 0.6% | 6.0% |
 | Wind | 0.3% | 3.0% |
 | Wildfire | 0.4% | 4.0% |
 | Heat | 0.2% | 2.0% |
@@ -956,7 +1252,7 @@ Thresholds are calibrated to the platform's HAZUS/JRC/Syphard vulnerability curv
 _score_df = score_portfolio(annual_df, assets, year=2050, scenario_id=view_scenario)
 
 if not _score_df.empty:
-    _HAZARDS_ORDER = ["flood", "wind", "wildfire", "heat", "water_stress"]
+    _HAZARDS_ORDER = ["flood", "coastal_flood", "wind", "wildfire", "heat", "water_stress"]
 
     # Pivot: rows = asset names, columns = hazards, values = score
     _pivot_scores = (
@@ -968,6 +1264,7 @@ if not _score_df.empty:
     # Rename columns for display
     _col_labels = {
         "flood": "Flood",
+        "coastal_flood": "Coastal Flood",
         "wind": "Wind",
         "wildfire": "Wildfire",
         "heat": "Heat",
@@ -1111,8 +1408,8 @@ An asset is flagged as **stranded** when cumulative discounted physical climate
 costs over the analysis period (2025–2050) exceed the selected threshold percentage
 of its replacement value.
 
-**Example:** A warehouse worth £10M with a threshold of 15% is flagged if the
-present value of all projected climate damage over 26 years exceeds £1.5M.
+**Example:** A warehouse worth {_sym}10M with a threshold of 15% is flagged if the
+present value of all projected climate damage over 26 years exceeds {_sym}1.5M.
 
 This signals that the asset may be **financially impaired by climate damage before
 the end of its economic life** — analogous to an early write-down driven by

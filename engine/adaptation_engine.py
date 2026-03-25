@@ -25,6 +25,12 @@ _ADAPTATION_ASSET_TYPE_CANDIDATES: Dict[str, tuple[str, ...]] = {
     "infrastructure_port": ("infrastructure_utility", "infrastructure_road"),
 }
 
+_MEASURE_MECHANISM_KEYWORDS = {
+    "exposure reduction": ("barrier", "bund", "foundation", "clearance", "permeable", "drainage"),
+    "downtime/business interruption reduction": ("backup", "redundancy", "continuity", "suppression"),
+    "chronic cost reduction": ("hvac", "heat pump", "insulation", "cool roof", "water recycling", "efficiency"),
+}
+
 
 def _load_catalog() -> dict:
     global _CATALOG
@@ -65,6 +71,26 @@ def get_measure(measure_id: str) -> Optional[dict]:
         if m["id"] == measure_id:
             return m
     return None
+
+
+def classify_measure_mechanism(measure: dict | str) -> str:
+    if isinstance(measure, str):
+        resolved = get_measure(measure)
+        if resolved is None:
+            return "vulnerability reduction"
+        measure = resolved
+
+    hazard = str(measure.get("hazard", "")).strip().lower()
+    text = f"{measure.get('label', '')} {measure.get('description', '')}".lower()
+
+    if hazard in {"heat", "water_stress"}:
+        return "chronic cost reduction"
+
+    for label, keywords in _MEASURE_MECHANISM_KEYWORDS.items():
+        if any(keyword in text for keyword in keywords):
+            return label
+
+    return "vulnerability reduction"
 
 
 @dataclass
@@ -180,6 +206,21 @@ class AdaptationNPVResult:
         return self.npv_avoided_damages - self.total_cost
 
 
+@dataclass
+class AdaptationBundleResult:
+    asset_id: str
+    asset_value: float
+    measure_rows: list
+    annual_cashflows: list
+    baseline_total_npv_damages: float
+    bundled_total_npv_damages: float
+    bundled_npv_avoided_damages: float
+    total_cost: float
+    cbr: float
+    roi_pct: float
+    order_sensitive_warning: str
+
+
 def calc_adaptation_npv(
     measure_id: str,
     asset_id: str,
@@ -291,7 +332,7 @@ def calc_adaptation_npv(
 
     # IRR via numpy
     try:
-        irr = float(np.irr(irr_cashflows)) if hasattr(np, "irr") else _calc_irr(irr_cashflows)
+        irr = _calc_irr(irr_cashflows)
     except Exception:
         irr = float("nan")
 
@@ -314,6 +355,220 @@ def calc_adaptation_npv(
         design_life_years=design_life,
         damage_reduction_pct=measure["damage_reduction_pct"],
         annual_cashflows=rows,
+    )
+
+
+def _stream_years(*streams: Dict[int, float]) -> list[int]:
+    years: set[int] = set()
+    for stream in streams:
+        years.update(int(year) for year in stream.keys())
+    return sorted(years)
+
+
+def _copy_stream(stream: Dict[int, float], years: list[int]) -> Dict[int, float]:
+    return {int(year): float(stream.get(year, 0.0)) for year in years}
+
+
+def _apply_measure_to_stream(
+    measure: dict,
+    annual_eads: Dict[int, float],
+    *,
+    implementation_year: int,
+) -> tuple[Dict[int, float], Dict[int, float]]:
+    years = sorted(int(year) for year in annual_eads.keys())
+    design_life = int(measure["design_life_years"])
+    reduction_pct = float(measure["damage_reduction_pct"]) / 100.0
+    end_of_life_year = implementation_year + design_life - 1
+
+    residual = {}
+    avoided = {}
+    for year in years:
+        baseline = float(annual_eads.get(year, 0.0))
+        active = implementation_year <= year <= end_of_life_year
+        avoided_amount = baseline * reduction_pct if active else 0.0
+        residual[year] = max(baseline - avoided_amount, 0.0)
+        avoided[year] = avoided_amount
+    return residual, avoided
+
+
+def calc_adaptation_bundle_npv(
+    measure_ids: List[str],
+    asset_id: str,
+    asset_value: float,
+    total_annual_eads: Dict[int, float],
+    hazard_annual_eads: Dict[str, Dict[int, float]],
+    discount_rate: float = 0.035,
+    implementation_year: int = 2026,
+    capex_phases: Optional[Dict[int, float]] = None,
+    opex_override: Optional[float] = None,
+    base_year: int = 2025,
+) -> AdaptationBundleResult:
+    """
+    Sequence selected measures on residual hazard risk rather than summing
+    standalone savings from the original baseline.
+    """
+    ordered_measure_ids = [mid for mid in measure_ids if get_measure(mid) is not None]
+    years = _stream_years(total_annual_eads, *hazard_annual_eads.values())
+    total_stream = _copy_stream(total_annual_eads, years)
+    hazard_baselines = {
+        hazard: _copy_stream(stream, years)
+        for hazard, stream in (hazard_annual_eads or {}).items()
+    }
+    residual_hazard_streams = {
+        hazard: dict(stream)
+        for hazard, stream in hazard_baselines.items()
+    }
+
+    targeted_hazards = {
+        get_measure(mid)["hazard"]
+        for mid in ordered_measure_ids
+        if get_measure(mid) is not None and get_measure(mid)["hazard"] in hazard_baselines
+    }
+    unaffected_stream = {
+        year: max(
+            0.0,
+            total_stream.get(year, 0.0) - sum(hazard_baselines.get(hazard, {}).get(year, 0.0) for hazard in targeted_hazards),
+        )
+        for year in years
+    }
+
+    measure_rows = []
+    combined_cashflows: dict[int, dict] = {}
+    total_cost = 0.0
+
+    for order, measure_id in enumerate(ordered_measure_ids, start=1):
+        measure = get_measure(measure_id)
+        if measure is None:
+            continue
+        hazard = measure["hazard"]
+        mechanism = classify_measure_mechanism(measure)
+        baseline_stream = hazard_baselines.get(hazard, total_stream)
+        residual_stream = residual_hazard_streams.get(hazard, _copy_stream(total_stream, years))
+
+        standalone = calc_adaptation_npv(
+            measure_id,
+            asset_id,
+            asset_value,
+            baseline_stream,
+            discount_rate,
+            implementation_year=implementation_year,
+            capex_phases=capex_phases,
+            opex_override=opex_override,
+            base_year=base_year,
+        )
+        incremental = calc_adaptation_npv(
+            measure_id,
+            asset_id,
+            asset_value,
+            residual_stream,
+            discount_rate,
+            implementation_year=implementation_year,
+            capex_phases=capex_phases,
+            opex_override=opex_override,
+            base_year=base_year,
+        )
+
+        next_residual_stream, _ = _apply_measure_to_stream(
+            measure,
+            residual_stream,
+            implementation_year=implementation_year,
+        )
+        residual_hazard_streams[hazard] = next_residual_stream
+
+        total_cost += incremental.total_cost
+        for row in incremental.annual_cashflows:
+            year = int(row["year"])
+            combined = combined_cashflows.setdefault(
+                year,
+                {
+                    "year": year,
+                    "capex": 0.0,
+                    "opex": 0.0,
+                    "net_cashflow": 0.0,
+                    "net_cashflow_pv": 0.0,
+                },
+            )
+            combined["capex"] += float(row["capex"])
+            combined["opex"] += float(row["opex"])
+            combined["net_cashflow"] += float(row["net_cashflow"])
+            combined["net_cashflow_pv"] += float(row["net_cashflow_pv"])
+
+        measure_rows.append(
+            {
+                "sequence_order": order,
+                "measure_id": measure_id,
+                "measure": measure["label"],
+                "hazard": hazard,
+                "mechanism": mechanism,
+                "standalone_npv_avoided": standalone.npv_avoided_damages,
+                "incremental_npv_avoided": incremental.npv_avoided_damages,
+                "standalone_net_npv": standalone.net_npv,
+                "incremental_net_npv": incremental.net_npv,
+                "standalone_cbr": standalone.cbr,
+                "incremental_cbr": incremental.cbr,
+                "design_life_years": incremental.design_life_years,
+            }
+        )
+
+    bundled_total_stream = {}
+    for year in years:
+        bundled_total_stream[year] = unaffected_stream.get(year, 0.0) + sum(
+            residual_hazard_streams.get(hazard, {}).get(year, 0.0)
+            for hazard in targeted_hazards
+        )
+
+    baseline_total_npv_damages = sum(
+        total_stream.get(year, 0.0) / (1.0 + discount_rate) ** (year - base_year)
+        for year in years
+    )
+    bundled_total_npv_damages = sum(
+        bundled_total_stream.get(year, 0.0) / (1.0 + discount_rate) ** (year - base_year)
+        for year in years
+    )
+    bundled_npv_avoided_damages = baseline_total_npv_damages - bundled_total_npv_damages
+    cbr = bundled_npv_avoided_damages / total_cost if total_cost > 0 else 0.0
+    roi_pct = (
+        (bundled_npv_avoided_damages - total_cost) / total_cost * 100.0
+        if total_cost > 0
+        else 0.0
+    )
+
+    annual_cashflows = []
+    cumulative_npv = 0.0
+    for year in years:
+        avoided_damage = total_stream.get(year, 0.0) - bundled_total_stream.get(year, 0.0)
+        cash = combined_cashflows.get(year, {"capex": 0.0, "opex": 0.0, "net_cashflow": avoided_damage, "net_cashflow_pv": 0.0})
+        cumulative_npv += float(cash.get("net_cashflow_pv", 0.0))
+        annual_cashflows.append(
+            {
+                "year": year,
+                "baseline_ead": round(total_stream.get(year, 0.0), 2),
+                "avoided_damage": round(avoided_damage, 2),
+                "adapted_ead": round(bundled_total_stream.get(year, 0.0), 2),
+                "capex": round(float(cash.get("capex", 0.0)), 2),
+                "opex": round(float(cash.get("opex", 0.0)), 2),
+                "net_cashflow": round(float(cash.get("net_cashflow", 0.0)), 2),
+                "net_cashflow_pv": round(float(cash.get("net_cashflow_pv", 0.0)), 2),
+                "cumulative_npv": round(cumulative_npv, 2),
+            }
+        )
+
+    warning = (
+        "Bundled results sequence measures on residual hazard risk in the selected order. "
+        "Cross-hazard interactions and order sensitivity are still approximate."
+    )
+    return AdaptationBundleResult(
+        asset_id=asset_id,
+        asset_value=asset_value,
+        measure_rows=measure_rows,
+        annual_cashflows=annual_cashflows,
+        baseline_total_npv_damages=baseline_total_npv_damages,
+        bundled_total_npv_damages=bundled_total_npv_damages,
+        bundled_npv_avoided_damages=bundled_npv_avoided_damages,
+        total_cost=total_cost,
+        cbr=cbr,
+        roi_pct=roi_pct,
+        order_sensitive_warning=warning,
     )
 
 
@@ -377,7 +632,7 @@ def portfolio_adaptation_frontier_npv(
     adaptation_results: List[AdaptationNPVResult],
 ) -> List[dict]:
     """
-    NPV-based portfolio frontier. Sorts by CBR descending.
+    NPV-based standalone measure ranking. Sorts by CBR descending.
     """
     sorted_results = sorted(adaptation_results, key=lambda r: r.cbr, reverse=True)
     cumulative_cost = 0.0

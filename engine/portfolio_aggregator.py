@@ -5,12 +5,16 @@ Portfolio aggregation: correlation-adjusted rollup of asset-level EADs.
 import numpy as np
 import pandas as pd
 from typing import List, Dict
+
+from engine.correlation import (
+    HAZARD_CORRELATION_SPECS,
+    haversine_km,
+    hazard_pair_correlation,
+    portfolio_dependence_note,
+)
 from engine.damage_engine import AssetResult
 
-# Inter-asset hazard correlation assumptions (conservative)
-# Same region + same hazard → higher correlation
-SAME_REGION_CORR = 0.60
-DIFF_REGION_CORR = 0.15
+CV_LOSS = 2.0
 
 
 def results_to_dataframe(results: List[AssetResult]) -> pd.DataFrame:
@@ -25,6 +29,8 @@ def results_to_dataframe(results: List[AssetResult]) -> pd.DataFrame:
             "year": r.year,
             "total_ead": r.total_ead,
             "total_ead_pct": r.total_ead_pct * 100,
+            "lat": getattr(r, "lat", np.nan),
+            "lon": getattr(r, "lon", np.nan),
         }
         for hazard, hr in r.hazard_results.items():
             row[f"ead_{hazard}"] = hr.ead
@@ -65,38 +71,52 @@ def aggregate_portfolio(
             r.hazard_results[hazard].ead for r in subset if hazard in r.hazard_results
         )
 
-    # Correlation-adjusted portfolio risk using proper variance decomposition.
-    # EAD is the mean loss; we estimate per-asset loss std dev as CV * EAD,
-    # where CV (coefficient of variation) is typical for cat loss distributions.
-    CV_LOSS = 2.0  # loss distribution CV — conservative cat-model estimate
-
     n = len(subset)
     portfolio_sigma = 0.0
     undiversified_sigma = 0.0
+    variance_by_hazard = {}
 
     if n == 1:
         portfolio_ead = sum_ead
     else:
-        eads = np.array([r.total_ead for r in subset])
-        sigmas = eads * CV_LOSS  # per-asset loss standard deviation
-
-        # Build correlation matrix using region zone (ISO3 → zone key)
-        from engine.hazard_fetcher import get_region_zone
-        asset_regions = [get_region_zone(getattr(r, 'region', 'global')) for r in subset]
-        corr_matrix = np.full((n, n), DIFF_REGION_CORR)
+        asset_coords = [(float(getattr(r, "lat", 0.0) or 0.0), float(getattr(r, "lon", 0.0) or 0.0)) for r in subset]
+        distance_matrix = np.zeros((n, n), dtype=float)
         for i in range(n):
-            corr_matrix[i, i] = 1.0
+            distance_matrix[i, i] = 0.0
             for j in range(i + 1, n):
-                if asset_regions[i] == asset_regions[j]:
-                    corr_matrix[i, j] = SAME_REGION_CORR
-                    corr_matrix[j, i] = SAME_REGION_CORR
+                distance_km = haversine_km(
+                    asset_coords[i][0],
+                    asset_coords[i][1],
+                    asset_coords[j][0],
+                    asset_coords[j][1],
+                )
+                distance_matrix[i, j] = distance_km
+                distance_matrix[j, i] = distance_km
 
-        # Portfolio variance: σ_p² = Σ_i Σ_j ρ_ij σ_i σ_j
-        var_portfolio = float(sigmas @ corr_matrix @ sigmas)
-        portfolio_sigma = np.sqrt(max(var_portfolio, 0.0))
-        undiversified_sigma = float(np.sum(sigmas))
+        for hazard in sorted(all_hazards):
+            hazard_eads = np.array(
+                [
+                    r.hazard_results[hazard].ead if hazard in r.hazard_results else 0.0
+                    for r in subset
+                ],
+                dtype=float,
+            )
+            if not np.any(hazard_eads):
+                continue
 
-        # Portfolio EAD (mean) is simply the sum — means add linearly
+            sigmas = hazard_eads * CV_LOSS
+            corr_matrix = np.eye(n, dtype=float)
+            for i in range(n):
+                for j in range(i + 1, n):
+                    rho = hazard_pair_correlation(hazard, distance_matrix[i, j])
+                    corr_matrix[i, j] = rho
+                    corr_matrix[j, i] = rho
+
+            hazard_variance = float(sigmas @ corr_matrix @ sigmas)
+            variance_by_hazard[hazard] = hazard_variance
+            undiversified_sigma += float(np.sum(sigmas))
+
+        portfolio_sigma = np.sqrt(max(sum(variance_by_hazard.values()), 0.0))
         portfolio_ead = sum_ead
 
     # Diversification benefit is on the risk (volatility), not the mean
@@ -112,6 +132,17 @@ def aggregate_portfolio(
         "portfolio_sigma": portfolio_sigma,
         "undiversified_sigma": undiversified_sigma,
         "ead_by_hazard": ead_by_hazard,
+        "variance_by_hazard": {hazard: float(value) for hazard, value in variance_by_hazard.items()},
+        "correlation_method": portfolio_dependence_note(),
+        "hazard_correlation_specs": {
+            hazard: {
+                "scale_km": spec["scale_km"],
+                "floor": spec["floor"],
+                "label": spec["label"],
+            }
+            for hazard, spec in HAZARD_CORRELATION_SPECS.items()
+            if hazard != "default"
+        },
     }
 
 
