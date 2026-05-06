@@ -1,7 +1,7 @@
 # CLAUDE.md — BSR Climate Risk Intelligence Platform
 
 ## Project Overview
-Streamlit multi-page app for physical climate risk quantification.
+Streamlit multi-page app for physical AND transition climate risk quantification.
 - **Run:** `streamlit run app.py`
 - **GitHub:** https://github.com/saadk97-coder/ClimateRisk
 - **Working dir:** `/home/user/ClimateRisk`
@@ -477,3 +477,80 @@ pages/04_Results.py
 
 ### Test coverage (32 tests after Session 7)
 | `tests/test_regression.py` | Added tests 27-32: no TVaR claims, no hardcoded £ in map, no vulnerability upload, manual overrides merged, asset dict normalization, no insurance-grade claims |
+
+## Fixes / Additions in Session 8 (transition risk layer)
+
+Reference: BSR Climate Risk Practice memo "Quantifying Transition Risk: Landscape, Frontier, and a Path Forward" (May 2026). Implements memo Path A: productised four-layer transition risk model.
+
+### New module: `engine/transition/`
+| File | Purpose |
+|------|---------|
+| `__init__.py` | Public API re-exports |
+| `data_loader.py` | Cached JSON loaders + `get_ngfs_region`, `map_scenario_to_ngfs` |
+| `carbon_pricing.py` | **Layer 1** — Scope 1+2 emissions × NGFS price × (1 − pass-through). Returns absorbed/passed-through/scope3-indirect decomposition. |
+| `learning_curves.py` | **Layer 2** — Wright's Law cost projections + Lafond log-normal bands. Crossover detection (cost OR demand-collapse trigger). Logistic stranded-asset impairment curve (slope=0.20, ~25y diffusion). |
+| `network_propagation.py` | **Layer 3** — Leontief inverse `(I-A)^-1` from 20-sector EXIOBASE-aggregated matrix. `build_sectorwide_shock` constructs sectoral price shock from emission_intensity × carbon_price × pass_through. CES elasticity damping optional. |
+| `cc_exposure.py` | **Layer 4** — Sautner et al. CCExposure (sector-median proxy) → credit/equity premium bps OR revenue modifier. Configurable routing (`ROUTE_CASHFLOWS` vs `ROUTE_WACC`) for non-duplication. |
+| `transition_engine.py` | Orchestrator: composes L1-L4 per asset/scenario/year. `run_asset_transition`, `run_portfolio_transition`. |
+| `transition_dcf.py` | DCF integration: `compute_combined_dcf` returns physical-only, transition-only, and combined climate-adjusted NPV side-by-side. |
+
+### New data: `data/transition/`
+| File | Source |
+|------|--------|
+| `sector_taxonomy.json` | 20 sectors with GICS/NACE/EXIOBASE mapping, primary/challenger technology, emission intensity (tCO₂/M$ rev). |
+| `carbon_prices_ngfs.json` | NGFS Phase V REMIND-MAgPIE 3.2 carbon prices (USD/tCO₂) × scenario × region (advanced/emerging/RoW) × year. IPCC SSP fallback map. |
+| `sector_pass_through.json` | Pass-through coefficient + demand elasticity per sector. Citations: Sijm 2012, Fabra & Reguant 2014, Cludius 2020, Frankovic 2022. |
+| `learning_curves.json` | Wright's Law learning rates + Lafond σ for 31 technologies (challenger + incumbent pairs). Sources: Way et al. Joule 2022, Lafond TFSC 2018, IRENA 2023. |
+| `sector_pathways.json` | Sector demand pathways (production volume index 2025=1.0) × scenario × year. NGFS / IEA WEO 2023. |
+| `cc_exposure_proxy.json` | Sector-median CCExposure scores (opportunity/regulatory/physical) + scenario modifiers + Sautner published elasticities. |
+| `io_matrix.json` | 20-sector aggregated direct-requirements matrix (calibrated from EXIOBASE-3 2019). |
+
+### Asset model extension (`engine/asset_model.py`)
+Added 5 new fields with sensible defaults (all default to 0.0 / `""`):
+- `sector` (str) — taxonomy key; empty disables transition layer for the asset
+- `scope1_emissions_tco2`, `scope2_emissions_tco2`, `scope3_emissions_tco2` (float)
+- `annual_revenue` (float)
+- `__post_init__` clamps negative values to 0; `from_dict` accepts all new keys.
+
+### Streamlit page: `pages/11_TransitionRisk.py`
+Tabs:
+1. **Time Series** — annual transition cost + cumulative impairment per scenario.
+2. **Layer Attribution** — stacked area showing L1/L2/L3/L4 breakdown.
+3. **Asset Detail** — per-asset annual table, stranding diagnostics (incumbent/challenger/crossover/stranded fraction), CCExposure scores, top-5 upstream cost sources.
+4. **Methodology** — citations table, NGFS carbon price viewer, sector pass-through reference, learning rates table.
+
+Configuration: L4 routing (CFs vs WACC), L3 substitution elasticity (0.5–3.0), enable/disable individual layers.
+
+### Non-duplication rule (BSR framework discipline)
+Each channel routes exactly once:
+- L1 (carbon)         → CASH FLOW (OpEx)
+- L2 (technology)     → CASH FLOW (revenue erosion) + ASSET VALUE (impairment, separate stream)
+- L3 (network)        → CASH FLOW (input cost)
+- L4 (reputation)     → CASH FLOW (revenue modifier) **OR** WACC (financing premium) — never both
+
+`compute_combined_dcf` adds physical EAD + transition CF cost into one damage stream; stranding impairment is a separate PV figure.
+
+### Calibration discipline
+- Coal plant ($500M, 2.5MtCO₂/yr): NZ2050 → $495M annual cost by 2050, $266M cumulative impairment. Current Policies → $59M / $33M. ✓ scenario-differentiated.
+- Oil refinery ($2B, 12.8MtCO₂): NZ2050 → $8.4B annual cost, $1.36B cumulative impairment by 2050. ✓ stranding triggered by demand collapse (no cost crossover).
+- Office building ($50M, 1k tCO₂): NZ2050 → −$0.2M (net revenue uplift from CCE opportunity). ✓ no stranding.
+
+### Test coverage (74 tests after Session 8)
+| File | Added |
+|------|-------|
+| `tests/test_transition.py` | 42 new tests covering: asset model fields, data loaders, L1 (price interpolation, pass-through, decomposition balance), L2 (learning curves, crossover, demand-driven stranding, scenario severity), L3 (Leontief, sectoral shock build, revenue scaling), L4 (routing, sector-specific signs), orchestrator (layer enable/disable, total = sum of layers, scenario differentiation), DCF integration. |
+
+### Known limitations (acknowledged, not yet addressed)
+- I-O matrix is 20-sector single-region — full EXIOBASE-3 MRIO (200 sectors × 49 regions) is the bespoke add-on per the memo.
+- CCExposure uses sector medians; firm-level Sautner data is licensed separately (override via `firm_override` param).
+- Carbon prices are approximate NGFS Phase V REMIND outputs — refresh from NGFS Scenarios Portal for regulatory disclosures.
+- Pass-through coefficients are sector-medians; firm-specific values vary with market power.
+- Layer 3 single-asset run uses sector-typical shock vector (not portfolio-pooled cascade).
+
+### Memo alignment
+- ✅ **Path A** ("Transition Layer for the BSR Framework" — internal capability)
+- ✅ **Tactical step 1** — sector pass-through table (30 sectors with citations)
+- ✅ **Tactical step 2** — pivot table → parameterized model (Python data layer)
+- ✅ **Tactical step 3** — learning-curve overlay prototype (multi-sector, not just power)
+- ⚠️ **Tactical step 4** — CCExposure pull (proxy implemented; firm-level requires separate licensing)
+- ⚠️ **Tactical step 5** — EXIOBASE pilot (20-sector aggregation; full MRIO is bespoke)

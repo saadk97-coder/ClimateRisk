@@ -34,6 +34,14 @@ class Asset:
     terrain_elevation_asl_m: float   # terrain elevation above sea level (auto-detected or manual)
     floor_area_m2: float
     region: str                      # iso3 country code
+    # ---- Transition risk inputs (Session 8) ----
+    # Sector key from data/transition/sector_taxonomy.json — drives pass-through,
+    # learning-curve mapping, IO position. Empty string disables transition layer for this asset.
+    sector: str = ""
+    scope1_emissions_tco2: float = 0.0   # Direct emissions, t CO2/yr
+    scope2_emissions_tco2: float = 0.0   # Purchased electricity emissions, t CO2/yr
+    scope3_emissions_tco2: float = 0.0   # Value-chain emissions (optional), t CO2/yr
+    annual_revenue: float = 0.0          # Asset-attributable revenue (for pass-through cap & financing premium)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -42,6 +50,7 @@ class Asset:
         self.id = str(self.id).strip()
         self.name = str(self.name).strip()
         self.region = str(self.region).strip().upper()
+        self.sector = str(self.sector).strip().lower()
         if not (-90 <= self.lat <= 90):
             raise ValueError(f"lat must be in [-90, 90], got {self.lat}")
         if not (-180 <= self.lon <= 180):
@@ -63,6 +72,12 @@ class Asset:
         # Negative freeboard would increase flood intensity — clamp to 0
         if self.first_floor_height_m < 0:
             self.first_floor_height_m = 0.0
+        # Emissions and revenue must be non-negative
+        for fname in ("scope1_emissions_tco2", "scope2_emissions_tco2",
+                      "scope3_emissions_tco2", "annual_revenue"):
+            v = getattr(self, fname)
+            if v < 0:
+                setattr(self, fname, 0.0)
 
     @classmethod
     def from_dict(cls, d: dict) -> "Asset":
@@ -82,6 +97,11 @@ class Asset:
             terrain_elevation_asl_m=float(d.get("terrain_elevation_asl_m", d.get("elevation_m", 0.0))),
             floor_area_m2=float(d.get("floor_area_m2", 200.0)),
             region=str(d.get("region", "GBR")).upper(),
+            sector=str(d.get("sector", "")),
+            scope1_emissions_tco2=float(d.get("scope1_emissions_tco2", 0.0)),
+            scope2_emissions_tco2=float(d.get("scope2_emissions_tco2", 0.0)),
+            scope3_emissions_tco2=float(d.get("scope3_emissions_tco2", 0.0)),
+            annual_revenue=float(d.get("annual_revenue", 0.0)),
         )
 
 

@@ -1,0 +1,55 @@
+{
+  "_meta": {
+    "description": "Sector-median Climate Change Exposure (CCExposure) scores. Used as fallback when firm-level Sautner et al. data is not available. Three sub-measures: opportunity, regulatory, physical. Scores are normalised: 0 = no climate discussion in earnings calls; 1.0 ~ 1 in 1000 conversational frequency; values reflect approximate 2010-2020 medians from Sautner et al.",
+    "sources": [
+      "Sautner, van Lent, Vilkov, Zhang (2023). 'Firm-Level Climate Change Exposure.' Journal of Finance 78(3): 1449-1498. https://doi.org/10.1111/jofi.13219",
+      "Sautner et al. (2023). 'Pricing Climate Change Exposure.' Management Science (forthcoming). https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3792366",
+      "CCExposure dataset: https://osf.io/fd6jq/ (firm-level — not redistributed here; users with API access should override these defaults)"
+    ],
+    "elasticities": {
+      "_comment": "Empirical elasticities from Sautner et al. (2023) Management Science — translation of 1-σ CCExposure shock into pricing impact.",
+      "credit_spread_bps_per_unit_regulatory": 12.0,
+      "credit_spread_bps_per_unit_physical":   6.0,
+      "equity_premium_bps_per_unit_total":    50.0,
+      "revenue_growth_bps_per_unit_opportunity": 35.0,
+      "regulatory_revenue_drag_bps_per_unit": 25.0,
+      "source_ref": "Sautner Mgmt Sci 2023 Tables 4-7"
+    },
+    "scenario_modifiers": {
+      "_comment": "Scenario-specific multipliers on CCExposure. Disorderly transitions amplify regulatory exposure; ordered transitions amplify opportunity.",
+      "net_zero_2050":      {"opportunity": 1.40, "regulatory": 1.20, "physical": 0.85},
+      "below_2c":           {"opportunity": 1.20, "regulatory": 1.00, "physical": 0.90},
+      "divergent_net_zero": {"opportunity": 1.30, "regulatory": 1.50, "physical": 0.90},
+      "delayed_transition": {"opportunity": 0.90, "regulatory": 1.80, "physical": 1.10},
+      "ndcs_only":          {"opportunity": 1.00, "regulatory": 0.90, "physical": 1.20},
+      "current_policies":   {"opportunity": 0.80, "regulatory": 0.60, "physical": 1.50},
+      "fragmented_world":   {"opportunity": 0.95, "regulatory": 1.55, "physical": 1.45},
+      "iea_nze":            {"opportunity": 1.40, "regulatory": 1.20, "physical": 0.85},
+      "iea_aps":            {"opportunity": 1.20, "regulatory": 1.00, "physical": 0.90},
+      "iea_steps":          {"opportunity": 1.00, "regulatory": 0.90, "physical": 1.20}
+    }
+  },
+  "sectors": {
+    "power_coal":             {"opportunity": 0.32, "regulatory": 1.95, "physical": 0.55},
+    "power_gas":              {"opportunity": 0.65, "regulatory": 1.40, "physical": 0.45},
+    "power_renewable":        {"opportunity": 2.10, "regulatory": 0.70, "physical": 0.40},
+    "oil_upstream":           {"opportunity": 0.28, "regulatory": 1.85, "physical": 0.65},
+    "oil_refining":           {"opportunity": 0.35, "regulatory": 1.70, "physical": 0.55},
+    "gas_distribution":       {"opportunity": 0.45, "regulatory": 1.25, "physical": 0.50},
+    "steel":                  {"opportunity": 0.55, "regulatory": 1.30, "physical": 0.40},
+    "cement":                 {"opportunity": 0.45, "regulatory": 1.40, "physical": 0.45},
+    "chemicals":              {"opportunity": 0.65, "regulatory": 1.15, "physical": 0.50},
+    "aluminium":              {"opportunity": 0.55, "regulatory": 1.25, "physical": 0.45},
+    "road_transport_ice":     {"opportunity": 0.40, "regulatory": 1.65, "physical": 0.30},
+    "road_transport_ev":      {"opportunity": 2.30, "regulatory": 0.55, "physical": 0.25},
+    "aviation":               {"opportunity": 0.35, "regulatory": 1.25, "physical": 0.55},
+    "shipping":               {"opportunity": 0.45, "regulatory": 1.10, "physical": 0.65},
+    "real_estate_commercial": {"opportunity": 0.85, "regulatory": 0.95, "physical": 0.95},
+    "real_estate_residential":{"opportunity": 0.55, "regulatory": 0.65, "physical": 0.85},
+    "agriculture":            {"opportunity": 0.50, "regulatory": 0.80, "physical": 1.20},
+    "data_center":            {"opportunity": 1.20, "regulatory": 0.80, "physical": 0.65},
+    "manufacturing_general":  {"opportunity": 0.55, "regulatory": 0.85, "physical": 0.55},
+    "services":               {"opportunity": 0.45, "regulatory": 0.45, "physical": 0.40}
+  },
+  "default_unmatched": {"opportunity": 0.50, "regulatory": 0.85, "physical": 0.60}
+}

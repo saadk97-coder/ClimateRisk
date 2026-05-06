@@ -1,0 +1,88 @@
+"""
+Data loaders for the transition risk layer. All paths resolve relative to the
+repo's data/transition/ directory. Loaders are cached at module level.
+"""
+
+from __future__ import annotations
+import json
+import os
+from functools import lru_cache
+from typing import Dict, List
+
+_DATA_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", "data", "transition"))
+
+
+def _load(name: str) -> dict:
+    path = os.path.join(_DATA_DIR, name)
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+@lru_cache(maxsize=1)
+def load_carbon_prices() -> dict:
+    return _load("carbon_prices_ngfs.json")
+
+
+@lru_cache(maxsize=1)
+def load_sector_pass_through() -> dict:
+    return _load("sector_pass_through.json")
+
+
+@lru_cache(maxsize=1)
+def load_learning_curves() -> dict:
+    return _load("learning_curves.json")
+
+
+@lru_cache(maxsize=1)
+def load_sector_pathways() -> dict:
+    return _load("sector_pathways.json")
+
+
+@lru_cache(maxsize=1)
+def load_cc_exposure() -> dict:
+    return _load("cc_exposure_proxy.json")
+
+
+@lru_cache(maxsize=1)
+def load_io_matrix() -> dict:
+    return _load("io_matrix.json")
+
+
+@lru_cache(maxsize=1)
+def load_sector_taxonomy() -> dict:
+    return _load("sector_taxonomy.json")
+
+
+def get_ngfs_region(iso3: str) -> str:
+    """Map ISO3 country code to NGFS region (advanced / emerging / rest_of_world)."""
+    if not iso3:
+        return "rest_of_world"
+    iso3 = iso3.strip().upper()
+    classification = load_carbon_prices().get("region_classification", {})
+    if iso3 in classification.get("advanced", []):
+        return "advanced"
+    if iso3 in classification.get("emerging", []):
+        return "emerging"
+    return "rest_of_world"
+
+
+def map_scenario_to_ngfs(scenario_id: str) -> str:
+    """
+    Map any scenario ID to one with carbon-price data. NGFS / IEA scenarios pass
+    through unchanged; IPCC SSPs fall back to the closest NGFS analog.
+    """
+    scenarios = load_carbon_prices().get("scenarios", {})
+    if scenario_id in scenarios:
+        return scenario_id
+    fallback = load_carbon_prices().get("ipcc_fallback_map", {})
+    return fallback.get(scenario_id, "current_policies")
+
+
+def list_sectors() -> List[str]:
+    return list(load_sector_taxonomy()["sectors"].keys())
+
+
+def get_sector_meta(sector: str) -> dict:
+    """Return sector taxonomy entry; falls back to 'services' if unmatched."""
+    sectors = load_sector_taxonomy()["sectors"]
+    return sectors.get(sector, sectors["services"])

@@ -1,0 +1,44 @@
+{
+  "_meta": {
+    "description": "Carbon-cost pass-through coefficients by sector. Pass-through = fraction of carbon cost passed through to customers via prices. The complement (1 - pass_through) is absorbed as direct margin compression on the emitter. Demand elasticity used by Layer 3 network propagation; market_structure is qualitative.",
+    "sources": [
+      "Sijm, Hers, Lise, Wetzelaer (2012). 'CO2 Cost Pass-Through and Windfall Profits in the Power Sector.' Energy Policy. https://doi.org/10.1016/j.enpol.2007.10.027",
+      "Cludius, Hermann, Matthes, Graichen (2020). 'The merit order effect of wind and photovoltaic electricity generation in Germany 2008-2016.' Energy Economics.",
+      "Fabra & Reguant (2014). 'Pass-Through of Emissions Costs in Electricity Markets.' American Economic Review 104(9): 2872-99. https://doi.org/10.1257/aer.104.9.2872",
+      "Frankovic (2022). 'The impact of carbon pricing in a multi-region production network model.' Bundesbank Discussion Paper 06/2022.",
+      "Bauer, Offner, Rudebusch (2023). 'The Macroeconomic Impact of Climate Change: Global vs. Local Temperature.' FRBSF Working Paper.",
+      "Devulder & Lisack (2020). 'Carbon tax in a production network.' Banque de France WP #813.",
+      "Papageorgiou, Saam, Schulte (2017). 'Substitution between Clean and Dirty Energy Inputs.' REStat 99(2)."
+    ],
+    "notes": "Pass-through is sector-level median; firm-specific values vary with market power, trade exposure, and contract structure. Demand elasticity is short-run own-price elasticity (Marshallian)."
+  },
+  "sectors": {
+    "power_coal":             {"pass_through": 0.85, "demand_elasticity": -0.20, "market_structure": "regulated_oligopoly", "trade_exposed": false, "source_ref": "Sijm 2012; Fabra & Reguant 2014"},
+    "power_gas":              {"pass_through": 0.80, "demand_elasticity": -0.20, "market_structure": "regulated_oligopoly", "trade_exposed": false, "source_ref": "Sijm 2012"},
+    "power_renewable":        {"pass_through": 0.75, "demand_elasticity": -0.20, "market_structure": "regulated_oligopoly", "trade_exposed": false, "source_ref": "Cludius 2020 (merit-order effect)"},
+    "oil_upstream":           {"pass_through": 0.40, "demand_elasticity": -0.30, "market_structure": "global_commodity",   "trade_exposed": true,  "source_ref": "Frankovic 2022 (low pass-through, global price taker)"},
+    "oil_refining":           {"pass_through": 0.75, "demand_elasticity": -0.25, "market_structure": "regional_oligopoly", "trade_exposed": true,  "source_ref": "Sijm 2012 (refining ~70-80%)"},
+    "gas_distribution":       {"pass_through": 0.90, "demand_elasticity": -0.30, "market_structure": "regulated_monopoly", "trade_exposed": false, "source_ref": "Regulated cost recovery"},
+    "steel":                  {"pass_through": 0.30, "demand_elasticity": -0.50, "market_structure": "global_competitive", "trade_exposed": true,  "source_ref": "Fabra & Reguant 2014; CEMBUREAU/EUROFER carbon-leakage submissions"},
+    "cement":                 {"pass_through": 0.50, "demand_elasticity": -0.40, "market_structure": "regional_oligopoly", "trade_exposed": true,  "source_ref": "EU ETS sector analyses; Pang & Brown 2017"},
+    "chemicals":              {"pass_through": 0.40, "demand_elasticity": -0.45, "market_structure": "global_competitive", "trade_exposed": true,  "source_ref": "Devulder & Lisack 2020"},
+    "aluminium":              {"pass_through": 0.25, "demand_elasticity": -0.55, "market_structure": "global_competitive", "trade_exposed": true,  "source_ref": "EU CBAM impact assessment 2021"},
+    "road_transport_ice":     {"pass_through": 0.65, "demand_elasticity": -0.35, "market_structure": "regional_oligopoly", "trade_exposed": true,  "source_ref": "Goolsbee 1998 (auto pricing); Knittel & Tanaka 2015"},
+    "road_transport_ev":      {"pass_through": 0.60, "demand_elasticity": -0.50, "market_structure": "regional_oligopoly", "trade_exposed": true,  "source_ref": "EV demand elasticity from RAND 2021"},
+    "aviation":               {"pass_through": 0.55, "demand_elasticity": -0.80, "market_structure": "regional_oligopoly", "trade_exposed": true,  "source_ref": "InterVISTAS 2007 (price elasticity); ICAO 2022"},
+    "shipping":               {"pass_through": 0.70, "demand_elasticity": -0.20, "market_structure": "global_competitive", "trade_exposed": true,  "source_ref": "Faber et al. 2017 IMO study"},
+    "real_estate_commercial": {"pass_through": 0.30, "demand_elasticity": -0.20, "market_structure": "local_competitive",  "trade_exposed": false, "source_ref": "Eichholtz, Kok, Quigley 2010 (green-building rents)"},
+    "real_estate_residential":{"pass_through": 0.20, "demand_elasticity": -0.15, "market_structure": "local_competitive",  "trade_exposed": false, "source_ref": "Aydin, Brounen, Kok 2020 (residential energy capitalisation)"},
+    "agriculture":            {"pass_through": 0.30, "demand_elasticity": -0.40, "market_structure": "global_competitive", "trade_exposed": true,  "source_ref": "Hertel et al. 2022 (GTAP-AGR)"},
+    "data_center":            {"pass_through": 0.50, "demand_elasticity": -0.30, "market_structure": "regional_competitive","trade_exposed": false,"source_ref": "Hyperscaler PPA structures (AWS/MSFT 2023 CDP filings)"},
+    "manufacturing_general":  {"pass_through": 0.40, "demand_elasticity": -0.40, "market_structure": "regional_competitive","trade_exposed": true, "source_ref": "Devulder & Lisack 2020 (industrial average)"},
+    "services":               {"pass_through": 0.60, "demand_elasticity": -0.30, "market_structure": "local_competitive",  "trade_exposed": false, "source_ref": "Default (low intensity, local pricing power)"}
+  },
+  "default_unmatched": {
+    "pass_through": 0.40,
+    "demand_elasticity": -0.40,
+    "market_structure": "unknown",
+    "trade_exposed": false,
+    "source_ref": "Cross-sector median when sector unmatched"
+  }
+}
