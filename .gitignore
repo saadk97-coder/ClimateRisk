@@ -8,3 +8,7 @@ venv/
 *.egg-info/
 .DS_Store
 .streamlit/credentials.toml
+.hazard_cache/
+.hazard-cache-*/
+hazard-cache-*/
+pytest-cache-files-*/

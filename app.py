@@ -115,7 +115,7 @@ col_m1, col_m2, col_m3, col_m4 = st.columns(4)
 col_m1.metric("Assets", n_assets)
 col_m2.metric("Portfolio Value", _fmt(total_val, _cur) if total_val > 0 else "—")
 col_m3.metric("Scenarios Available", "14", help="6 NGFS Phase V · 3 IEA WEO 2023 · 5 IPCC AR6")
-col_m4.metric("Hazards Covered", "6", help="Flood · Wind · Wildfire · Heat · Coastal Flood · Water Stress")
+col_m4.metric("Risk Channels", "Physical + Transition", help="6 physical hazards (flood, wind, wildfire, heat, coastal flood, water stress) · 4 transition layers (carbon cost, technology, network, reputation)")
 
 st.divider()
 
@@ -134,6 +134,7 @@ st.markdown("""
 | 8 | **Audit** | Step-by-step calculation trace for any asset/scenario/year |
 | 9 | **Vulnerability** | Damage functions with structural failure pathways and component-level analysis |
 | 10 | **Governance** | Model scope, validation status, lineage controls, and known limitations |
+| 11 | **Transition Risk** | Four-layer transition model: carbon cost (with sector pass-through) · technology / stranded-asset trigger · production-network propagation · reputational / capital-access overlay |
 """)
 
 st.divider()
@@ -147,6 +148,7 @@ with col1:
 - **Expected Annual Loss Ratio (EALR %)** — expected damage as % of asset value
 - **Stranded asset flags** — where cumulative climate costs exceed value thresholds
 - **30-year forward risk projection** per scenario
+- **Transition risk** — four-layer decomposition (carbon, technology, network, reputation) integrated with DCF
     """)
 with col2:
     st.markdown("### 🌍 Data & Scenarios")

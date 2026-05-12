@@ -1,0 +1,257 @@
+{
+  "_meta": {
+    "description": "Sector taxonomy for transition risk layer. Aggregated from GICS industries, NACE Rev. 2, and EXIOBASE-3 sector list. Each sector keys into pass-through, learning-curve, IO matrix and CCExposure tables.",
+    "sources": [
+      "GICS classification system (S&P/MSCI 2023)",
+      "NACE Rev. 2 (Eurostat)",
+      "EXIOBASE-3 sector list (Stadler et al. 2018, https://doi.org/10.1111/jiec.12715)"
+    ],
+    "version": "v1 — Session 8",
+    "field_notes": {
+      "emission_intensity_t_per_revenue": "Sector-typical emission intensity, tCO2 per MILLION USD of revenue (so 7.5 = 7.5 tCO2/M$). Used by Layer 3 (network_propagation.build_sectorwide_shock) to construct a sectoral price shock; converted internally with a 1e-6 factor.",
+      "io_index": "Position in the io_matrix.json A matrix (0-indexed, must match _meta.sector_order)."
+    }
+  },
+  "sectors": {
+    "power_coal": {
+      "label": "Electric Power — Coal",
+      "gics": "55105010",
+      "nace": "D35.11 (coal-fired)",
+      "exiobase": "i40.11.a",
+      "io_index": 0,
+      "primary_technology": "coal_steam",
+      "challenger_technology": "solar_pv",
+      "fossil_dependent": true,
+      "emission_intensity_t_per_revenue": 7.5,
+      "notes": "Highest stranding risk under fast-transition scenarios; near-zero learning rate."
+    },
+    "power_gas": {
+      "label": "Electric Power — Natural Gas",
+      "gics": "55105010",
+      "nace": "D35.11 (gas-fired)",
+      "exiobase": "i40.11.b",
+      "io_index": 1,
+      "primary_technology": "gas_ccgt",
+      "challenger_technology": "battery_storage",
+      "fossil_dependent": true,
+      "emission_intensity_t_per_revenue": 3.0,
+      "notes": "Stranding risk highest for new-build peakers as battery costs decline."
+    },
+    "power_renewable": {
+      "label": "Electric Power — Renewables",
+      "gics": "55105020",
+      "nace": "D35.11 (renewable)",
+      "exiobase": "i40.11.c",
+      "io_index": 2,
+      "primary_technology": "solar_pv",
+      "challenger_technology": null,
+      "fossil_dependent": false,
+      "emission_intensity_t_per_revenue": 0.05,
+      "notes": "Beneficiary of transition; revenue uplift in fast-transition scenarios."
+    },
+    "oil_upstream": {
+      "label": "Oil & Gas — Upstream",
+      "gics": "10102010",
+      "nace": "B06.10",
+      "exiobase": "i06.b",
+      "io_index": 3,
+      "primary_technology": "oil_extraction",
+      "challenger_technology": null,
+      "fossil_dependent": true,
+      "emission_intensity_t_per_revenue": 1.2,
+      "notes": "Demand collapse in NZ2050; reserves stranding from Carbon Tracker (2022)."
+    },
+    "oil_refining": {
+      "label": "Oil Refining & Marketing",
+      "gics": "10102030",
+      "nace": "C19.20",
+      "exiobase": "i23.20",
+      "io_index": 4,
+      "primary_technology": "oil_refining",
+      "challenger_technology": "biorefining",
+      "fossil_dependent": true,
+      "emission_intensity_t_per_revenue": 0.55,
+      "notes": "High pass-through (~75%) per Sijm 2012; Cludius 2020."
+    },
+    "gas_distribution": {
+      "label": "Natural Gas Distribution",
+      "gics": "55102010",
+      "nace": "D35.21",
+      "exiobase": "i40.20",
+      "io_index": 5,
+      "primary_technology": "gas_distribution",
+      "challenger_technology": "heat_pump",
+      "fossil_dependent": true,
+      "emission_intensity_t_per_revenue": 0.4,
+      "notes": "Network-asset stranding under building electrification."
+    },
+    "steel": {
+      "label": "Steel & Iron",
+      "gics": "15104050",
+      "nace": "C24.10",
+      "exiobase": "i27.1",
+      "io_index": 6,
+      "primary_technology": "blast_furnace",
+      "challenger_technology": "h2_dri",
+      "fossil_dependent": true,
+      "emission_intensity_t_per_revenue": 1.85,
+      "notes": "Trade-exposed; low pass-through (~30%) per Fabra & Reguant 2014."
+    },
+    "cement": {
+      "label": "Cement & Lime",
+      "gics": "15102010",
+      "nace": "C23.51",
+      "exiobase": "i26.5",
+      "io_index": 7,
+      "primary_technology": "cement_clinker",
+      "challenger_technology": "low_clinker_ccus",
+      "fossil_dependent": true,
+      "emission_intensity_t_per_revenue": 1.6,
+      "notes": "Process emissions ~60% of total; CCUS dependency for net-zero alignment."
+    },
+    "chemicals": {
+      "label": "Chemicals (Bulk & Petrochemicals)",
+      "gics": "15101010",
+      "nace": "C20.14",
+      "exiobase": "i24",
+      "io_index": 8,
+      "primary_technology": "petrochemical",
+      "challenger_technology": "green_h2",
+      "fossil_dependent": true,
+      "emission_intensity_t_per_revenue": 0.95,
+      "notes": "Feedstock + heat emissions; partial pass-through (~40%)."
+    },
+    "aluminium": {
+      "label": "Aluminium & Non-Ferrous Metals",
+      "gics": "15104010",
+      "nace": "C24.42",
+      "exiobase": "i27.4",
+      "io_index": 9,
+      "primary_technology": "smelter",
+      "challenger_technology": "renewable_smelter",
+      "fossil_dependent": true,
+      "emission_intensity_t_per_revenue": 1.4,
+      "notes": "Highly Scope 2 dependent; benefits from grid decarbonisation."
+    },
+    "road_transport_ice": {
+      "label": "Automotive — Internal Combustion",
+      "gics": "25102010",
+      "nace": "C29.10 (ICE)",
+      "exiobase": "i34.10.a",
+      "io_index": 10,
+      "primary_technology": "ice_vehicle",
+      "challenger_technology": "ev",
+      "fossil_dependent": true,
+      "emission_intensity_t_per_revenue": 0.15,
+      "notes": "Demand collapse 2030-2040 in NZ scenarios; capex pivot required."
+    },
+    "road_transport_ev": {
+      "label": "Automotive — Electric Vehicles",
+      "gics": "25102010",
+      "nace": "C29.10 (EV)",
+      "exiobase": "i34.10.b",
+      "io_index": 11,
+      "primary_technology": "ev",
+      "challenger_technology": null,
+      "fossil_dependent": false,
+      "emission_intensity_t_per_revenue": 0.1,
+      "notes": "Beneficiary; battery cost declines drive demand."
+    },
+    "aviation": {
+      "label": "Aviation (Passenger & Freight)",
+      "gics": "20302010",
+      "nace": "H51",
+      "exiobase": "i62",
+      "io_index": 12,
+      "primary_technology": "jet_fuel",
+      "challenger_technology": "saf",
+      "fossil_dependent": true,
+      "emission_intensity_t_per_revenue": 0.7,
+      "notes": "Limited substitutes; high transition cost without SAF scale."
+    },
+    "shipping": {
+      "label": "Shipping & Maritime",
+      "gics": "20303010",
+      "nace": "H50",
+      "exiobase": "i61",
+      "io_index": 13,
+      "primary_technology": "bunker_fuel",
+      "challenger_technology": "ammonia",
+      "fossil_dependent": true,
+      "emission_intensity_t_per_revenue": 0.8,
+      "notes": "IMO 2050 net-zero target; Scope 1 dominant."
+    },
+    "real_estate_commercial": {
+      "label": "Real Estate — Commercial",
+      "gics": "60102010",
+      "nace": "L68.20.a",
+      "exiobase": "i70.a",
+      "io_index": 14,
+      "primary_technology": "gas_boiler",
+      "challenger_technology": "heat_pump",
+      "fossil_dependent": false,
+      "emission_intensity_t_per_revenue": 0.08,
+      "notes": "EU EPBD / NYC LL97 / UK MEES drive retrofit costs."
+    },
+    "real_estate_residential": {
+      "label": "Real Estate — Residential",
+      "gics": "60101080",
+      "nace": "L68.20.b",
+      "exiobase": "i70.b",
+      "io_index": 15,
+      "primary_technology": "gas_boiler",
+      "challenger_technology": "heat_pump",
+      "fossil_dependent": false,
+      "emission_intensity_t_per_revenue": 0.06,
+      "notes": "Slower regulatory pace than commercial; long replacement cycles."
+    },
+    "agriculture": {
+      "label": "Agriculture & Livestock",
+      "gics": "30202030",
+      "nace": "A01",
+      "exiobase": "i01",
+      "io_index": 16,
+      "primary_technology": "intensive_livestock",
+      "challenger_technology": "regenerative",
+      "fossil_dependent": false,
+      "emission_intensity_t_per_revenue": 0.6,
+      "notes": "Methane focus; pass-through ~30% per literature."
+    },
+    "data_center": {
+      "label": "Data Centres",
+      "gics": "45102030",
+      "nace": "J63.11",
+      "exiobase": "i72",
+      "io_index": 17,
+      "primary_technology": "grid_electricity",
+      "challenger_technology": "renewable_ppa",
+      "fossil_dependent": false,
+      "emission_intensity_t_per_revenue": 0.4,
+      "notes": "Scope 2 dominant; PPA strategy changes risk profile."
+    },
+    "manufacturing_general": {
+      "label": "General Manufacturing",
+      "gics": "20105010",
+      "nace": "C25-C28",
+      "exiobase": "i28",
+      "io_index": 18,
+      "primary_technology": "mixed_industrial",
+      "challenger_technology": null,
+      "fossil_dependent": false,
+      "emission_intensity_t_per_revenue": 0.25,
+      "notes": "Heterogeneous; uses average industrial parameters."
+    },
+    "services": {
+      "label": "Services & Other",
+      "gics": "50000000",
+      "nace": "M-S",
+      "exiobase": "i74",
+      "io_index": 19,
+      "primary_technology": "office_operations",
+      "challenger_technology": null,
+      "fossil_dependent": false,
+      "emission_intensity_t_per_revenue": 0.05,
+      "notes": "Low-intensity; minimal direct transition cost; supply-chain pass-through dominates."
+    }
+  }
+}
