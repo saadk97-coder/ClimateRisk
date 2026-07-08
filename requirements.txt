@@ -18,3 +18,4 @@ pytest~=8.3
 
 # Optional — data-refresh scripts only (not needed to run the engine/tests)
 # pyam-iamc~=2.0   # scripts/fetch_ngfs_prices.py (NGFS Phase V via IIASA, anonymous read)
+# pymrio~=0.6      # scripts/build_io_matrix.py    (EXIOBASE-3 MRIO, public Zenodo download)

@@ -27,12 +27,32 @@ python scripts/fetch_ngfs_prices.py --inplace  # overwrite the calibrated file (
   (e.g. Net Zero 2050 advanced 2050: 410 → 870), so adopting changes reported
   DCF/OpEx dollars. Adopt deliberately.
 
+## `build_io_matrix.py` — I-O matrix (CANDIDATE, license-free)
+
+Builds a 20-sector world direct-requirements matrix from the real EXIOBASE-3
+industry-by-industry MRIO (all 49 regions summed to WORLD totals), via `pymrio`
+(public Zenodo download, no login).
+
+```bash
+pip install pymrio
+python -c "import pymrio; pymrio.download_exiobase3(storage_folder='exio', years=[2019], system='ixi')"
+python scripts/build_io_matrix.py exio/IOT_2019_ixi.zip
+```
+
+- Writes `io_matrix.candidate.json` — **does NOT** overwrite the calibrated
+  `io_matrix.json`. Diff the two, review the concordance, then adopt by renaming.
+- Verified: swapping the candidate in keeps all transition tests green
+  (structurally valid: entries in [0,1], column sums < 1, Leontief diagonal > 1
+  and column-dominant).
+- The 163→20 concordance embeds judgement calls (electricity T&D → power_renewable;
+  fuel extraction → oil_upstream; non-Al non-ferrous metals & construction →
+  manufacturing_general; transport/finance/waste/public services → services).
+  EXIOBASE cannot split ICE/EV vehicles or commercial/residential real estate, so
+  those two twin sectors are copied from their sibling (flagged in `_meta`).
+  **Review the concordance before adopting.**
+
 ## Not yet automatable
 
-- **`io_matrix.json` (EXIOBASE-3).** Data is public (Zenodo, `pymrio`), but
-  `sector_taxonomy.json` supplies only one anchor EXIOBASE code per aggregated
-  sector — a faithful 200→20 concordance still has to be authored by hand. Left
-  as a reviewed task rather than a blind pull.
 - **`cc_exposure_proxy.json` (Sautner CCExposure).** The public OSF file carries
   ISIN/GVKEY/CUSIP but **no sector column**; binning firms into the 20-sector
   taxonomy needs GVKEY→GICS, which requires an S&P/Compustat licence. No sound
