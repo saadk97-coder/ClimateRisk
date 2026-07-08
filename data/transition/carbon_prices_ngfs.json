@@ -1,74 +1,302 @@
 {
   "_meta": {
-    "description": "NGFS Phase V carbon price trajectories from REMIND-MAgPIE 3.2. USD2020 per tCO2. Region-differentiated where NGFS provides regional shadow prices; otherwise global price applied. Three NGFS regions: 'advanced' (USA, EUR, JPN, AUS, CAN), 'emerging' (CHN, BRA, MEX, IDN, RUS, IND, ZAF), 'rest_of_world' (default).",
-    "sources": [
-      "NGFS Phase V Scenarios Database, REMIND-MAgPIE 3.2 (Nov 2023): https://www.ngfs.net/ngfs-scenarios-portal/",
-      "NGFS Phase V Technical Documentation v4.2 (Bertram et al., PIK, 2023)"
+    "description": "NGFS Phase V carbon prices (Price|Carbon) pulled live from the IIASA NGFS Phase 5 Scenario Explorer.",
+    "model": "REMIND-MAgPIE 3.3-4.8",
+    "source_unit": "US$2010/t CO2",
+    "deflator_applied": 1.18,
+    "reported_unit": "US$2010/t CO2 x 1.18 (rebased)",
+    "region_mapping": {
+      "OECD & EU (R5)": "advanced",
+      "Asia (R5)": "emerging",
+      "Middle East & Africa (R5)": "rest_of_world"
+    },
+    "scenario_mapping": {
+      "Net Zero 2050": "net_zero_2050",
+      "Below 2°C": "below_2c",
+      "Delayed transition": "delayed_transition",
+      "Fragmented World": "fragmented_world",
+      "Nationally Determined Contributions (NDCs)": "ndcs_only",
+      "Current Policies": "current_policies"
+    },
+    "scenarios_from_placeholder_no_phase5_source": [
+      "divergent_net_zero",
+      "iea_nze",
+      "iea_aps",
+      "iea_steps"
     ],
-    "units": "USD_2020 per tCO2",
-    "interpolation": "linear between listed years; held flat before 2025 and after 2050",
-    "note": "These values approximate published NGFS Phase V REMIND outputs. For regulatory disclosures, refresh from the NGFS Scenarios Portal directly — phase updates change values materially."
+    "retrieved_utc": "2026-07-08T22:33:44Z",
+    "source_url": "https://data.ene.iiasa.ac.at/ngfs/"
   },
   "scenarios": {
     "net_zero_2050": {
       "label": "Net Zero 2050",
-      "advanced":      {"2025":  35,  "2030": 130, "2035": 195, "2040": 260, "2045": 335, "2050": 410},
-      "emerging":      {"2025":  20,  "2030":  85, "2035": 140, "2040": 195, "2045": 260, "2050": 330},
-      "rest_of_world": {"2025":  10,  "2030":  55, "2035":  95, "2040": 140, "2045": 200, "2050": 270}
+      "advanced": {
+        "2025": 179.8,
+        "2030": 333.0,
+        "2035": 534.3,
+        "2040": 736.3,
+        "2045": 938.6,
+        "2050": 1026.7
+      },
+      "emerging": {
+        "2025": 71.8,
+        "2030": 143.4,
+        "2035": 248.3,
+        "2040": 402.8,
+        "2045": 630.2,
+        "2050": 836.4
+      },
+      "rest_of_world": {
+        "2025": 86.7,
+        "2030": 169.1,
+        "2035": 280.9,
+        "2040": 435.0,
+        "2045": 652.8,
+        "2050": 836.4
+      }
     },
     "below_2c": {
       "label": "Below 2C",
-      "advanced":      {"2025":  20,  "2030":  55, "2035":  95, "2040": 135, "2045": 185, "2050": 240},
-      "emerging":      {"2025":  10,  "2030":  35, "2035":  65, "2040":  95, "2045": 135, "2050": 180},
-      "rest_of_world": {"2025":   5,  "2030":  20, "2035":  40, "2040":  65, "2045":  95, "2050": 130}
-    },
-    "divergent_net_zero": {
-      "label": "Divergent Net Zero",
-      "advanced":      {"2025":  40,  "2030": 145, "2035": 215, "2040": 285, "2045": 360, "2050": 430},
-      "emerging":      {"2025":  15,  "2030":  70, "2035": 120, "2040": 175, "2045": 240, "2050": 310},
-      "rest_of_world": {"2025":   8,  "2030":  40, "2035":  80, "2040": 125, "2045": 185, "2050": 250}
+      "advanced": {
+        "2025": 33.6,
+        "2030": 58.2,
+        "2035": 84.3,
+        "2040": 110.4,
+        "2045": 136.6,
+        "2050": 162.9
+      },
+      "emerging": {
+        "2025": 13.4,
+        "2030": 25.1,
+        "2035": 42.2,
+        "2040": 67.9,
+        "2045": 105.6,
+        "2050": 158.7
+      },
+      "rest_of_world": {
+        "2025": 16.2,
+        "2030": 29.9,
+        "2035": 48.2,
+        "2040": 73.9,
+        "2045": 109.4,
+        "2050": 157.5
+      }
     },
     "delayed_transition": {
       "label": "Delayed Transition",
-      "advanced":      {"2025":   5,  "2030":  10, "2035":  90, "2040": 230, "2045": 295, "2050": 360},
-      "emerging":      {"2025":   3,  "2030":   5, "2035":  60, "2040": 165, "2045": 220, "2050": 280},
-      "rest_of_world": {"2025":   1,  "2030":   3, "2035":  40, "2040": 115, "2045": 165, "2050": 220}
-    },
-    "ndcs_only": {
-      "label": "NDCs Only",
-      "advanced":      {"2025":  10,  "2030":  17, "2035":  22, "2040":  30, "2045":  38, "2050":  45},
-      "emerging":      {"2025":   3,  "2030":   8, "2035":  12, "2040":  18, "2045":  24, "2050":  30},
-      "rest_of_world": {"2025":   1,  "2030":   3, "2035":   5, "2040":   8, "2045":  12, "2050":  18}
-    },
-    "current_policies": {
-      "label": "Current Policies",
-      "advanced":      {"2025":   5,  "2030":   8, "2035":  10, "2040":  12, "2045":  15, "2050":  18},
-      "emerging":      {"2025":   1,  "2030":   2, "2035":   3, "2040":   4, "2045":   5, "2050":   7},
-      "rest_of_world": {"2025":   0,  "2030":   1, "2035":   1, "2040":   2, "2045":   3, "2050":   4}
+      "advanced": {
+        "2025": 27.5,
+        "2030": 27.5,
+        "2035": 260.0,
+        "2040": 450.7,
+        "2045": 643.3,
+        "2050": 837.5
+      },
+      "emerging": {
+        "2025": 5.7,
+        "2030": 5.8,
+        "2035": 63.0,
+        "2040": 114.3,
+        "2045": 185.0,
+        "2050": 276.4
+      },
+      "rest_of_world": {
+        "2025": 2.7,
+        "2030": 3.0,
+        "2035": 53.7,
+        "2040": 82.4,
+        "2045": 122.3,
+        "2050": 176.3
+      }
     },
     "fragmented_world": {
       "label": "Fragmented World",
-      "advanced":      {"2025":  25,  "2030":  85, "2035": 150, "2040": 220, "2045": 285, "2050": 350},
-      "emerging":      {"2025":   3,  "2030":  10, "2035":  20, "2040":  35, "2045":  55, "2050":  80},
-      "rest_of_world": {"2025":   0,  "2030":   2, "2035":   5, "2040":   8, "2045":  12, "2050":  18}
+      "advanced": {
+        "2025": 27.5,
+        "2030": 27.5,
+        "2035": 64.1,
+        "2040": 100.2,
+        "2045": 135.9,
+        "2050": 171.9
+      },
+      "emerging": {
+        "2025": 5.7,
+        "2030": 5.8,
+        "2035": 11.6,
+        "2040": 20.2,
+        "2045": 31.7,
+        "2050": 43.9
+      },
+      "rest_of_world": {
+        "2025": 2.7,
+        "2030": 3.0,
+        "2035": 3.6,
+        "2040": 4.4,
+        "2045": 5.4,
+        "2050": 6.7
+      }
+    },
+    "ndcs_only": {
+      "label": "NDCs Only",
+      "advanced": {
+        "2025": 143.4,
+        "2030": 256.0,
+        "2035": 254.8,
+        "2040": 253.7,
+        "2045": 252.4,
+        "2050": 249.1
+      },
+      "emerging": {
+        "2025": 16.3,
+        "2030": 28.0,
+        "2035": 34.8,
+        "2040": 41.6,
+        "2045": 48.3,
+        "2050": 54.7
+      },
+      "rest_of_world": {
+        "2025": 23.6,
+        "2030": 44.5,
+        "2035": 47.0,
+        "2040": 49.7,
+        "2045": 52.7,
+        "2050": 55.9
+      }
+    },
+    "current_policies": {
+      "label": "Current Policies",
+      "advanced": {
+        "2025": 27.5,
+        "2030": 27.5,
+        "2035": 27.5,
+        "2040": 27.6,
+        "2045": 27.8,
+        "2050": 28.0
+      },
+      "emerging": {
+        "2025": 5.7,
+        "2030": 5.8,
+        "2035": 6.3,
+        "2040": 7.0,
+        "2045": 7.9,
+        "2050": 9.0
+      },
+      "rest_of_world": {
+        "2025": 2.7,
+        "2030": 3.0,
+        "2035": 3.6,
+        "2040": 4.4,
+        "2045": 5.5,
+        "2050": 6.7
+      }
+    },
+    "divergent_net_zero": {
+      "label": "Divergent Net Zero",
+      "advanced": {
+        "2025": 40,
+        "2030": 145,
+        "2035": 215,
+        "2040": 285,
+        "2045": 360,
+        "2050": 430
+      },
+      "emerging": {
+        "2025": 15,
+        "2030": 70,
+        "2035": 120,
+        "2040": 175,
+        "2045": 240,
+        "2050": 310
+      },
+      "rest_of_world": {
+        "2025": 8,
+        "2030": 40,
+        "2035": 80,
+        "2040": 125,
+        "2045": 185,
+        "2050": 250
+      }
     },
     "iea_nze": {
       "label": "IEA NZE",
-      "advanced":      {"2025":  40,  "2030": 140, "2035": 200, "2040": 250, "2045": 230, "2050": 250},
-      "emerging":      {"2025":  20,  "2030":  90, "2035": 135, "2040": 200, "2045": 200, "2050": 200},
-      "rest_of_world": {"2025":  10,  "2030":  55, "2035":  90, "2040": 160, "2045": 175, "2050": 175}
+      "advanced": {
+        "2025": 40,
+        "2030": 140,
+        "2035": 200,
+        "2040": 250,
+        "2045": 230,
+        "2050": 250
+      },
+      "emerging": {
+        "2025": 20,
+        "2030": 90,
+        "2035": 135,
+        "2040": 200,
+        "2045": 200,
+        "2050": 200
+      },
+      "rest_of_world": {
+        "2025": 10,
+        "2030": 55,
+        "2035": 90,
+        "2040": 160,
+        "2045": 175,
+        "2050": 175
+      }
     },
     "iea_aps": {
       "label": "IEA APS",
-      "advanced":      {"2025":  30,  "2030":  95, "2035": 130, "2040": 165, "2045": 175, "2050": 175},
-      "emerging":      {"2025":  10,  "2030":  50, "2035":  70, "2040":  95, "2045": 110, "2050": 125},
-      "rest_of_world": {"2025":   5,  "2030":  20, "2035":  35, "2040":  55, "2045":  70, "2050":  90}
+      "advanced": {
+        "2025": 30,
+        "2030": 95,
+        "2035": 130,
+        "2040": 165,
+        "2045": 175,
+        "2050": 175
+      },
+      "emerging": {
+        "2025": 10,
+        "2030": 50,
+        "2035": 70,
+        "2040": 95,
+        "2045": 110,
+        "2050": 125
+      },
+      "rest_of_world": {
+        "2025": 5,
+        "2030": 20,
+        "2035": 35,
+        "2040": 55,
+        "2045": 70,
+        "2050": 90
+      }
     },
     "iea_steps": {
       "label": "IEA STEPS",
-      "advanced":      {"2025":  15,  "2030":  35, "2035":  45, "2040":  55, "2045":  65, "2050":  75},
-      "emerging":      {"2025":   3,  "2030":   8, "2035":  12, "2040":  18, "2045":  25, "2050":  35},
-      "rest_of_world": {"2025":   1,  "2030":   2, "2035":   4, "2040":   6, "2045":  10, "2050":  15}
+      "advanced": {
+        "2025": 15,
+        "2030": 35,
+        "2035": 45,
+        "2040": 55,
+        "2045": 65,
+        "2050": 75
+      },
+      "emerging": {
+        "2025": 3,
+        "2030": 8,
+        "2035": 12,
+        "2040": 18,
+        "2045": 25,
+        "2050": 35
+      },
+      "rest_of_world": {
+        "2025": 1,
+        "2030": 2,
+        "2035": 4,
+        "2040": 6,
+        "2045": 10,
+        "2050": 15
+      }
     }
   },
   "ipcc_fallback_map": {
@@ -81,8 +309,51 @@
   },
   "region_classification": {
     "_comment": "ISO3 → NGFS region. Aligned with REMIND-MAgPIE region groupings.",
-    "advanced": ["USA", "CAN", "GBR", "DEU", "FRA", "ITA", "ESP", "NLD", "BEL", "SWE", "NOR", "DNK", "FIN", "AUT", "IRL", "LUX", "CHE", "JPN", "AUS", "NZL", "KOR", "SGP", "ISR"],
-    "emerging": ["CHN", "IND", "BRA", "MEX", "IDN", "RUS", "ZAF", "TUR", "ARG", "COL", "CHL", "MYS", "THA", "PHL", "VNM", "EGY", "PER", "PAK"],
+    "advanced": [
+      "USA",
+      "CAN",
+      "GBR",
+      "DEU",
+      "FRA",
+      "ITA",
+      "ESP",
+      "NLD",
+      "BEL",
+      "SWE",
+      "NOR",
+      "DNK",
+      "FIN",
+      "AUT",
+      "IRL",
+      "LUX",
+      "CHE",
+      "JPN",
+      "AUS",
+      "NZL",
+      "KOR",
+      "SGP",
+      "ISR"
+    ],
+    "emerging": [
+      "CHN",
+      "IND",
+      "BRA",
+      "MEX",
+      "IDN",
+      "RUS",
+      "ZAF",
+      "TUR",
+      "ARG",
+      "COL",
+      "CHL",
+      "MYS",
+      "THA",
+      "PHL",
+      "VNM",
+      "EGY",
+      "PER",
+      "PAK"
+    ],
     "rest_of_world": []
   }
 }
