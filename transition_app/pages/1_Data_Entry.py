@@ -38,9 +38,23 @@ st.caption(
     "Emissions are annual tonnes CO₂; financials are in the reporting currency."
 )
 
-_TEMPLATE = {c: [] for c in T.PORTFOLIO_COLUMNS}
+# Column groups so the data_editor column types match the underlying dtypes even
+# when the portfolio is empty (an empty list column infers float64, which breaks
+# the text/selectbox column config).
+_STR_COLS = ["id", "name", "region", "sector"]
+_NUM_COLS = ["replacement_value", "annual_revenue", "scope1", "scope2", "scope3"]
+
 rows = T.get_portfolio()
-df = pd.DataFrame(rows, columns=T.PORTFOLIO_COLUMNS) if rows else pd.DataFrame(_TEMPLATE)
+if rows:
+    df = pd.DataFrame(rows, columns=T.PORTFOLIO_COLUMNS)
+else:
+    df = pd.DataFrame({**{c: pd.Series(dtype="object") for c in _STR_COLS},
+                       **{c: pd.Series(dtype="float64") for c in _NUM_COLS}})
+# enforce dtypes on both paths
+for c in _STR_COLS:
+    df[c] = df[c].astype("object")
+for c in _NUM_COLS:
+    df[c] = pd.to_numeric(df[c], errors="coerce")
 
 edited = st.data_editor(
     df,
