@@ -1,0 +1,151 @@
+"""① Data Entry — transition-risk intake (foundational TCFD input)."""
+
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import tr_common as T  # noqa: E402
+
+import pandas as pd  # noqa: E402
+import streamlit as st  # noqa: E402
+
+st.set_page_config(page_title="Data Entry · " + T.APP_TITLE, page_icon="📋", layout="wide")
+T.init_state()
+T.page_header("Define the entities to analyse: sector, emissions, and financials.", pillar="Data intake")
+
+# ---------------------------------------------------------------------------
+# Currency
+# ---------------------------------------------------------------------------
+cc1, cc2 = st.columns([1, 3])
+with cc1:
+    cur = st.selectbox(
+        "Reporting currency", ["USD", "EUR", "GBP", "JPY", "CAD", "AUD"],
+        index=["USD", "EUR", "GBP", "JPY", "CAD", "AUD"].index(T.currency()),
+        help="NGFS carbon prices are USD-denominated (US$2020). Enter financials in the "
+             "same currency; non-USD is a display convenience, not an FX conversion.",
+    )
+    st.session_state["tr_currency"] = cur
+
+st.divider()
+
+# ---------------------------------------------------------------------------
+# Portfolio editor
+# ---------------------------------------------------------------------------
+st.subheader("Portfolio")
+st.caption(
+    "Add one row per entity. **Sector** drives pass-through, learning-curve mapping and "
+    "I-O position. **Region** is an ISO3 country code (→ NGFS advanced / emerging / RoW). "
+    "Emissions are annual tonnes CO₂; financials are in the reporting currency."
+)
+
+_TEMPLATE = {c: [] for c in T.PORTFOLIO_COLUMNS}
+rows = T.get_portfolio()
+df = pd.DataFrame(rows, columns=T.PORTFOLIO_COLUMNS) if rows else pd.DataFrame(_TEMPLATE)
+
+edited = st.data_editor(
+    df,
+    num_rows="dynamic",
+    use_container_width=True,
+    key="tr_editor",
+    column_config={
+        "id": st.column_config.TextColumn("ID", required=True, width="small"),
+        "name": st.column_config.TextColumn("Name", required=True),
+        "region": st.column_config.TextColumn("ISO3", help="e.g. USA, DEU, CHN, IND", width="small"),
+        "sector": st.column_config.SelectboxColumn(
+            "Sector", options=T.sector_options(), required=True, width="medium"),
+        "replacement_value": st.column_config.NumberColumn(
+            f"Replacement value ({T.sym()})", min_value=0.0, format="%.0f"),
+        "annual_revenue": st.column_config.NumberColumn(
+            f"Annual revenue ({T.sym()})", min_value=0.0, format="%.0f"),
+        "scope1": st.column_config.NumberColumn("Scope 1 (tCO₂)", min_value=0.0, format="%.0f"),
+        "scope2": st.column_config.NumberColumn("Scope 2 (tCO₂)", min_value=0.0, format="%.0f"),
+        "scope3": st.column_config.NumberColumn("Scope 3 (tCO₂)", min_value=0.0, format="%.0f"),
+    },
+)
+
+b1, b2, b3, b4 = st.columns([1, 1, 1, 3])
+with b1:
+    if st.button("💾 Save portfolio", type="primary"):
+        clean = edited.dropna(subset=["id", "name"]).fillna(0)
+        recs = clean.to_dict("records")
+        # normalise types
+        for r in recs:
+            r["id"] = str(r["id"]).strip()
+            r["name"] = str(r["name"]).strip()
+            r["region"] = str(r.get("region", "USA")).strip().upper() or "USA"
+            r["sector"] = str(r.get("sector", "")).strip().lower()
+        T.set_portfolio(recs)
+        st.success(f"Saved {len(recs)} entit{'y' if len(recs)==1 else 'ies'}.")
+with b2:
+    if st.button("📥 Load examples"):
+        T.set_portfolio([dict(r) for r in T.SAMPLE_PORTFOLIO])
+        st.rerun()
+with b3:
+    if st.button("🗑️ Clear all"):
+        T.set_portfolio([])
+        st.rerun()
+
+# ---------------------------------------------------------------------------
+# Validation feedback
+# ---------------------------------------------------------------------------
+saved = T.get_portfolio()
+if saved:
+    problems = []
+    for r in saved:
+        if len(str(r.get("region", ""))) != 3:
+            problems.append(f"`{r.get('id','?')}`: region must be a 3-letter ISO3 code.")
+        if not r.get("sector"):
+            problems.append(f"`{r.get('id','?')}`: no sector assigned.")
+    if problems:
+        st.warning("**Fix before analysing:**\n\n" + "\n\n".join(f"- {p}" for p in problems))
+    else:
+        # region classification preview
+        prev = []
+        for r in saved:
+            prev.append({
+                "ID": r["id"], "Sector": T.sector_label(r["sector"]),
+                "NGFS region": T.get_ngfs_region(r["region"]),
+                "Fossil-dependent": "✓" if T.sector_meta(r["sector"]).get("fossil_dependent") else "—",
+                "EI (tCO₂/M$)": T.sector_meta(r["sector"]).get("emission_intensity_t_per_revenue", "—"),
+            })
+        st.markdown("**Ready to analyse** — sector & region resolved:")
+        st.dataframe(pd.DataFrame(prev), use_container_width=True, hide_index=True)
+
+# ---------------------------------------------------------------------------
+# CSV import / export
+# ---------------------------------------------------------------------------
+with st.expander("⇄ CSV import / export"):
+    st.caption("Columns: " + ", ".join(T.PORTFOLIO_COLUMNS))
+    up = st.file_uploader("Upload portfolio CSV", type="csv")
+    if up is not None:
+        try:
+            in_df = pd.read_csv(up)
+            keep = [c for c in T.PORTFOLIO_COLUMNS if c in in_df.columns]
+            recs = in_df[keep].to_dict("records")
+            T.set_portfolio(recs)
+            st.success(f"Imported {len(recs)} rows. Review above and Save.")
+            st.rerun()
+        except Exception as e:
+            st.error(f"Could not read CSV: {e}")
+    if saved:
+        st.download_button(
+            "Download current portfolio CSV",
+            pd.DataFrame(saved, columns=T.PORTFOLIO_COLUMNS).to_csv(index=False),
+            file_name="transition_portfolio.csv", mime="text/csv",
+        )
+
+# ---------------------------------------------------------------------------
+# Sector reference
+# ---------------------------------------------------------------------------
+with st.expander("📖 Sector taxonomy reference (Appendix A)"):
+    tax = T.load_sector_taxonomy()["sectors"]
+    ref = [{
+        "Key": k, "Label": v.get("label", k),
+        "Incumbent": v.get("primary_technology", "—"),
+        "Challenger": v.get("challenger_technology", "—"),
+        "Fossil-dep.": "✓" if v.get("fossil_dependent") else "—",
+        "EI (tCO₂/M$)": v.get("emission_intensity_t_per_revenue", "—"),
+    } for k, v in tax.items()]
+    st.dataframe(pd.DataFrame(ref), use_container_width=True, hide_index=True)
+
+T.disclaimer()
