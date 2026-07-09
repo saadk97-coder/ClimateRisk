@@ -100,6 +100,30 @@ def get_pass_through(sector: str) -> dict:
     return sectors.get(sector, spt["default_unmatched"])
 
 
+def abatement_index(
+    target_year: int,
+    residual_pct: float,
+    years: List[int],
+    base_year: int = 2025,
+) -> Dict[int, float]:
+    """
+    Per-year Scope 1+2 emissions multiplier for a linear decarbonisation pathway:
+    1.0 at base_year, falling to residual (residual_pct/100) by target_year, flat
+    after. target_year <= 0 disables abatement (returns 1.0 for every year).
+    """
+    residual = min(1.0, max(0.0, residual_pct / 100.0))
+    out: Dict[int, float] = {}
+    for y in years:
+        if not target_year or target_year <= base_year or y <= base_year:
+            out[y] = 1.0
+        elif y >= target_year:
+            out[y] = residual
+        else:
+            frac = (y - base_year) / (target_year - base_year)
+            out[y] = 1.0 + frac * (residual - 1.0)
+    return out
+
+
 def compute_carbon_cost(
     asset_id: str,
     sector: str,
@@ -110,9 +134,15 @@ def compute_carbon_cost(
     scope2_emissions_tco2: float,
     scope3_emissions_tco2: float = 0.0,
     pass_through_override: Optional[float] = None,
+    direct_scale: float = 1.0,
+    priced_fraction: float = 1.0,
 ) -> CarbonCostResult:
     """
     Compute Layer-1 carbon cost decomposition for one asset × scenario × year.
+
+    direct_scale : abatement multiplier on Scope 1+2 for this year (1.0 = no abatement).
+    priced_fraction : share of Scope 1+2 actually exposed to the carbon price, net of
+                      free allocation / partial coverage (1.0 = fully priced).
     """
     ngfs_region = get_ngfs_region(region_iso3)
     price = get_carbon_price(scenario_id, year, ngfs_region)
@@ -120,8 +150,10 @@ def compute_carbon_cost(
     pass_through = pass_through_override if pass_through_override is not None else float(pt_data["pass_through"])
     pass_through = max(0.0, min(1.0, pass_through))
 
-    direct_emissions = max(0.0, scope1_emissions_tco2 + scope2_emissions_tco2)
-    gross = direct_emissions * price
+    direct_scale = max(0.0, direct_scale)
+    priced_fraction = max(0.0, min(1.0, priced_fraction))
+    direct_emissions = max(0.0, scope1_emissions_tco2 + scope2_emissions_tco2) * direct_scale
+    gross = direct_emissions * priced_fraction * price
     absorbed = gross * (1.0 - pass_through)
     passed = gross * pass_through
     scope3_indirect = max(0.0, scope3_emissions_tco2) * price * (1.0 - pass_through)
@@ -158,8 +190,14 @@ def carbon_cost_timeline(
     scope2_emissions_tco2: float,
     scope3_emissions_tco2: float = 0.0,
     pass_through_override: Optional[float] = None,
+    emissions_index: Optional[Dict[int, float]] = None,
+    priced_fraction: float = 1.0,
 ) -> List[CarbonCostResult]:
-    """Convenience wrapper to compute Layer-1 results across a year range."""
+    """Convenience wrapper to compute Layer-1 results across a year range.
+
+    emissions_index : optional {year: Scope 1+2 multiplier} abatement pathway.
+    priced_fraction : share of Scope 1+2 exposed to the carbon price (free allocation).
+    """
     return [
         compute_carbon_cost(
             asset_id=asset_id,
@@ -171,6 +209,8 @@ def carbon_cost_timeline(
             scope2_emissions_tco2=scope2_emissions_tco2,
             scope3_emissions_tco2=scope3_emissions_tco2,
             pass_through_override=pass_through_override,
+            direct_scale=(emissions_index or {}).get(y, 1.0),
+            priced_fraction=priced_fraction,
         )
         for y in years
     ]

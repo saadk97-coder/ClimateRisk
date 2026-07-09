@@ -42,6 +42,15 @@ class Asset:
     scope2_emissions_tco2: float = 0.0   # Purchased electricity emissions, t CO2/yr
     scope3_emissions_tco2: float = 0.0   # Value-chain emissions (optional), t CO2/yr
     annual_revenue: float = 0.0          # Asset-attributable revenue (for pass-through cap & financing premium)
+    # ---- Abatement & carbon-price realism (P0) ----
+    # Decarbonisation target: Scope 1+2 emissions decline linearly from 2025 to
+    # `decarb_residual_pct` of today's level by `decarb_target_year`, flat after.
+    # decarb_target_year == 0 disables abatement (emissions held flat — legacy).
+    decarb_target_year: int = 0
+    decarb_residual_pct: float = 0.0     # % of today's Scope 1+2 remaining at target (0 = net zero)
+    # Fraction of Scope 1+2 emissions actually exposed to the carbon price, net of
+    # free allocation / partial ETS coverage. 1.0 = fully priced (legacy behaviour).
+    priced_emissions_fraction: float = 1.0
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -78,6 +87,12 @@ class Asset:
             v = getattr(self, fname)
             if v < 0:
                 setattr(self, fname, 0.0)
+        # Abatement / carbon-price realism clamps
+        self.decarb_target_year = int(self.decarb_target_year or 0)
+        if 0 < self.decarb_target_year < 2025:
+            self.decarb_target_year = 0            # a target in the past disables abatement
+        self.decarb_residual_pct = min(100.0, max(0.0, float(self.decarb_residual_pct)))
+        self.priced_emissions_fraction = min(1.0, max(0.0, float(self.priced_emissions_fraction)))
 
     @classmethod
     def from_dict(cls, d: dict) -> "Asset":
@@ -102,6 +117,9 @@ class Asset:
             scope2_emissions_tco2=float(d.get("scope2_emissions_tco2", 0.0)),
             scope3_emissions_tco2=float(d.get("scope3_emissions_tco2", 0.0)),
             annual_revenue=float(d.get("annual_revenue", 0.0)),
+            decarb_target_year=int(d.get("decarb_target_year", 0) or 0),
+            decarb_residual_pct=float(d.get("decarb_residual_pct", 0.0) or 0.0),
+            priced_emissions_fraction=float(d.get("priced_emissions_fraction", 1.0)),
         )
 
 

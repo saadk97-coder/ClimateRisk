@@ -38,9 +38,18 @@ sidebar and are shared across all category pages.
 ## Data entry fields (per entity)
 
 `id`, `name`, `region` (ISO3), `sector` (taxonomy key), `replacement_value`, `annual_revenue`,
-`scope1`, `scope2`, `scope3` (tCO₂/yr). CSV import/export and a worked-example loader are on the
-Data Entry page. Physical-risk fields are not collected — they are irrelevant to the transition
-layer and filled with defaults internally.
+`scope1`, `scope2`, `scope3` (tCO₂/yr), `target_year` (Scope 1+2 net-zero target; blank/0 = hold
+emissions flat), `priced_pct` (% of Scope 1+2 exposed to the carbon price, net of free allocation;
+blank = 100). CSV import/export and a worked-example loader are on the Data Entry page. Physical-risk
+fields are not collected — they are irrelevant to the transition layer and filled with defaults
+internally.
+
+**Abatement & effective carbon price (P0).** A `target_year` puts the entity on a linear Scope 1+2
+decarbonisation path — carbon cost then applies only to the declining residual, so abatement is
+rewarded rather than assumed away. `priced_pct` models free allocation / partial ETS coverage. The
+sidebar **Scope-3 treatment** toggle chooses `Full` (Scope-3 in L1 *and* L3 — reproduces the
+methodology's worked examples) or `Auto` (drop the L1 Scope-3 term when L3 is on, counting upstream
+cost once).
 
 ## Relationship to the physical-risk app
 

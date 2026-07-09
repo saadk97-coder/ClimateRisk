@@ -101,21 +101,30 @@ st.caption("L2 impairment is a balance-sheet value loss, shown alongside the cas
            "for completeness but not summed into the cash-flow total.")
 
 # ===========================================================================
-# Decarbonisation target
+# Decarbonisation target (per-asset, now driving Layer 1)
 # ===========================================================================
-st.subheader("Decarbonisation target")
-c1, c2 = st.columns([1, 2])
-with c1:
-    tgt = st.number_input("Net-zero target year (Scope 1+2)", 2030, 2060,
-                          int(st.session_state.get("tr_target_year", 2050)), 1)
-    st.session_state["tr_target_year"] = tgt
-with c2:
-    span = max(tgt - BASE, 1)
-    annual_cut = (s1 + s2) / span
-    st.metric("Required annual Scope 1+2 reduction (linear to target)", f"{annual_cut:,.0f} tCO₂/yr")
-    st.caption(f"From {s1+s2:,.0f} tCO₂ today to zero by {tgt} implies a straight-line cut of "
-               f"~{annual_cut:,.0f} tCO₂ each year. Compare against the carbon-cost trajectory on "
-               "the Policy & Legal page to see the cost of *not* decarbonising.")
+st.subheader("Decarbonisation targets")
+from engine.transition.carbon_pricing import abatement_index  # noqa: E402
+
+n_target = sum(1 for a in active if a.decarb_target_year)
+modelled_2050 = 0.0
+for a in active:
+    s12 = a.scope1_emissions_tco2 + a.scope2_emissions_tco2
+    m = abatement_index(a.decarb_target_year, a.decarb_residual_pct, [2050])[2050] \
+        if a.decarb_target_year else 1.0
+    modelled_2050 += s12 * m
+cut_pct = (1 - modelled_2050 / (s1 + s2)) * 100 if (s1 + s2) > 0 else 0.0
+
+t1, t2, t3 = st.columns(3)
+t1.metric("Entities with a net-zero target", f"{n_target}/{len(active)}")
+t2.metric("Modelled Scope 1+2 in 2050", f"{modelled_2050:,.0f} tCO₂")
+t3.metric("Portfolio reduction by 2050", f"{cut_pct:.0f}%")
+st.caption(
+    "Targets are set per entity on **① Data Entry** (Net-zero target yr). They now feed "
+    "**Layer 1** directly: an entity on a decarbonisation path pays carbon cost only on its "
+    "declining residual emissions, so abatement is rewarded rather than assumed away. "
+    "Entities with no target hold emissions flat (legacy behaviour)."
+)
 
 # ===========================================================================
 # Export

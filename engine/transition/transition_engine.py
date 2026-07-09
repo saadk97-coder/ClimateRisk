@@ -33,6 +33,7 @@ import pandas as pd
 from engine.transition.carbon_pricing import (
     compute_carbon_cost,
     carbon_cost_timeline,
+    abatement_index,
     CarbonCostResult,
 )
 from engine.transition.learning_curves import (
@@ -104,6 +105,7 @@ def run_asset_transition(
     layer4_routing: str = ROUTE_CASHFLOWS,
     elasticity: float = 1.0,
     enable_layers: tuple = (1, 2, 3, 4),
+    scope3_mode: str = "full",
 ) -> TransitionAssetResult:
     """
     Compute a full transition risk timeline for one asset under one scenario.
@@ -116,6 +118,9 @@ def run_asset_transition(
     layer4_routing : ROUTE_CASHFLOWS or ROUTE_WACC — picks the non-duplication channel
     elasticity : Layer-3 substitution elasticity (default 1.0 = Cobb-Douglas)
     enable_layers : tuple of layer numbers to compute (e.g., (1, 2) skips 3 and 4)
+    scope3_mode : 'full' (default — L1 always adds the Scope-3 term) or 'auto'
+        (drop the L1 Scope-3 term whenever Layer 3 is enabled, so upstream cost is
+        counted once via the network cascade rather than twice).
     """
     horizon = horizon or DEFAULT_HORIZON
 
@@ -126,6 +131,15 @@ def run_asset_transition(
     layer1: List[CarbonCostResult] = []
     l1_by_year: Dict[int, float] = {y: 0.0 for y in horizon}
     if 1 in enable_layers:
+        # Abatement pathway on Scope 1+2, and free-allocation-adjusted priced share.
+        em_index = abatement_index(
+            getattr(asset, "decarb_target_year", 0),
+            getattr(asset, "decarb_residual_pct", 0.0),
+            list(horizon),
+        )
+        priced_fraction = getattr(asset, "priced_emissions_fraction", 1.0)
+        # Non-duplication: when L3 models upstream cost, drop the L1 Scope-3 term.
+        l1_scope3 = 0.0 if (scope3_mode == "auto" and 3 in enable_layers) else asset.scope3_emissions_tco2
         layer1 = carbon_cost_timeline(
             asset_id=asset.id,
             sector=sector,
@@ -134,7 +148,9 @@ def run_asset_transition(
             years=horizon,
             scope1_emissions_tco2=asset.scope1_emissions_tco2,
             scope2_emissions_tco2=asset.scope2_emissions_tco2,
-            scope3_emissions_tco2=asset.scope3_emissions_tco2,
+            scope3_emissions_tco2=l1_scope3,
+            emissions_index=em_index,
+            priced_fraction=priced_fraction,
         )
         for r in layer1:
             l1_by_year[r.year] = r.net_carbon_opex_usd
@@ -240,6 +256,7 @@ def run_portfolio_transition(
     layer4_routing: str = ROUTE_CASHFLOWS,
     elasticity: float = 1.0,
     enable_layers: tuple = (1, 2, 3, 4),
+    scope3_mode: str = "full",
 ) -> Dict[str, List[TransitionAssetResult]]:
     """
     Run all assets × scenarios. Returns {scenario_id: [TransitionAssetResult, ...]}.
@@ -261,6 +278,7 @@ def run_portfolio_transition(
             r = run_asset_transition(
                 a, sc, horizon=horizon, layer4_routing=layer4_routing,
                 elasticity=elasticity, enable_layers=enable_layers,
+                scope3_mode=scope3_mode,
             )
             out[sc].append(r)
     return out

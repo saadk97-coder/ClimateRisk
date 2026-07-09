@@ -120,25 +120,48 @@ def make_asset(row: dict) -> Asset:
         scope2_emissions_tco2=float(row.get("scope2", 0.0) or 0.0),
         scope3_emissions_tco2=float(row.get("scope3", 0.0) or 0.0),
         annual_revenue=float(row.get("annual_revenue", 0.0) or 0.0),
+        decarb_target_year=_int_or(row.get("target_year"), 0),
+        decarb_residual_pct=0.0,
+        # blank / NaN priced_pct means "fully priced" (100), not 0
+        priced_emissions_fraction=_float_or(row.get("priced_pct"), 100.0) / 100.0,
     )
 
 
+def _int_or(v, default: int) -> int:
+    try:
+        f = float(v)
+        return default if f != f else int(f)   # NaN → default
+    except (TypeError, ValueError):
+        return default
+
+
+def _float_or(v, default: float) -> float:
+    try:
+        f = float(v)
+        return default if f != f else f
+    except (TypeError, ValueError):
+        return default
+
+
 # The intake portfolio is stored as a list of plain dicts (JSON/CSV friendly).
+# target_year: Scope 1+2 net-zero target (0/blank = no abatement, hold emissions flat).
+# priced_pct: % of Scope 1+2 exposed to the carbon price, net of free allocation (100 = fully priced).
 PORTFOLIO_COLUMNS = [
     "id", "name", "region", "sector",
     "replacement_value", "annual_revenue", "scope1", "scope2", "scope3",
+    "target_year", "priced_pct",
 ]
 
 SAMPLE_PORTFOLIO = [
     {"id": "COAL-1", "name": "Coal Power Plant", "region": "USA", "sector": "power_coal",
      "replacement_value": 500_000_000, "annual_revenue": 300_000_000,
-     "scope1": 2_500_000, "scope2": 50_000, "scope3": 200_000},
+     "scope1": 2_500_000, "scope2": 50_000, "scope3": 200_000, "target_year": 0, "priced_pct": 100},
     {"id": "REF-1", "name": "Oil Refinery", "region": "USA", "sector": "oil_refining",
      "replacement_value": 2_000_000_000, "annual_revenue": 8_000_000_000,
-     "scope1": 4_500_000, "scope2": 300_000, "scope3": 8_000_000},
+     "scope1": 4_500_000, "scope2": 300_000, "scope3": 8_000_000, "target_year": 0, "priced_pct": 100},
     {"id": "OFF-1", "name": "Commercial Office", "region": "USA", "sector": "real_estate_commercial",
      "replacement_value": 50_000_000, "annual_revenue": 15_000_000,
-     "scope1": 200, "scope2": 800, "scope3": 0},
+     "scope1": 200, "scope2": 800, "scope3": 0, "target_year": 0, "priced_pct": 100},
 ]
 
 
@@ -156,6 +179,7 @@ def _defaults() -> dict:
         "tr_wacc": 0.09,                       # discount rate for PV metrics
         "tr_governance": {},                   # TCFD governance narrative
         "tr_target_year": 2050,                # net-zero target year
+        "tr_scope3_mode": "full",              # 'full' | 'auto' (drop L1 scope-3 when L3 on)
     }
 
 
@@ -211,6 +235,7 @@ def run_engine(assets: list[Asset], scenarios: list[str]):
         layer4_routing=st.session_state.get("tr_l4_routing", ROUTE_CASHFLOWS),
         elasticity=float(st.session_state.get("tr_elasticity", 1.0)),
         enable_layers=tuple(st.session_state.get("tr_layers", [1, 2, 3, 4])),
+        scope3_mode=st.session_state.get("tr_scope3_mode", "full"),
     )
 
 
@@ -280,6 +305,18 @@ def sidebar_settings() -> list[str]:
             float(st.session_state.get("tr_wacc", 0.09)), 0.005, format="%.3f",
         )
         st.session_state["tr_wacc"] = wacc
+
+        modes = ["full", "auto"]
+        s3 = st.radio(
+            "Scope-3 treatment", modes,
+            index=modes.index(st.session_state.get("tr_scope3_mode", "full")),
+            format_func=lambda m: "Full (L1 + L3)" if m == "full"
+            else "Auto — no double count (recommended)",
+            help="'Full' reproduces the methodology's worked examples (Scope-3 in L1 AND "
+                 "propagated in L3). 'Auto' drops the L1 Scope-3 term whenever L3 is on so "
+                 "upstream cost is counted once.",
+        )
+        st.session_state["tr_scope3_mode"] = s3
     return scenarios
 
 

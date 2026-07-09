@@ -42,7 +42,8 @@ st.caption(
 # when the portfolio is empty (an empty list column infers float64, which breaks
 # the text/selectbox column config).
 _STR_COLS = ["id", "name", "region", "sector"]
-_NUM_COLS = ["replacement_value", "annual_revenue", "scope1", "scope2", "scope3"]
+_NUM_COLS = ["replacement_value", "annual_revenue", "scope1", "scope2", "scope3",
+             "target_year", "priced_pct"]
 
 rows = T.get_portfolio()
 if rows:
@@ -74,13 +75,25 @@ edited = st.data_editor(
         "scope1": st.column_config.NumberColumn("Scope 1 (tCO₂)", min_value=0.0, format="%.0f"),
         "scope2": st.column_config.NumberColumn("Scope 2 (tCO₂)", min_value=0.0, format="%.0f"),
         "scope3": st.column_config.NumberColumn("Scope 3 (tCO₂)", min_value=0.0, format="%.0f"),
+        "target_year": st.column_config.NumberColumn(
+            "Net-zero target yr", min_value=0, max_value=2060, step=1, format="%d",
+            help="Scope 1+2 net-zero target year. Blank / 0 = no abatement (emissions held flat)."),
+        "priced_pct": st.column_config.NumberColumn(
+            "Priced %", min_value=0, max_value=100, step=5, format="%d",
+            help="% of Scope 1+2 exposed to the carbon price, net of free allocation. Blank = 100%."),
     },
 )
 
 b1, b2, b3, b4 = st.columns([1, 1, 1, 3])
 with b1:
     if st.button("💾 Save portfolio", type="primary"):
-        clean = edited.dropna(subset=["id", "name"]).fillna(0)
+        clean = edited.dropna(subset=["id", "name"]).copy()
+        # blank priced_pct means fully priced (100), not 0
+        if "priced_pct" in clean:
+            clean["priced_pct"] = clean["priced_pct"].fillna(100)
+        if "target_year" in clean:
+            clean["target_year"] = clean["target_year"].fillna(0)
+        clean = clean.fillna(0)
         recs = clean.to_dict("records")
         # normalise types
         for r in recs:

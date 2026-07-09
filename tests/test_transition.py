@@ -24,6 +24,7 @@ from engine.transition.carbon_pricing import (
     compute_carbon_cost,
     get_carbon_price,
     get_pass_through,
+    abatement_index,
 )
 from engine.transition.cc_exposure import (
     ROUTE_CASHFLOWS,
@@ -550,3 +551,76 @@ def test_transition_results_to_damage_df_shape(coal_plant):
     df = transition_results_to_damage_df(out)
     assert set(df.columns) >= {"year", "ead", "scenario_id"}
     assert set(df["scenario_id"].unique()) == {"net_zero_2050", "current_policies"}
+
+
+# ---------------------------------------------------------------------------
+# P0 — Abatement pathway, Scope-3 mode, effective (priced) carbon price
+# ---------------------------------------------------------------------------
+
+def test_abatement_index_linear_to_target():
+    idx = abatement_index(2050, 0.0, list(range(2025, 2051)))
+    assert idx[2025] == 1.0
+    assert idx[2050] == 0.0
+    # halfway in time ~ halfway in emissions
+    assert abs(idx[2037] - (1 - (2037 - 2025) / 25)) < 1e-9
+    # monotonic non-increasing
+    vals = [idx[y] for y in range(2025, 2051)]
+    assert all(a >= b - 1e-12 for a, b in zip(vals, vals[1:]))
+
+
+def test_abatement_index_disabled_when_no_target():
+    idx = abatement_index(0, 0.0, list(range(2025, 2051)))
+    assert all(v == 1.0 for v in idx.values())
+
+
+def test_abatement_index_residual_floor():
+    idx = abatement_index(2040, 20.0, list(range(2025, 2051)))
+    assert abs(idx[2040] - 0.20) < 1e-9
+    assert abs(idx[2050] - 0.20) < 1e-9   # flat after target
+
+
+def test_abatement_reduces_l1_carbon_cost(coal_plant):
+    """An asset that decarbonises pays less Layer-1 carbon cost by 2050."""
+    base = run_asset_transition(coal_plant, "net_zero_2050", enable_layers=(1,))
+    abated = Asset.from_dict({**coal_plant.to_dict(), "decarb_target_year": 2050,
+                              "decarb_residual_pct": 0.0})
+    ab = run_asset_transition(abated, "net_zero_2050", enable_layers=(1,))
+    assert ab.layer_breakdown["L1_carbon_opex"][2050] < base.layer_breakdown["L1_carbon_opex"][2050]
+    # 2025 (base year) unchanged
+    assert abs(ab.layer_breakdown["L1_carbon_opex"][2025]
+               - base.layer_breakdown["L1_carbon_opex"][2025]) < 1.0
+
+
+def test_priced_fraction_scales_l1(coal_plant):
+    """Free allocation / partial coverage lowers the priced carbon cost."""
+    full = run_asset_transition(coal_plant, "net_zero_2050", enable_layers=(1,))
+    half = Asset.from_dict({**coal_plant.to_dict(), "priced_emissions_fraction": 0.5})
+    hr = run_asset_transition(half, "net_zero_2050", enable_layers=(1,))
+    # Scope-1+2 gross halves; net also falls (Scope-3 term unaffected so not exactly half)
+    assert hr.layer_breakdown["L1_carbon_opex"][2050] < full.layer_breakdown["L1_carbon_opex"][2050]
+
+
+def test_scope3_mode_full_includes_scope3(coal_plant):
+    r = run_asset_transition(coal_plant, "net_zero_2050", enable_layers=(1, 3), scope3_mode="full")
+    s3 = [x.scope3_indirect_usd for x in r.layer1_results if x.year == 2050][0]
+    assert s3 > 0   # coal_plant has Scope-3 emissions
+
+
+def test_scope3_mode_auto_drops_l1_scope3_when_l3_on(coal_plant):
+    r = run_asset_transition(coal_plant, "net_zero_2050", enable_layers=(1, 3), scope3_mode="auto")
+    s3 = [x.scope3_indirect_usd for x in r.layer1_results if x.year == 2050][0]
+    assert s3 == 0.0   # dropped to avoid double count with L3
+
+
+def test_scope3_mode_auto_keeps_scope3_when_l3_off(coal_plant):
+    r = run_asset_transition(coal_plant, "net_zero_2050", enable_layers=(1,), scope3_mode="auto")
+    s3 = [x.scope3_indirect_usd for x in r.layer1_results if x.year == 2050][0]
+    assert s3 > 0   # L3 not active, so Scope-3 still counted in L1
+
+
+def test_asset_model_p0_fields_default_to_legacy():
+    a = Asset.from_dict({"id": "x", "name": "x", "lat": 0, "lon": 0,
+                         "asset_type": "t", "replacement_value": 1e6, "region": "USA"})
+    assert a.decarb_target_year == 0
+    assert a.decarb_residual_pct == 0.0
+    assert a.priced_emissions_fraction == 1.0
