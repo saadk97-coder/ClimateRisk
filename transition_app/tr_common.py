@@ -10,6 +10,7 @@ Streamlit app; it keeps its own session state (keys prefixed ``tr_``) and builds
 from __future__ import annotations
 
 import os
+import re
 import sys
 
 # --- make the repo root importable regardless of where streamlit is launched --
@@ -223,9 +224,11 @@ def page_header(subtitle: str, pillar: str | None = None) -> None:
         f"Transition Risk</h1>",
         unsafe_allow_html=True,
     )
+    # convert markdown **bold** in the subtitle to HTML so it renders inside the div
+    sub_html = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", subtitle)
     tag = f" &nbsp;·&nbsp; <b>TCFD: {pillar}</b>" if pillar else ""
     st.markdown(
-        f"<div style='color:#666;margin-bottom:0.6rem;'>{subtitle}{tag}</div>",
+        f"<div style='color:#666;margin-bottom:0.6rem;'>{sub_html}{tag}</div>",
         unsafe_allow_html=True,
     )
     st.divider()
@@ -234,38 +237,49 @@ def page_header(subtitle: str, pillar: str | None = None) -> None:
 def sidebar_settings() -> list[str]:
     """Render the shared analysis settings in the sidebar (scenarios + engine
     config), persist to session, and return the selected scenario list."""
-    # Keys are pre-seeded by init_state(); widgets read/write them via `key=` only
-    # (no default/index/value) to avoid the double-initialisation warning. Drop any
-    # stale scenario id that is no longer a valid option.
+    # Pattern: no `key=`; seed each widget's initial value from session_state via
+    # default/value/index, then write the return value back. This displays the
+    # persisted value correctly across page navigation (a keyed widget created for
+    # the first time on a sub-page does not reliably pick up a pre-seeded session
+    # value) and avoids the default+key double-initialisation warning.
     valid = set(scenario_options())
-    st.session_state["tr_scenarios"] = [s for s in st.session_state.get("tr_scenarios", []) if s in valid] \
-        or list(DEFAULT_SCENARIOS)
+    cur_sc = [s for s in st.session_state.get("tr_scenarios", DEFAULT_SCENARIOS)
+              if s in valid] or list(DEFAULT_SCENARIOS)
     with st.sidebar:
         st.markdown("### Analysis settings")
         scenarios = st.multiselect(
-            "NGFS scenarios", options=scenario_options(),
-            format_func=scenario_label, key="tr_scenarios",
+            "NGFS scenarios", options=scenario_options(), default=cur_sc,
+            format_func=scenario_label,
         )
-        st.radio(
+        st.session_state["tr_scenarios"] = scenarios
+
+        route = st.radio(
             "Layer 4 routing", [ROUTE_CASHFLOWS, ROUTE_WACC],
+            index=0 if st.session_state.get("tr_l4_routing", ROUTE_CASHFLOWS) == ROUTE_CASHFLOWS else 1,
             format_func=lambda r: "Cash flows" if r == ROUTE_CASHFLOWS else "WACC",
             help="CCExposure premium flows to cash-flow revenue OR to WACC — one only.",
-            key="tr_l4_routing",
         )
-        st.slider(
-            "L3 substitution elasticity σ", 0.5, 3.0, step=0.1,
+        st.session_state["tr_l4_routing"] = route
+
+        el = st.slider(
+            "L3 substitution elasticity σ", 0.5, 3.0,
+            float(st.session_state.get("tr_elasticity", 1.0)), 0.1,
             help="1.0 = Cobb-Douglas; higher damps network propagation (Papageorgiou 2017).",
-            key="tr_elasticity",
         )
-        st.multiselect(
+        st.session_state["tr_elasticity"] = el
+
+        layers = st.multiselect(
             "Enable layers", [1, 2, 3, 4],
+            default=st.session_state.get("tr_layers", [1, 2, 3, 4]),
             format_func=lambda i: {1: "L1", 2: "L2", 3: "L3", 4: "L4"}[i],
-            key="tr_layers",
         )
-        st.number_input(
-            "Discount rate (WACC) for PV", 0.0, 0.30, step=0.005, format="%.3f",
-            key="tr_wacc",
+        st.session_state["tr_layers"] = layers or [1, 2, 3, 4]
+
+        wacc = st.number_input(
+            "Discount rate (WACC) for PV", 0.0, 0.30,
+            float(st.session_state.get("tr_wacc", 0.09)), 0.005, format="%.3f",
         )
+        st.session_state["tr_wacc"] = wacc
     return scenarios
 
 
