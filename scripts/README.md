@@ -39,9 +39,10 @@ python -c "import pymrio; pymrio.download_exiobase3(storage_folder='exio', years
 python scripts/build_io_matrix.py exio/IOT_2019_ixi.zip
 ```
 
-- Writes `io_matrix.candidate.json` — **does NOT** overwrite the calibrated
-  `io_matrix.json`. Diff the two, review the concordance, then adopt by renaming.
-- Verified: swapping the candidate in keeps all transition tests green
+- Writes `io_matrix.candidate.json` for review. The current `io_matrix.json` has
+  **already been adopted** from this builder (EXIOBASE-3 2019 WORLD totals); re-run
+  to refresh and diff before re-adopting.
+- Verified: the adopted matrix keeps all transition tests green
   (structurally valid: entries in [0,1], column sums < 1, Leontief diagonal > 1
   and column-dominant).
 - The 163→20 concordance embeds judgement calls (electricity T&D → power_renewable;
