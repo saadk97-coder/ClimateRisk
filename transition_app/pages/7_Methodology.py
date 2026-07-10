@@ -40,6 +40,9 @@ impairment (L2) is a balance-sheet value loss, reported separately from the cash
 - **L2** `Cost(Q) = Cost₀·(Q/Q₀)^b`, `b = log₂(1−LR)`; logistic impairment centred on the
   crossover year, `slope = 0.20`; cap scales with scenario demand collapse.
 - **L3** `total_shock_j = Σᵢ L[i,j]·sᵢ`, `L = (I−A)⁻¹`; CES damping scales off-diagonals by 1/σ.
+  Optional high-resolution mode uses the full **20×49 EXIOBASE MRIO** (cross-region supply chains,
+  region-specific carbon prices) with a **Reisch (2025) endogenous-default cascade** — nodes
+  absorbing shocks above a threshold θ pass an amplified shock downstream.
 - **L4** exposure is **z-standardised** against the pooled Sautner firm-year distribution
   (JoF 2023 Table 1), then priced per SD: `credit_bps = 12·z_reg + 6·z_phys`;
   `equity_bps = 50·z_total`; `revenue_bps = 35·z_opp − 25·z_reg`.

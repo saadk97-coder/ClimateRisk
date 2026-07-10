@@ -52,6 +52,22 @@ python scripts/build_io_matrix.py exio/IOT_2019_ixi.zip
   those two twin sectors are copied from their sibling (flagged in `_meta`).
   **Review the concordance before adopting.**
 
+## `build_io_matrix_mrio.py` — high-resolution L3 (20×49 MRIO)
+
+Builds the multi-regional matrix for the optional high-resolution Layer 3: 20 sectors ×
+49 EXIOBASE regions (980×980), keeping cross-region supply chains instead of collapsing to
+one WORLD block.
+
+```bash
+python scripts/build_io_matrix_mrio.py exio/IOT_2019_ixi.zip
+```
+
+- Writes `io_matrix_mrio.npz` (float32, ~2.8 MB) + `io_matrix_mrio_meta.json` (sector/region order,
+  provenance). Reuses the 163→20 concordance from `build_io_matrix.py`.
+- Consumed by `engine/transition/network_mrio.py` when the app's L3 resolution is set to
+  "multi-region" (with the optional Reisch endogenous-default cascade). The 20×20 world matrix
+  remains the default, so worked examples are unaffected.
+
 ## Not yet automatable
 
 - **`cc_exposure_proxy.json` (Sautner CCExposure).** The public OSF file carries

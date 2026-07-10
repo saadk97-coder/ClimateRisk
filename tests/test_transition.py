@@ -709,3 +709,41 @@ def test_pathway_alignment_status(coal_plant):
     assert pathway_alignment(coal_plant, "net_zero_2050")["status"] == "misaligned"
     nz = Asset.from_dict({**coal_plant.to_dict(), "decarb_target_year": 2050})
     assert pathway_alignment(nz, "net_zero_2050")["status"] == "aligned"
+
+
+# ---------------------------------------------------------------------------
+# P2 — MRIO Layer-3 (20×49 EXIOBASE) + Reisch endogenous-default cascade
+# ---------------------------------------------------------------------------
+
+def test_mrio_leontief_shape_and_invertible():
+    from engine.transition.network_mrio import get_mrio_leontief
+    L, sectors, regions = get_mrio_leontief(1.0)
+    assert L.shape == (len(sectors) * len(regions), len(sectors) * len(regions))
+    assert len(sectors) == 20 and len(regions) == 49
+    assert np.all(np.diag(L) > 1.0 - 1e-9)
+
+
+def test_mrio_regional_differentiation():
+    from engine.transition.network_mrio import propagate_mrio
+    de = propagate_mrio("R", "oil_refining", "DEU", "advanced", "net_zero_2050", 2040, 8e9)
+    inr = propagate_mrio("R", "oil_refining", "IND", "emerging", "net_zero_2050", 2040, 8e9)
+    # different regions → different indirect cost (cross-region supply + price bands)
+    assert de.total_indirect_cost_usd != inr.total_indirect_cost_usd
+    assert de.total_indirect_cost_usd > 0 and inr.total_indirect_cost_usd > 0
+
+
+def test_mrio_cascade_amplifies_at_low_threshold():
+    from engine.transition.network_mrio import propagate_mrio
+    lin = propagate_mrio("R", "steel", "CHN", "emerging", "net_zero_2050", 2050, 1e9, cascade=False)
+    cas = propagate_mrio("R", "steel", "CHN", "emerging", "net_zero_2050", 2050, 1e9,
+                         cascade=True, cascade_theta=0.01, cascade_contagion=0.5)
+    assert cas.total_indirect_cost_usd > lin.total_indirect_cost_usd
+
+
+def test_l3_mode_mrio_runs_in_orchestrator(refinery):
+    world = run_asset_transition(refinery, "net_zero_2050", enable_layers=(3,), l3_mode="world")
+    mrio = run_asset_transition(refinery, "net_zero_2050", enable_layers=(3,), l3_mode="mrio")
+    assert mrio.layer_breakdown["L3_network_input_cost"][2050] > 0
+    # the two resolutions give different L3 numbers
+    assert mrio.layer_breakdown["L3_network_input_cost"][2050] != \
+        world.layer_breakdown["L3_network_input_cost"][2050]

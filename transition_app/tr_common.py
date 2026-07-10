@@ -186,6 +186,9 @@ def _defaults() -> dict:
         "tr_governance": {},                   # TCFD governance narrative
         "tr_target_year": 2050,                # net-zero target year
         "tr_scope3_mode": "full",              # 'full' | 'auto' (drop L1 scope-3 when L3 on)
+        "tr_l3_mode": "world",                 # 'world' (20×20) | 'mrio' (20×49 EXIOBASE)
+        "tr_cascade": False,                   # Reisch endogenous-default cascade (mrio only)
+        "tr_cascade_theta": 0.02,              # default threshold (fraction of output)
     }
 
 
@@ -262,6 +265,9 @@ def run_engine(assets: list[Asset], scenarios: list[str]):
         elasticity=float(st.session_state.get("tr_elasticity", 1.0)),
         enable_layers=tuple(st.session_state.get("tr_layers", [1, 2, 3, 4])),
         scope3_mode=st.session_state.get("tr_scope3_mode", "full"),
+        l3_mode=st.session_state.get("tr_l3_mode", "world"),
+        cascade=bool(st.session_state.get("tr_cascade", False)),
+        cascade_theta=float(st.session_state.get("tr_cascade_theta", 0.02)),
     )
 
 
@@ -450,6 +456,33 @@ def sidebar_settings() -> list[str]:
                  "upstream cost is counted once.",
         )
         st.session_state["tr_scope3_mode"] = s3
+
+        st.markdown("**Layer 3 (network)**")
+        l3_modes = ["world", "mrio"]
+        l3 = st.radio(
+            "Resolution", l3_modes,
+            index=l3_modes.index(st.session_state.get("tr_l3_mode", "world")),
+            format_func=lambda m: "World (20 sectors)" if m == "world"
+            else "Multi-region (20×49 EXIOBASE)",
+            help="World = 20-sector single-region matrix (fast, default). Multi-region = full "
+                 "EXIOBASE 20×49 with cross-region supply chains and region-specific carbon prices.",
+        )
+        st.session_state["tr_l3_mode"] = l3
+        if l3 == "mrio":
+            casc = st.checkbox(
+                "Endogenous-default cascade (Reisch 2025)",
+                value=bool(st.session_state.get("tr_cascade", False)),
+                help="Nonlinear contagion: sectors absorbing input-cost shocks above the "
+                     "threshold pass an amplified shock downstream. Triggers only for the "
+                     "most-exposed nodes under stress.",
+            )
+            st.session_state["tr_cascade"] = casc
+            if casc:
+                st.session_state["tr_cascade_theta"] = st.slider(
+                    "Default threshold θ (share of output)", 0.005, 0.05,
+                    float(st.session_state.get("tr_cascade_theta", 0.02)), 0.005,
+                    help="Lower θ → more sectors default → more contagion.",
+                )
     return scenarios
 
 

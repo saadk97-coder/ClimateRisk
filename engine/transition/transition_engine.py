@@ -108,6 +108,10 @@ def run_asset_transition(
     scope3_mode: str = "full",
     price_scale: float = 1.0,
     pass_through_scale: float = 1.0,
+    l3_mode: str = "world",
+    cascade: bool = False,
+    cascade_theta: float = 0.02,
+    cascade_contagion: float = 0.5,
 ) -> TransitionAssetResult:
     """
     Compute a full transition risk timeline for one asset under one scenario.
@@ -185,21 +189,35 @@ def run_asset_transition(
     l3_by_year: Dict[int, float] = {y: 0.0 for y in horizon}
     if 3 in enable_layers:
         ngfs_region = get_ngfs_region(region)
-        for y in horizon:
-            price = get_carbon_price(scenario_id, y, ngfs_region) * max(0.0, price_scale)
-            sector_shock = build_sectorwide_shock(price)
-            shock = propagate_carbon_shock(
-                asset_id=asset.id,
-                sector=sector,
-                scenario_id=scenario_id,
-                year=y,
-                asset_revenue=asset.annual_revenue,
-                sector_carbon_costs=sector_shock,
-                sector_outputs=None,   # shocks already normalised
-                elasticity=elasticity,
-            )
-            layer3.append(shock)
-            l3_by_year[y] = shock.total_indirect_cost_usd
+        if l3_mode == "mrio":
+            # High-resolution 20×49 EXIOBASE MRIO (+ optional Reisch cascade).
+            from engine.transition.network_mrio import propagate_mrio
+            for y in horizon:
+                shock = propagate_mrio(
+                    asset_id=asset.id, sector=sector, region_iso3=region,
+                    ngfs_band=ngfs_region, scenario_id=scenario_id, year=y,
+                    asset_revenue=asset.annual_revenue, elasticity=elasticity,
+                    cascade=cascade, cascade_theta=cascade_theta,
+                    cascade_contagion=cascade_contagion,
+                )
+                layer3.append(shock)
+                l3_by_year[y] = shock.total_indirect_cost_usd
+        else:
+            for y in horizon:
+                price = get_carbon_price(scenario_id, y, ngfs_region) * max(0.0, price_scale)
+                sector_shock = build_sectorwide_shock(price)
+                shock = propagate_carbon_shock(
+                    asset_id=asset.id,
+                    sector=sector,
+                    scenario_id=scenario_id,
+                    year=y,
+                    asset_revenue=asset.annual_revenue,
+                    sector_carbon_costs=sector_shock,
+                    sector_outputs=None,   # shocks already normalised
+                    elasticity=elasticity,
+                )
+                layer3.append(shock)
+                l3_by_year[y] = shock.total_indirect_cost_usd
 
     # ── Layer 4 ────────────────────────────────────────────────────────────
     layer4: Optional[CCExposureResult] = None
@@ -263,6 +281,10 @@ def run_portfolio_transition(
     scope3_mode: str = "full",
     price_scale: float = 1.0,
     pass_through_scale: float = 1.0,
+    l3_mode: str = "world",
+    cascade: bool = False,
+    cascade_theta: float = 0.02,
+    cascade_contagion: float = 0.5,
 ) -> Dict[str, List[TransitionAssetResult]]:
     """
     Run all assets × scenarios. Returns {scenario_id: [TransitionAssetResult, ...]}.
@@ -286,6 +308,8 @@ def run_portfolio_transition(
                 elasticity=elasticity, enable_layers=enable_layers,
                 scope3_mode=scope3_mode,
                 price_scale=price_scale, pass_through_scale=pass_through_scale,
+                l3_mode=l3_mode, cascade=cascade,
+                cascade_theta=cascade_theta, cascade_contagion=cascade_contagion,
             )
             out[sc].append(r)
     return out

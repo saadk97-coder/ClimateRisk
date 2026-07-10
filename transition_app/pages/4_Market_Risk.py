@@ -60,6 +60,16 @@ if rows:
 # B. Supply-chain input-cost pressure (Layer 3)
 # ===========================================================================
 st.subheader("B. Supply-chain input-cost pressure (Layer 3)")
+_l3 = st.session_state.get("tr_l3_mode", "world")
+if _l3 == "mrio":
+    _casc = st.session_state.get("tr_cascade", False)
+    st.caption(f"Resolution: **multi-region 20×49 EXIOBASE** — cross-border supply chains with "
+               f"region-specific carbon prices"
+               + (f"; **endogenous-default cascade on** (θ={st.session_state.get('tr_cascade_theta', 0.02)})."
+                  if _casc else ".") + " Change in the sidebar.")
+else:
+    st.caption("Resolution: **world 20-sector** (single region). Switch to multi-region "
+               "(20×49 EXIOBASE) + endogenous-default cascade in the sidebar.")
 tot_rows = []
 for scx, r in results.items():
     for y in DEFAULT_HORIZON:
