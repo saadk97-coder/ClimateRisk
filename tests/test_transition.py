@@ -807,3 +807,32 @@ def test_tornado_passthrough_moves_cost(coal_plant):
     pt = next(b for b in t["bars"] if "Pass-through" in b.driver)
     # lower pass-through → firm absorbs more → higher cost than higher pass-through
     assert pt.low_pv != pt.high_pv
+
+
+# ---------------------------------------------------------------------------
+# P3 — Abatement optimizer & peer benchmarking
+# ---------------------------------------------------------------------------
+
+def test_optimizer_more_budget_abates_more(coal_plant, refinery):
+    from engine.transition.optimizer import optimize_abatement
+    lo = optimize_abatement([coal_plant, refinery], 50e6, {coal_plant.id: 80, refinery.id: 80})
+    hi = optimize_abatement([coal_plant, refinery], 500e6, {coal_plant.id: 80, refinery.id: 80})
+    assert hi.abated_tco2 > lo.abated_tco2
+    assert hi.residual_carbon_cost_usd <= lo.residual_carbon_cost_usd
+    assert hi.marginal_cost_frontier >= lo.marginal_cost_frontier   # buys costlier measures
+
+
+def test_optimizer_respects_budget(coal_plant):
+    from engine.transition.optimizer import optimize_abatement
+    p = optimize_abatement([coal_plant], 10e6, {coal_plant.id: 100})
+    # spend cannot exceed budget by more than the no-regret savings
+    assert p.total_spend <= 10e6 + 1.0
+    assert 0 <= p.abated_tco2 <= p.total_emissions_tco2
+
+
+def test_intensity_benchmark_positions(coal_plant, office):
+    from engine.transition.alignment import intensity_benchmark
+    b = {r["asset_id"]: r for r in intensity_benchmark([coal_plant, office])}
+    # coal plant is extremely carbon-intensive → top quartile; office is low
+    assert b[coal_plant.id]["position"] == "high (top quartile)"
+    assert b[coal_plant.id]["entity_intensity"] > b[office.id]["entity_intensity"]

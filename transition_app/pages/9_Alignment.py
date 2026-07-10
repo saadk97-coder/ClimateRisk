@@ -54,6 +54,36 @@ st.caption("PCAF data-quality note: emissions are reported/estimated inputs; att
 st.divider()
 
 # ===========================================================================
+# 1b. Peer benchmarking
+# ===========================================================================
+st.subheader("Peer benchmarking — carbon intensity")
+st.caption("Each entity's economic carbon intensity (tCO₂ Scope 1+2 per $M revenue) vs the real "
+           "corporate-universe distribution (Sautner JoF 2023, ~10k firms: median 11, p75 85 tCO₂/$M).")
+from engine.transition.alignment import intensity_benchmark  # noqa: E402
+bench = intensity_benchmark(active)
+if bench:
+    bdf = pd.DataFrame(bench)
+    fig_b = px.bar(bdf, x="asset_id", y="entity_intensity", color="position",
+                   color_discrete_map={"low (bottom quartile)": "#2f7d4f", "below median": "#7bb661",
+                                       "above median": "#c9922e", "high (top quartile)": "#c0392b"},
+                   labels={"entity_intensity": "tCO₂ / $M revenue", "asset_id": "Entity"},
+                   title="Carbon intensity vs corporate universe", log_y=True)
+    fig_b.add_hline(y=bench[0]["universe_median"], line_dash="dot", line_color="#666",
+                    annotation_text="universe median")
+    fig_b.add_hline(y=bench[0]["universe_p75"], line_dash="dash", line_color="#999",
+                    annotation_text="universe p75")
+    fig_b.update_layout(height=340, margin=dict(t=50, b=10))
+    st.plotly_chart(fig_b, use_container_width=True)
+    st.dataframe(bdf.rename(columns={
+        "asset_id": "Entity", "sector": "Sector", "entity_intensity": "Intensity (tCO₂/$M)",
+        "universe_median": "Universe median", "universe_p75": "Universe p75", "position": "Position",
+    }), use_container_width=True, hide_index=True)
+    st.caption("Absolute position vs the cross-sector corporate universe; a sector-relative benchmark "
+               "would need per-sector intensity distributions (future).")
+
+st.divider()
+
+# ===========================================================================
 # 2. Implied Temperature Rise (ITR)
 # ===========================================================================
 st.subheader("Implied Temperature Rise (ITR)")

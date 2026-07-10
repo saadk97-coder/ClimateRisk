@@ -93,4 +93,40 @@ st.plotly_chart(fig, use_container_width=True)
 st.caption("Green bars: cheaper than the carbon price (worth doing). Amber: costlier than paying — "
            "abate only under policy mandate or a higher price. Source: IPCC AR6 WG3-informed screening curves.")
 
+st.divider()
+
+# ===========================================================================
+# Budget-constrained abatement optimizer
+# ===========================================================================
+st.subheader("Abatement investment optimizer")
+st.caption("Allocate a decarbonisation budget across the portfolio in merit order (cheapest tCO₂ "
+           "first). No-regret measures are always funded; the rest of the budget buys the next "
+           "cheapest abatement until exhausted.")
+from engine.transition.optimizer import optimize_abatement  # noqa: E402
+
+price_by_asset = {a.id: get_carbon_price(sc, yr, get_ngfs_region(a.region)) for a in active}
+tot_e = sum(a.scope1_emissions_tco2 + a.scope2_emissions_tco2 for a in active)
+default_budget = float(round((tot_e * 60) / 1e6)) if tot_e else 100.0   # ~$60/t on all emissions
+budget_m = st.slider(f"Decarbonisation budget ({T.sym()} millions)", 0.0,
+                     max(default_budget * 2, 10.0), min(default_budget, default_budget), 5.0)
+plan = optimize_abatement(active, budget_m * 1e6 * T.fx_to_usd(), price_by_asset)
+
+o1, o2, o3, o4 = st.columns(4)
+o1.metric("Emissions abated", f"{plan.abated_tco2:,.0f} tCO₂",
+          f"{(plan.abated_tco2 / plan.total_emissions_tco2 * 100 if plan.total_emissions_tco2 else 0):.0f}% of Scope 1+2")
+o2.metric("Net spend", T.fmt_money(plan.total_spend))
+o3.metric("Marginal cost at frontier", f"${plan.marginal_cost_frontier:,.0f}/tCO₂")
+o4.metric("Residual carbon cost", T.fmt_money(plan.residual_carbon_cost_usd))
+
+if plan.per_asset:
+    st.dataframe(pd.DataFrame([{
+        "Entity": r["asset"],
+        "Emissions (tCO₂)": round(r["emissions"], 0),
+        "Abated (tCO₂)": round(r["abated"], 0),
+        "Abated %": f"{r['abated_pct']*100:.0f}%",
+        "Residual (tCO₂)": round(r["residual"], 0),
+    } for r in plan.per_asset]), use_container_width=True, hide_index=True)
+    st.caption("Merit-order allocation is optimal for maximum tonnes abated per dollar. Raise the "
+               "budget to see the marginal cost climb as cheaper measures are exhausted.")
+
 T.disclaimer()

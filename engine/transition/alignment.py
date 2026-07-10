@@ -121,6 +121,38 @@ def _interp(curve: Dict[str, float], year: int) -> float:
     return 1.0
 
 
+# Real firm-level carbon-intensity distribution (tCO₂ Scope 1 per $M revenue) from
+# Sautner et al. (JoF 2023) Table 1 — 10,158 firms. Used as the peer-benchmark universe.
+_CARBON_INTENSITY_DIST = {"p25": 1.95, "median": 11.02, "p75": 84.62, "mean": 151.14, "sd": 399.90}
+
+
+def intensity_benchmark(assets: List) -> List[dict]:
+    """Benchmark each entity's economic carbon intensity (tCO₂ Scope 1+2 per $M revenue)
+    against the real corporate-universe distribution (Sautner JoF 2023 Table 1). Quartile
+    position across ~10k firms; a sector-relative benchmark would need sector distributions."""
+    d = _CARBON_INTENSITY_DIST
+    out = []
+    for a in assets:
+        e12 = a.scope1_emissions_tco2 + a.scope2_emissions_tco2
+        rev_m = a.annual_revenue / 1e6
+        if rev_m <= 0:
+            continue
+        ei = e12 / rev_m
+        if ei <= d["p25"]:
+            pos = "low (bottom quartile)"
+        elif ei <= d["median"]:
+            pos = "below median"
+        elif ei <= d["p75"]:
+            pos = "above median"
+        else:
+            pos = "high (top quartile)"
+        out.append({"asset_id": a.id, "sector": a.sector,
+                    "entity_intensity": round(ei, 1),
+                    "universe_median": d["median"], "universe_p75": d["p75"],
+                    "position": pos})
+    return out
+
+
 def pathway_alignment(asset, scenario_id: str, years: Optional[List[int]] = None) -> dict:
     """Compare the asset's Scope 1+2 decline by BUDGET_END against the scenario's
     sector demand pathway (the alignment benchmark). Returns a status + the gap."""
