@@ -786,3 +786,24 @@ def test_macc_curve_steps_cumulative():
     assert steps and steps[0]["from_frac"] == 0.0
     # steps are cost-sorted and cumulative
     assert all(a["cost_usd_per_tco2"] <= b["cost_usd_per_tco2"] for a, b in zip(steps, steps[1:]))
+
+
+# ---------------------------------------------------------------------------
+# P3 — Sensitivity (tornado)
+# ---------------------------------------------------------------------------
+
+def test_tornado_returns_sorted_bars(coal_plant):
+    from engine.transition.sensitivity import tornado
+    t = tornado([coal_plant], "net_zero_2050")
+    assert t["base_pv"] > 0
+    swings = [b.swing for b in t["bars"]]
+    assert swings == sorted(swings, reverse=True)   # sorted by swing desc
+    assert all(b.swing >= 0 for b in t["bars"])
+
+
+def test_tornado_passthrough_moves_cost(coal_plant):
+    from engine.transition.sensitivity import tornado
+    t = tornado([coal_plant], "net_zero_2050")
+    pt = next(b for b in t["bars"] if "Pass-through" in b.driver)
+    # lower pass-through → firm absorbs more → higher cost than higher pass-through
+    assert pt.low_pv != pt.high_pv

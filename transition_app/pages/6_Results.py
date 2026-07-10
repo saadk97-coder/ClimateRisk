@@ -8,6 +8,7 @@ import tr_common as T  # noqa: E402
 
 import pandas as pd  # noqa: E402
 import plotly.express as px  # noqa: E402
+import plotly.graph_objects as go  # noqa: E402
 import streamlit as st  # noqa: E402
 
 from engine.transition.transition_engine import DEFAULT_HORIZON  # noqa: E402
@@ -123,6 +124,41 @@ if mc_res:
                    annotation_text="P50")
     hist.update_layout(height=340, margin=dict(t=50, b=10), showlegend=False)
     st.plotly_chart(hist, use_container_width=True)
+
+# ===========================================================================
+# Sensitivity (tornado) — which assumption drives the number?
+# ===========================================================================
+st.subheader("Sensitivity — what drives the number?")
+st.caption("One-at-a-time swing of each assumption (others held at base). The widest bar is the "
+           "assumption your result is most exposed to — where better data pays off most.")
+tsc = st.selectbox("Scenario", scenarios, format_func=T.scenario_label, key="tornado_sc")
+fx = T.fx_to_usd()  # USD → reporting currency divisor for chart axes
+from engine.transition.sensitivity import tornado  # noqa: E402
+from engine.transition.cc_exposure import ROUTE_CASHFLOWS as _RC  # noqa: E402
+with st.spinner("Computing sensitivities…"):
+    tor = tornado(active, tsc, discount_rate=wacc,
+                  layer4_routing=st.session_state.get("tr_l4_routing", _RC),
+                  enable_layers=tuple(st.session_state.get("tr_layers", [1, 2, 3, 4])),
+                  scope3_mode=st.session_state.get("tr_scope3_mode", "full"))
+base_pv = tor["base_pv"]
+bars = tor["bars"]
+if bars:
+    fig = go.Figure()
+    for b in reversed(bars):  # widest at top
+        lo, hi = min(b.low_pv, b.high_pv), max(b.low_pv, b.high_pv)
+        fig.add_trace(go.Bar(
+            y=[b.driver], x=[(hi - lo) / fx], base=[lo / fx], orientation="h",
+            marker_color="#4f8cc9", showlegend=False,
+            hovertemplate=f"{b.low_label}: %{{base:,.0f}}<br>{b.high_label}: {hi/fx:,.0f}<extra></extra>"))
+    fig.add_vline(x=base_pv / fx, line_dash="dash", line_color="#F4721A",
+                  annotation_text="base")
+    fig.update_layout(height=300, margin=dict(t=30, b=10),
+                      xaxis_title=f"PV transition cost ({sym})",
+                      title=f"Sensitivity — {T.scenario_label(tsc)}")
+    st.plotly_chart(fig, use_container_width=True)
+    top = bars[0]
+    st.caption(f"Most influential: **{top.driver}** (swing {T.fmt_money(top.swing)}). "
+               "Prioritise firming up this input.")
 
 # ===========================================================================
 # Category (layer) attribution of PV
