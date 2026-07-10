@@ -747,3 +747,42 @@ def test_l3_mode_mrio_runs_in_orchestrator(refinery):
     # the two resolutions give different L3 numbers
     assert mrio.layer_breakdown["L3_network_input_cost"][2050] != \
         world.layer_breakdown["L3_network_input_cost"][2050]
+
+
+def test_firm_cce_override_changes_l4(coal_plant):
+    """A firm-level CCExposure override replaces the sector-median proxy in L4."""
+    base = run_asset_transition(coal_plant, "net_zero_2050", enable_layers=(4,))
+    override = {"opportunity": 3.0, "regulatory": 0.05, "physical": 0.01}  # opportunity-heavy
+    ov = run_asset_transition(coal_plant, "net_zero_2050", enable_layers=(4,),
+                              firm_cce_override=override)
+    # opportunity-heavy override → higher revenue growth than coal's sector median
+    assert ov.layer4_result.revenue_growth_modifier_bps != base.layer4_result.revenue_growth_modifier_bps
+    assert ov.layer4_result.cce_opportunity > base.layer4_result.cce_opportunity
+
+
+# ---------------------------------------------------------------------------
+# P2 — Marginal Abatement Cost Curves (decarbonise vs pay)
+# ---------------------------------------------------------------------------
+
+def test_macc_more_abatement_at_higher_price():
+    from engine.transition.macc import evaluate_macc
+    lo = evaluate_macc("power_coal", 1e6, 30)
+    hi = evaluate_macc("power_coal", 1e6, 150)
+    assert hi.cost_effective_frac > lo.cost_effective_frac
+    assert 0 <= hi.cost_effective_frac <= 1.0
+
+
+def test_macc_net_benefit_when_cheaper_than_price():
+    from engine.transition.macc import evaluate_macc
+    r = evaluate_macc("power_coal", 1e6, 100)
+    # measures chosen are all <= price → carbon cost avoided exceeds abatement spend
+    assert r.net_benefit_usd > 0
+    assert r.carbon_cost_avoided_usd >= r.abatement_cost_usd
+
+
+def test_macc_curve_steps_cumulative():
+    from engine.transition.macc import macc_steps
+    steps = macc_steps("steel", 1e6)
+    assert steps and steps[0]["from_frac"] == 0.0
+    # steps are cost-sorted and cumulative
+    assert all(a["cost_usd_per_tco2"] <= b["cost_usd_per_tco2"] for a, b in zip(steps, steps[1:]))

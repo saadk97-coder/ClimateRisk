@@ -189,6 +189,7 @@ def _defaults() -> dict:
         "tr_l3_mode": "world",                 # 'world' (20×20) | 'mrio' (20×49 EXIOBASE)
         "tr_cascade": False,                   # Reisch endogenous-default cascade (mrio only)
         "tr_cascade_theta": 0.02,              # default threshold (fraction of output)
+        "tr_firm_cce": {},                     # {asset_id: {opportunity, regulatory, physical}} L4 override
     }
 
 
@@ -268,6 +269,7 @@ def run_engine(assets: list[Asset], scenarios: list[str]):
         l3_mode=st.session_state.get("tr_l3_mode", "world"),
         cascade=bool(st.session_state.get("tr_cascade", False)),
         cascade_theta=float(st.session_state.get("tr_cascade_theta", 0.02)),
+        firm_cce_overrides=st.session_state.get("tr_firm_cce") or None,
     )
 
 

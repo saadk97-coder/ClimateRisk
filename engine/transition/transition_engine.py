@@ -112,6 +112,7 @@ def run_asset_transition(
     cascade: bool = False,
     cascade_theta: float = 0.02,
     cascade_contagion: float = 0.5,
+    firm_cce_override: Optional[Dict[str, float]] = None,
 ) -> TransitionAssetResult:
     """
     Compute a full transition risk timeline for one asset under one scenario.
@@ -231,6 +232,7 @@ def run_asset_transition(
             annual_revenue=asset.annual_revenue,
             years=horizon,
             routing=layer4_routing,
+            firm_override=firm_cce_override,   # firm-level Sautner CCExposure (else sector median)
         )
         if layer4_routing == ROUTE_CASHFLOWS:
             # Sign convention: positive opportunity → positive revenue → NEGATIVE cost.
@@ -285,9 +287,13 @@ def run_portfolio_transition(
     cascade: bool = False,
     cascade_theta: float = 0.02,
     cascade_contagion: float = 0.5,
+    firm_cce_overrides: Optional[Dict[str, Dict[str, float]]] = None,
 ) -> Dict[str, List[TransitionAssetResult]]:
     """
     Run all assets × scenarios. Returns {scenario_id: [TransitionAssetResult, ...]}.
+
+    firm_cce_overrides : optional {asset_id: {opportunity, regulatory, physical}} firm-level
+    Sautner CCExposure, overriding the sector-median proxy in Layer 4.
 
     Layer 3 is computed per-asset using only that asset's own Layer-1 cost as
     shock — this is the screening default. For a portfolio-pooled cascade
@@ -310,6 +316,7 @@ def run_portfolio_transition(
                 price_scale=price_scale, pass_through_scale=pass_through_scale,
                 l3_mode=l3_mode, cascade=cascade,
                 cascade_theta=cascade_theta, cascade_contagion=cascade_contagion,
+                firm_cce_override=(firm_cce_overrides or {}).get(a.id),
             )
             out[sc].append(r)
     return out

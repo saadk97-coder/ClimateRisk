@@ -1,0 +1,304 @@
+{
+  "_meta": {
+    "description": "Screening marginal abatement cost curves per sector. Each measure lists the incremental fraction of the sector's Scope 1+2 emissions it can abate and its marginal cost (USD/tCO2, real). Negative cost = net-saving (no-regret) measure. A carbon price P funds all measures with marginal cost <= P.",
+    "sources": [
+      "IPCC AR6 WG3 (2022) sectoral mitigation potential & cost (Ch.6-11, SPM Fig SPM.7)",
+      "IEA Net Zero Roadmap (2023); IEA sector technology roadmaps"
+    ],
+    "units": "cost USD/tCO2; potential_frac = share of sector Scope 1+2 emissions",
+    "columns": [
+      "measure",
+      "cost_usd_per_tco2",
+      "potential_frac"
+    ]
+  },
+  "sectors": {
+    "power_coal": [
+      {
+        "measure": "Efficiency / heat-rate",
+        "cost_usd_per_tco2": 5,
+        "potential_frac": 0.05
+      },
+      {
+        "measure": "Co-firing biomass",
+        "cost_usd_per_tco2": 45,
+        "potential_frac": 0.15
+      },
+      {
+        "measure": "Replace with renewables+storage",
+        "cost_usd_per_tco2": 60,
+        "potential_frac": 0.55
+      },
+      {
+        "measure": "CCS retrofit",
+        "cost_usd_per_tco2": 130,
+        "potential_frac": 0.2
+      }
+    ],
+    "power_gas": [
+      {
+        "measure": "Efficiency",
+        "cost_usd_per_tco2": 5,
+        "potential_frac": 0.05
+      },
+      {
+        "measure": "Renewables+storage",
+        "cost_usd_per_tco2": 65,
+        "potential_frac": 0.55
+      },
+      {
+        "measure": "CCS retrofit",
+        "cost_usd_per_tco2": 110,
+        "potential_frac": 0.25
+      }
+    ],
+    "power_renewable": [
+      {
+        "measure": "Grid/curtailment optimisation",
+        "cost_usd_per_tco2": 15,
+        "potential_frac": 0.3
+      }
+    ],
+    "oil_upstream": [
+      {
+        "measure": "Methane leak control",
+        "cost_usd_per_tco2": -5,
+        "potential_frac": 0.2
+      },
+      {
+        "measure": "Electrify operations",
+        "cost_usd_per_tco2": 55,
+        "potential_frac": 0.25
+      },
+      {
+        "measure": "CCS/CCUS",
+        "cost_usd_per_tco2": 120,
+        "potential_frac": 0.2
+      }
+    ],
+    "oil_refining": [
+      {
+        "measure": "Energy efficiency",
+        "cost_usd_per_tco2": 15,
+        "potential_frac": 0.15
+      },
+      {
+        "measure": "Electrify process heat",
+        "cost_usd_per_tco2": 90,
+        "potential_frac": 0.25
+      },
+      {
+        "measure": "Hydrogen / CCS",
+        "cost_usd_per_tco2": 150,
+        "potential_frac": 0.3
+      }
+    ],
+    "gas_distribution": [
+      {
+        "measure": "Leak detection & repair",
+        "cost_usd_per_tco2": -10,
+        "potential_frac": 0.25
+      },
+      {
+        "measure": "Renewable gas blending",
+        "cost_usd_per_tco2": 80,
+        "potential_frac": 0.2
+      }
+    ],
+    "steel": [
+      {
+        "measure": "Efficiency & scrap-EAF",
+        "cost_usd_per_tco2": 20,
+        "potential_frac": 0.2
+      },
+      {
+        "measure": "H2-DRI (green hydrogen)",
+        "cost_usd_per_tco2": 120,
+        "potential_frac": 0.45
+      },
+      {
+        "measure": "CCS",
+        "cost_usd_per_tco2": 160,
+        "potential_frac": 0.2
+      }
+    ],
+    "cement": [
+      {
+        "measure": "Clinker substitution",
+        "cost_usd_per_tco2": 25,
+        "potential_frac": 0.2
+      },
+      {
+        "measure": "Alternative fuels",
+        "cost_usd_per_tco2": 60,
+        "potential_frac": 0.15
+      },
+      {
+        "measure": "CCS/CCUS",
+        "cost_usd_per_tco2": 140,
+        "potential_frac": 0.45
+      }
+    ],
+    "chemicals": [
+      {
+        "measure": "Efficiency",
+        "cost_usd_per_tco2": 20,
+        "potential_frac": 0.15
+      },
+      {
+        "measure": "Electrification",
+        "cost_usd_per_tco2": 90,
+        "potential_frac": 0.25
+      },
+      {
+        "measure": "Green H2 feedstock / CCS",
+        "cost_usd_per_tco2": 150,
+        "potential_frac": 0.3
+      }
+    ],
+    "aluminium": [
+      {
+        "measure": "Inert anodes / efficiency",
+        "cost_usd_per_tco2": 30,
+        "potential_frac": 0.2
+      },
+      {
+        "measure": "Renewable-powered smelting",
+        "cost_usd_per_tco2": 70,
+        "potential_frac": 0.5
+      }
+    ],
+    "road_transport_ice": [
+      {
+        "measure": "Efficiency standards",
+        "cost_usd_per_tco2": 20,
+        "potential_frac": 0.2
+      },
+      {
+        "measure": "Electrification (EV shift)",
+        "cost_usd_per_tco2": 80,
+        "potential_frac": 0.6
+      }
+    ],
+    "road_transport_ev": [
+      {
+        "measure": "Grid decarbonisation",
+        "cost_usd_per_tco2": 40,
+        "potential_frac": 0.4
+      }
+    ],
+    "aviation": [
+      {
+        "measure": "Efficiency & operations",
+        "cost_usd_per_tco2": 30,
+        "potential_frac": 0.15
+      },
+      {
+        "measure": "Sustainable aviation fuel",
+        "cost_usd_per_tco2": 200,
+        "potential_frac": 0.45
+      }
+    ],
+    "shipping": [
+      {
+        "measure": "Efficiency & speed",
+        "cost_usd_per_tco2": 25,
+        "potential_frac": 0.15
+      },
+      {
+        "measure": "Ammonia / methanol fuel",
+        "cost_usd_per_tco2": 180,
+        "potential_frac": 0.45
+      }
+    ],
+    "real_estate_commercial": [
+      {
+        "measure": "Retrofit / heat pumps",
+        "cost_usd_per_tco2": 20,
+        "potential_frac": 0.4
+      },
+      {
+        "measure": "On-site renewables",
+        "cost_usd_per_tco2": 60,
+        "potential_frac": 0.25
+      }
+    ],
+    "real_estate_residential": [
+      {
+        "measure": "Retrofit / heat pumps",
+        "cost_usd_per_tco2": 25,
+        "potential_frac": 0.4
+      },
+      {
+        "measure": "On-site renewables",
+        "cost_usd_per_tco2": 60,
+        "potential_frac": 0.2
+      }
+    ],
+    "agriculture": [
+      {
+        "measure": "Improved practices",
+        "cost_usd_per_tco2": 15,
+        "potential_frac": 0.2
+      },
+      {
+        "measure": "Methane management",
+        "cost_usd_per_tco2": 50,
+        "potential_frac": 0.25
+      },
+      {
+        "measure": "Regenerative / feed additives",
+        "cost_usd_per_tco2": 90,
+        "potential_frac": 0.2
+      }
+    ],
+    "data_center": [
+      {
+        "measure": "Efficiency (PUE)",
+        "cost_usd_per_tco2": 10,
+        "potential_frac": 0.2
+      },
+      {
+        "measure": "Renewable PPA",
+        "cost_usd_per_tco2": 45,
+        "potential_frac": 0.55
+      }
+    ],
+    "manufacturing_general": [
+      {
+        "measure": "Efficiency",
+        "cost_usd_per_tco2": 20,
+        "potential_frac": 0.25
+      },
+      {
+        "measure": "Electrification",
+        "cost_usd_per_tco2": 90,
+        "potential_frac": 0.3
+      }
+    ],
+    "services": [
+      {
+        "measure": "Efficiency & procurement",
+        "cost_usd_per_tco2": 20,
+        "potential_frac": 0.4
+      },
+      {
+        "measure": "Renewable PPA",
+        "cost_usd_per_tco2": 50,
+        "potential_frac": 0.35
+      }
+    ]
+  },
+  "default_unmatched": [
+    {
+      "measure": "Efficiency",
+      "cost_usd_per_tco2": 20,
+      "potential_frac": 0.25
+    },
+    {
+      "measure": "Renewable electricity",
+      "cost_usd_per_tco2": 55,
+      "potential_frac": 0.35
+    }
+  ]
+}

@@ -93,4 +93,30 @@ st.caption(
     "SIC industry; the CCE columns above are z-scores (SDs from the average firm)."
 )
 
+with st.expander("⬆ Firm-level CCExposure override (licensed Sautner feed)"):
+    st.caption("Upload firm-level CCExposure to replace the sector-median proxy for specific "
+               "entities. CSV columns: asset_id, opportunity, regulatory, physical — on the raw "
+               "Sautner ×10³ scale (see Methodology for the pooled means).")
+    fu = st.file_uploader("Firm CCExposure CSV", type="csv", key="firm_cce_up")
+    if fu is not None:
+        try:
+            fdf = pd.read_csv(fu)
+            ov = {}
+            for _, r in fdf.iterrows():
+                ov[str(r["asset_id"]).strip()] = {
+                    "opportunity": float(r["opportunity"]),
+                    "regulatory": float(r["regulatory"]),
+                    "physical": float(r["physical"]),
+                }
+            st.session_state["tr_firm_cce"] = ov
+            st.success(f"Loaded firm-level CCExposure for {len(ov)} entit(ies). Re-runs use it.")
+        except Exception as e:
+            st.error(f"Could not read firm CCExposure CSV: {e}")
+    ov = st.session_state.get("tr_firm_cce") or {}
+    if ov:
+        st.markdown("**Overridden entities:** " + ", ".join(sorted(ov)))
+        if st.button("Clear firm overrides"):
+            st.session_state["tr_firm_cce"] = {}
+            st.rerun()
+
 T.disclaimer()
