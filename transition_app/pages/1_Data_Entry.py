@@ -21,10 +21,14 @@ with cc1:
     cur = st.selectbox(
         "Reporting currency", ["USD", "EUR", "GBP", "JPY", "CAD", "AUD"],
         index=["USD", "EUR", "GBP", "JPY", "CAD", "AUD"].index(T.currency()),
-        help="NGFS carbon prices are USD-denominated (US$2020). Enter financials in the "
-             "same currency; non-USD is a display convenience, not an FX conversion.",
+        help="Enter financials in this currency. The engine runs in USD (NGFS prices are "
+             "USD/tCO₂); inputs are converted to USD and results converted back for display.",
     )
     st.session_state["tr_currency"] = cur
+with cc2:
+    if cur != "USD":
+        st.caption(f"FX: 1 {cur} = {T.fx_to_usd(cur):.4f} USD · basis {T.FX_AS_OF}. "
+                   "Financials are converted to USD for the engine and back for display.")
 
 st.divider()
 
@@ -117,14 +121,12 @@ with b3:
 # ---------------------------------------------------------------------------
 saved = T.get_portfolio()
 if saved:
-    problems = []
-    for r in saved:
-        if len(str(r.get("region", ""))) != 3:
-            problems.append(f"`{r.get('id','?')}`: region must be a 3-letter ISO3 code.")
-        if not r.get("sector"):
-            problems.append(f"`{r.get('id','?')}`: no sector assigned.")
-    if problems:
-        st.warning("**Fix before analysing:**\n\n" + "\n\n".join(f"- {p}" for p in problems))
+    errors, warnings = T.validate_portfolio(saved)
+    if warnings:
+        st.warning("**Warnings (results may be incomplete):**\n\n"
+                   + "\n\n".join(f"- {w}" for w in warnings))
+    if errors:
+        st.error("**Fix before analysing:**\n\n" + "\n\n".join(f"- {e}" for e in errors))
     else:
         # region classification preview
         prev = []
@@ -149,8 +151,22 @@ with st.expander("⇄ CSV import / export"):
             in_df = pd.read_csv(up)
             keep = [c for c in T.PORTFOLIO_COLUMNS if c in in_df.columns]
             recs = in_df[keep].to_dict("records")
+            # taxonomy-check sectors: blank unknown keys so the grid selectbox stays valid
+            valid = set(T.sector_options())
+            bad = set()
+            for r in recs:
+                s = str(r.get("sector", "")).strip().lower()
+                if s and s not in valid:
+                    bad.add(s)
+                    r["sector"] = ""
+                else:
+                    r["sector"] = s
             T.set_portfolio(recs)
-            st.success(f"Imported {len(recs)} rows. Review above and Save.")
+            if bad:
+                st.warning(f"Imported {len(recs)} rows. Cleared {len(bad)} unrecognised "
+                           f"sector(s) — reassign from the taxonomy: {', '.join(sorted(bad))}")
+            else:
+                st.success(f"Imported {len(recs)} rows. Review above and Save.")
             st.rerun()
         except Exception as e:
             st.error(f"Could not read CSV: {e}")

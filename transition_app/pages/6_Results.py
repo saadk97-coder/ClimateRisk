@@ -17,6 +17,7 @@ T.init_state()
 T.page_header("Consolidated financial impact and decarbonisation-target gap.", pillar="Results")
 
 active = T.portfolio_gate()
+T.portfolio_warnings_banner()
 scenarios = T.sidebar_settings()
 if not scenarios:
     st.info("Pick scenarios in the sidebar.")
@@ -193,7 +194,17 @@ for sc, res in results.items():
                 "total_cf_cost": r.annual_total_cost_usd.get(y, 0.0),
                 "impairment": r.annual_impairment_usd.get(y, 0.0),
             })
-st.download_button("Download full results CSV", pd.DataFrame(exp).to_csv(index=False),
-                   file_name="transition_results.csv", mime="text/csv")
+d1, d2 = st.columns(2)
+with d1:
+    st.download_button("⬇ Full results (CSV)", pd.DataFrame(exp).to_csv(index=False),
+                       file_name="transition_results.csv", mime="text/csv",
+                       use_container_width=True)
+with d2:
+    xlsx = T.build_results_xlsx(results, active, scenarios, wacc)
+    st.download_button("⬇ Report workbook (XLSX)", xlsx,
+                       file_name="transition_report.xlsx",
+                       mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                       use_container_width=True,
+                       help="Summary, annual detail, portfolio and a run manifest with provenance.")
 
 T.disclaimer()

@@ -32,8 +32,17 @@ Windows PowerShell, compile-free:
 | ⑥ Results | consolidated financial impact + target gap | L1–L4 |
 | ⑦ Methodology & Data | reference + Appendices A–E | — |
 
-Analysis settings (scenarios, Layer-4 routing, σ, enabled layers, discount rate) live in the
-sidebar and are shared across all category pages.
+Analysis settings (scenarios, Layer-4 routing, σ, enabled layers, discount rate, Scope-3 mode)
+live in the sidebar and are shared across all category pages.
+
+**Robustness.** Financials can be entered in USD/EUR/GBP/JPY/CAD/AUD — the engine runs in USD
+(NGFS prices are USD/tCO₂) and converts inputs and results via a dated FX table. Data Entry
+validates the portfolio (blocking errors + non-blocking warnings for missing revenue, zero
+emissions on a fossil sector, unit slips) and taxonomy-checks CSV imports. Results exports a
+multi-sheet **XLSX** (summary, annual detail, portfolio, and a run manifest with data
+provenance) alongside CSV, and runs a **Monte-Carlo** P5–P95 range on demand. The **Audit**
+page traces every number to its formula and vintage; **Save / load project** persists the full
+state as JSON.
 
 ## Data entry fields (per entity)
 

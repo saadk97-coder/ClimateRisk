@@ -105,7 +105,8 @@ def make_asset(row: dict) -> Asset:
         lat=0.0,
         lon=0.0,
         asset_type="transition_entity",
-        replacement_value=float(row.get("replacement_value", 0.0) or 0.0),
+        # financials entered in the reporting currency → USD for the engine
+        replacement_value=float(row.get("replacement_value", 0.0) or 0.0) * fx_to_usd(),
         construction_material="concrete",
         year_built=2020,
         stories=1,
@@ -119,7 +120,7 @@ def make_asset(row: dict) -> Asset:
         scope1_emissions_tco2=float(row.get("scope1", 0.0) or 0.0),
         scope2_emissions_tco2=float(row.get("scope2", 0.0) or 0.0),
         scope3_emissions_tco2=float(row.get("scope3", 0.0) or 0.0),
-        annual_revenue=float(row.get("annual_revenue", 0.0) or 0.0),
+        annual_revenue=float(row.get("annual_revenue", 0.0) or 0.0) * fx_to_usd(),
         decarb_target_year=_int_or(row.get("target_year"), 0),
         decarb_residual_pct=0.0,
         # blank / NaN priced_pct means "fully priced" (100), not 0
@@ -207,16 +208,28 @@ def get_assets() -> list[Asset]:
     return out
 
 
+# Indicative FX — USD per 1 unit of currency. The engine runs in USD because NGFS
+# carbon prices are USD/tCO₂; financial inputs are converted to USD on the way in and
+# results converted back for display. Update as needed.
+FX_USD_PER_UNIT = {"USD": 1.0, "EUR": 1.08, "GBP": 1.27, "JPY": 0.0064, "CAD": 0.73, "AUD": 0.66}
+FX_AS_OF = "2026-07 (indicative — override for reporting)"
+
+
 def currency() -> str:
     return st.session_state.get("tr_currency", "USD")
+
+
+def fx_to_usd(code: str | None = None) -> float:
+    return FX_USD_PER_UNIT.get(code or currency(), 1.0)
 
 
 def sym() -> str:
     return currency_symbol(currency())
 
 
-def fmt_money(x: float) -> str:
-    return _fmt(x, currency())
+def fmt_money(x_usd: float) -> str:
+    """Format a USD amount in the reporting currency (converts USD → display)."""
+    return _fmt(x_usd / fx_to_usd(), currency())
 
 
 # ---------------------------------------------------------------------------
@@ -257,6 +270,113 @@ def page_header(subtitle: str, pillar: str | None = None) -> None:
         unsafe_allow_html=True,
     )
     st.divider()
+
+
+def validate_portfolio(rows: list[dict]) -> tuple[list[str], list[str]]:
+    """Return (errors, warnings) for the saved portfolio. Errors block analysis;
+    warnings flag results that will be silently degraded."""
+    errors: list[str] = []
+    warnings: list[str] = []
+    valid_sectors = set(sector_options())
+    for r in rows:
+        rid = r.get("id", "?")
+        region = str(r.get("region", ""))
+        sector = str(r.get("sector", "")).lower()
+        if len(region) != 3:
+            errors.append(f"`{rid}`: region must be a 3-letter ISO3 code (got '{region}').")
+        if not sector:
+            errors.append(f"`{rid}`: no sector assigned.")
+        elif sector not in valid_sectors:
+            errors.append(f"`{rid}`: sector '{sector}' is not in the taxonomy.")
+        rev = float(r.get("annual_revenue", 0) or 0)
+        s12 = float(r.get("scope1", 0) or 0) + float(r.get("scope2", 0) or 0)
+        if sector in valid_sectors:
+            if rev <= 0:
+                warnings.append(f"`{rid}`: no annual revenue — network (L3) and reputation (L4) "
+                                "costs scale by revenue and will read zero.")
+            if sector_meta(sector).get("fossil_dependent") and s12 <= 0:
+                warnings.append(f"`{rid}`: fossil-dependent sector with no Scope 1/2 emissions — "
+                                "carbon cost (L1) will be ~zero.")
+        if s12 > 1e9:
+            warnings.append(f"`{rid}`: Scope 1+2 exceeds 1 Gt CO₂ — check the units (tonnes/yr).")
+    return errors, warnings
+
+
+def portfolio_warnings_banner() -> None:
+    """Compact warning banner for the analysis pages (non-blocking)."""
+    _, warns = validate_portfolio(get_portfolio())
+    if warns:
+        with st.expander(f"⚠️ {len(warns)} data warning(s) — results may be incomplete"):
+            for w in warns:
+                st.markdown(f"- {w}")
+
+
+def build_results_xlsx(results, active, scenarios, discount_rate: float) -> bytes:
+    """Multi-sheet XLSX: summary, annual detail, portfolio, and a run manifest with
+    provenance. Returns the workbook as bytes."""
+    import io
+    import datetime as _dt
+    from engine.transition.data_loader import (
+        load_carbon_prices, load_io_matrix, load_cc_exposure, load_learning_curves,
+    )
+
+    def _pv(series):
+        return sum(v / (1.0 + discount_rate) ** (y - min(DEFAULT_HORIZON)) for y, v in series.items())
+
+    # Summary by scenario (in reporting currency)
+    fx = fx_to_usd()
+    summary = []
+    for sc, res in results.items():
+        pv_c = sum(_pv(r.annual_total_cost_usd) for r in res) / fx
+        pv_i = sum(_pv(r.annual_impairment_usd) for r in res) / fx
+        summary.append({"scenario": scenario_label(sc),
+                        f"pv_transition_cost_{currency()}": round(pv_c, 2),
+                        f"pv_stranded_impairment_{currency()}": round(pv_i, 2),
+                        f"pv_total_{currency()}": round(pv_c + pv_i, 2)})
+
+    annual = []
+    for sc, res in results.items():
+        for r in res:
+            for y in DEFAULT_HORIZON:
+                annual.append({
+                    "scenario": sc, "entity": r.asset_id, "sector": r.sector, "year": y,
+                    "L1_carbon": r.layer_breakdown["L1_carbon_opex"].get(y, 0.0) / fx,
+                    "L2_revenue": r.layer_breakdown["L2_revenue_erosion"].get(y, 0.0) / fx,
+                    "L3_network": r.layer_breakdown["L3_network_input_cost"].get(y, 0.0) / fx,
+                    "L4_reputation": r.layer_breakdown["L4_revenue_modifier"].get(y, 0.0) / fx,
+                    "total_cf_cost": r.annual_total_cost_usd.get(y, 0.0) / fx,
+                    "impairment": r.annual_impairment_usd.get(y, 0.0) / fx,
+                })
+
+    cp_m = load_carbon_prices().get("_meta", {})
+    io_m = load_io_matrix().get("_meta", {})
+    cce_m = load_cc_exposure().get("_meta", {})
+    lc_m = load_learning_curves().get("_meta", {})
+    manifest = [
+        ("Generated (UTC)", _dt.datetime.utcnow().isoformat(timespec="seconds") + "Z"),
+        ("Methodology", "BSR Transition Risk v1 (four-layer)"),
+        ("Reporting currency", currency()), ("FX basis", FX_AS_OF),
+        ("Discount rate (WACC)", discount_rate),
+        ("Scenarios", ", ".join(scenario_label(s) for s in scenarios)),
+        ("Scope-3 mode", st.session_state.get("tr_scope3_mode", "full")),
+        ("Layer-4 routing", st.session_state.get("tr_l4_routing", "cashflows")),
+        ("L3 substitution σ", st.session_state.get("tr_elasticity", 1.0)),
+        ("Layers enabled", st.session_state.get("tr_layers", [1, 2, 3, 4])),
+        ("Carbon prices", f"{cp_m.get('model', 'NGFS Phase V')} · {cp_m.get('reported_unit', 'USD/tCO2')} · {cp_m.get('retrieved_utc', '—')}"),
+        ("I-O matrix", (io_m.get("sources", ["EXIOBASE-3"]) or ["EXIOBASE-3"])[0]),
+        ("CCExposure", (cce_m.get("sources", ["Sautner 2023"]) or ["Sautner 2023"])[0]),
+        ("Learning curves", lc_m.get("units_note", "IRENA 2024 / Lazard 2025 (power)")),
+        ("Disclaimer", "Screening-grade — not a regulatory disclosure without specialist review."),
+    ]
+
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine="openpyxl") as xw:
+        pd.DataFrame(summary).to_excel(xw, sheet_name="Summary", index=False)
+        pd.DataFrame(annual).to_excel(xw, sheet_name="Annual detail", index=False)
+        pd.DataFrame(get_portfolio()).to_excel(xw, sheet_name="Portfolio", index=False)
+        pd.DataFrame([(k, str(v)) for k, v in manifest],
+                     columns=["Field", "Value"]).to_excel(xw, sheet_name="Run manifest", index=False)
+    return buf.getvalue()
 
 
 def sidebar_settings() -> list[str]:

@@ -44,8 +44,9 @@ if res is None:
 
 
 def trace(rows):
-    st.dataframe(pd.DataFrame(rows, columns=["Quantity", "Value", "How it is computed"]),
-                 use_container_width=True, hide_index=True)
+    df = pd.DataFrame(rows, columns=["Quantity", "Value", "How it is computed"])
+    df["Value"] = df["Value"].astype(str)   # mixed int/str column → string for clean display
+    st.dataframe(df, use_container_width=True, hide_index=True)
 
 
 st.markdown(f"### Layer 1 — Policy &amp; Legal (carbon cost), {yr}")
