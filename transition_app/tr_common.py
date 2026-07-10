@@ -400,6 +400,121 @@ def build_results_xlsx(results, active, scenarios, discount_rate: float) -> byte
     return buf.getvalue()
 
 
+def build_disclosure_report(active, results, scenarios, discount_rate: float) -> str:
+    """Generate an IFRS S2 / ESRS E1-structured transition-risk disclosure (Markdown)
+    from the current portfolio, governance narrative and results."""
+    import datetime as _dt
+    from engine.transition.alignment import financed_emissions, implied_temperature_rise
+    from engine.transition.data_loader import load_carbon_prices, load_io_matrix, load_cc_exposure
+    from engine.transition.transition_engine import DEFAULT_HORIZON
+
+    gov = st.session_state.get("tr_governance", {})
+    att = attribution_map()
+    fe = financed_emissions(active, att)
+    itr = implied_temperature_rise(active, att)
+    base_year = min(DEFAULT_HORIZON)
+
+    def _pv(series):
+        return sum(v / (1 + discount_rate) ** (y - base_year) for y, v in series.items())
+
+    scen_lines = []
+    for sc, res in results.items():
+        pv_c = sum(_pv(r.annual_total_cost_usd) for r in res)
+        pv_i = sum(_pv(r.annual_impairment_usd) for r in res)
+        scen_lines.append(f"| {scenario_label(sc)} | {fmt_money(pv_c)} | {fmt_money(pv_i)} |")
+
+    def _g(k, default="*Not disclosed.*"):
+        return gov.get(k) or default
+
+    cp = load_carbon_prices().get("_meta", {})
+    io = load_io_matrix().get("_meta", {})
+    cce = load_cc_exposure().get("_meta", {})
+    now = _dt.datetime.utcnow().strftime("%Y-%m-%d")
+
+    return f"""# Climate-related Financial Disclosures — Transition Risk
+
+*Prepared {now} with the BSR Transition Risk engine (Methodology v1). Screening-grade;
+structured against **IFRS S2** and **ESRS E1**. Not a substitute for assured disclosure.*
+
+Reporting currency: **{currency()}** · Discount rate: **{discount_rate*100:.1f}%** ·
+Scenarios: **{', '.join(scenario_label(s) for s in scenarios)}** · Entities: **{len(active)}**
+
+---
+
+## a) Governance  <sub>IFRS S2 ¶6–7 · ESRS 2 GOV-1..5</sub>
+
+**Board oversight.** {_g('board_oversight')}
+
+**Review cadence:** {gov.get('review_cadence', 'Not disclosed')} ·
+**Accountable body:** {gov.get('accountable_body') or 'Not disclosed'}
+
+**Management's role.** {_g('management_role')}
+
+**Integration into strategy & financial planning.** {_g('strategy_integration')}
+
+**Regulatory / litigation exposure.** {_g('policy_legal_note')}
+
+---
+
+## b) Strategy — scenario analysis  <sub>IFRS S2 ¶9–23 · ESRS E1-1, E1-6</sub>
+
+Transition risk is quantified over {base_year}–{max(DEFAULT_HORIZON)} under NGFS-style
+scenarios through four channels (carbon cost, technology/stranding, supply-chain network,
+reputation/capital). Present value of the transition impact:
+
+| Scenario | PV transition cost | PV stranded impairment |
+|---|---|---|
+{chr(10).join(scen_lines)}
+
+Resilience: results are scenario-differentiated; orderly pathways front-load carbon cost,
+disorderly/high-warming pathways shift the burden to stranding and later years.
+
+---
+
+## c) Risk Management  <sub>IFRS S2 ¶24–26 · ESRS E1 IRO-1</sub>
+
+Each transition-risk category is quantified by one engine layer and routed to exactly one
+financial destination (non-duplication): **Policy & Legal** → carbon cost (L1);
+**Technology** → learning-curve stranding (L2); **Market** → supply-chain network (L3);
+**Reputation** → cost of capital (L4). Uncertainty is assessed by Monte-Carlo over the
+carbon price, pass-through and substitution elasticity.
+
+---
+
+## d) Metrics & Targets  <sub>IFRS S2 ¶27–37 · ESRS E1-4/5/6/7</sub>
+
+**Financed / attributed GHG emissions (PCAF basis):**
+
+| Scope | Attributed tCO₂e |
+|---|---|
+| Scope 1 | {fe.scope1:,.0f} |
+| Scope 2 | {fe.scope2:,.0f} |
+| Scope 3 | {fe.scope3:,.0f} |
+| **Scope 1+2** | **{fe.total_s1_s2:,.0f}** |
+
+**Implied Temperature Rise:** **{itr['portfolio_itr']:.2f} °C** (Scope 1+2 × attribution weighted,
+vs a 1.5 °C linear-to-net-zero budget).
+
+**Targets:** {sum(1 for a in active if a.decarb_target_year)}/{len(active)} entities carry a
+Scope 1+2 net-zero target; abatement is reflected in the carbon-cost projection.
+
+**Carbon price basis:** {cp.get('model', 'NGFS Phase V')} ({cp.get('reported_unit', 'USD/tCO₂')}).
+
+---
+
+## Basis of preparation & data provenance
+
+- Carbon prices: {cp.get('model', 'NGFS Phase V')} · {cp.get('retrieved_utc', '—')}
+- Input-output network: {(io.get('sources', ['EXIOBASE-3']) or ['EXIOBASE-3'])[0]}
+- Reputation exposure: {(cce.get('sources', ['Sautner 2023']) or ['Sautner 2023'])[0]}
+- Technology costs: IRENA 2024 / Lazard 2025 (power sector LCOE)
+
+**Limitations.** Screening-grade. Sector-median pass-through and CCExposure proxies;
+precipitation-independent transition channels; approximate NGFS vintage. Not a regulatory
+disclosure without specialist review and assurance.
+"""
+
+
 def sidebar_settings() -> list[str]:
     """Render the shared analysis settings in the sidebar (scenarios + engine
     config), persist to session, and return the selected scenario list."""

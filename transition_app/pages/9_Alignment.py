@@ -124,4 +124,52 @@ if results:
     st.caption("PV of transition cost scaled by each entity's attribution share — the financed "
                "equivalent of the headline Results figure.")
 
+st.divider()
+
+# ===========================================================================
+# 5. Disclosure report (IFRS S2 / ESRS E1)
+# ===========================================================================
+st.subheader("Disclosure report (IFRS S2 / ESRS E1)")
+st.caption("Generates a governance → strategy → risk-management → metrics report mapped to IFRS S2 "
+           "and ESRS E1, populated from your governance narrative (set on the Governance inputs) and "
+           "these results. Screening-grade — for internal use / pre-assurance drafting.")
+gov = st.session_state.get("tr_governance", {})
+with st.expander("Governance narrative inputs (populate the report's Governance section)"):
+    gov["board_oversight"] = st.text_area(
+        "Board oversight of transition risk", value=gov.get("board_oversight", ""),
+        placeholder="e.g. The Risk Committee reviews scenario results quarterly; material stranding "
+                    "is escalated to the board annually.", height=80)
+    gc1, gc2 = st.columns(2)
+    with gc1:
+        gov["review_cadence"] = st.selectbox(
+            "Review cadence", ["Quarterly", "Semi-annual", "Annual", "Ad hoc", "Not yet established"],
+            index=["Quarterly", "Semi-annual", "Annual", "Ad hoc", "Not yet established"].index(
+                gov.get("review_cadence", "Annual")))
+    with gc2:
+        gov["accountable_body"] = st.text_input(
+            "Accountable committee / role", value=gov.get("accountable_body", ""),
+            placeholder="Board Risk Committee / CRO")
+    gov["management_role"] = st.text_area(
+        "Management's role", value=gov.get("management_role", ""),
+        placeholder="e.g. Sustainability & Finance jointly own the model and feed stranding flags "
+                    "into impairment testing.", height=80)
+    gov["strategy_integration"] = st.text_area(
+        "Integration into strategy & financial planning", value=gov.get("strategy_integration", ""),
+        placeholder="e.g. Layer-1 carbon OpEx is in the 5-year plan; stranding triggers inform capital "
+                    "allocation.", height=70)
+    if st.button("💾 Save governance narrative"):
+        st.session_state["tr_governance"] = gov
+        st.success("Saved — regenerate the report below.")
+
+if results:
+    report = T.build_disclosure_report(active, results, scenarios,
+                                       float(st.session_state.get("tr_wacc", 0.09)))
+    dcol1, dcol2 = st.columns([1, 3])
+    with dcol1:
+        st.download_button("⬇ Download report (Markdown)", report,
+                           file_name="transition_disclosure_IFRS-S2_ESRS-E1.md",
+                           mime="text/markdown", use_container_width=True)
+    with st.expander("Preview report"):
+        st.markdown(report)
+
 T.disclaimer()
