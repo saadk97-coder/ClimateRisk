@@ -162,6 +162,31 @@ with st.expander("⇄ CSV import / export"):
         )
 
 # ---------------------------------------------------------------------------
+# Project save / load (full state, survives refresh)
+# ---------------------------------------------------------------------------
+with st.expander("💼 Save / load project (full state)"):
+    import json
+    _STATE_KEYS = ["tr_assets", "tr_currency", "tr_scenarios", "tr_l4_routing",
+                   "tr_elasticity", "tr_layers", "tr_wacc", "tr_scope3_mode",
+                   "tr_governance", "tr_target_year"]
+    st.caption("Bundles the portfolio, analysis settings and governance narrative into one file — "
+               "the session itself is not persisted, so download to keep your work across refreshes.")
+    project = {k: st.session_state.get(k) for k in _STATE_KEYS}
+    st.download_button("⬇ Download project (.json)", json.dumps(project, indent=2),
+                       file_name="transition_project.json", mime="application/json")
+    up_proj = st.file_uploader("⬆ Load project (.json)", type="json", key="proj_up")
+    if up_proj is not None:
+        try:
+            loaded = json.load(up_proj)
+            for k in _STATE_KEYS:
+                if k in loaded and loaded[k] is not None:
+                    st.session_state[k] = loaded[k]
+            st.success("Project loaded. Review the portfolio above.")
+            st.rerun()
+        except Exception as e:
+            st.error(f"Could not load project: {e}")
+
+# ---------------------------------------------------------------------------
 # Sector reference
 # ---------------------------------------------------------------------------
 with st.expander("📖 Sector taxonomy reference (Appendix A)"):

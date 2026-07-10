@@ -77,8 +77,9 @@ rows = [
 for name, layer, section, desc in T.TCFD_CATEGORIES:
     rows.append((section, layer, desc))
 rows.append(("⑥ Results", "L1–L4", "Consolidated financial impact: PV of transition cost, "
-             "stranded impairment, emissions, and decarbonisation target gap."))
+             "stranded impairment, Monte-Carlo P5–P95 range, emissions and decarbonisation target."))
 rows.append(("⑦ Methodology & Data", "—", "Four-layer mathematics, calibration, Appendices A–E."))
+rows.append(("⑧ Audit", "L1–L4", "Full calculation trace: every number → its inputs, formula and vintage."))
 
 import pandas as pd  # noqa: E402
 st.dataframe(

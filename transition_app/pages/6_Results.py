@@ -74,6 +74,56 @@ fig.update_layout(height=380, legend=dict(orientation="h", y=-0.25), margin=dict
 st.plotly_chart(fig, use_container_width=True)
 
 # ===========================================================================
+# Uncertainty (Monte-Carlo)
+# ===========================================================================
+st.subheader("Uncertainty — Monte-Carlo")
+st.caption("Re-runs the four-layer model over many draws, perturbing the carbon-price path "
+           "(log-normal), pass-through (normal) and network substitution σ (uniform). Turns "
+           "single-point estimates into a P5–P95 range.")
+uc1, uc2, uc3 = st.columns([2, 2, 1])
+with uc1:
+    mc_sc = st.selectbox("Scenario", scenarios, format_func=T.scenario_label, key="mc_sc")
+with uc2:
+    draws = st.select_slider("Draws", options=[100, 200, 400, 800], value=400)
+with uc3:
+    st.write("")
+    run_mc = st.button("▶ Run", use_container_width=True)
+
+if run_mc:
+    from engine.transition.uncertainty import run_monte_carlo, MCConfig  # noqa: E402
+    from engine.transition.cc_exposure import ROUTE_CASHFLOWS  # noqa: E402
+    with st.spinner(f"Running {draws} draws…"):
+        mc = run_monte_carlo(
+            active, mc_sc, discount_rate=wacc,
+            layer4_routing=st.session_state.get("tr_l4_routing", ROUTE_CASHFLOWS),
+            enable_layers=tuple(st.session_state.get("tr_layers", [1, 2, 3, 4])),
+            scope3_mode=st.session_state.get("tr_scope3_mode", "full"),
+            config=MCConfig(draws=draws),
+        )
+    st.session_state["mc_result"] = {
+        "scenario": mc_sc, "draws": draws, "summary": mc.summary(),
+        "cost_samples": mc.pv_cost.tolist(),
+    }
+
+mc_res = st.session_state.get("mc_result")
+if mc_res:
+    sc_cost = mc_res["summary"]["transition_cost"]
+    st.markdown(f"**{T.scenario_label(mc_res['scenario'])}** · {mc_res['draws']} draws · "
+                "PV of transition cost")
+    q1, q2, q3, q4 = st.columns(4)
+    q1.metric("P5 (optimistic)", T.fmt_money(sc_cost["p5"]))
+    q2.metric("P50 (median)", T.fmt_money(sc_cost["p50"]))
+    q3.metric("P95 (severe)", T.fmt_money(sc_cost["p95"]))
+    q4.metric("Base (deterministic)", T.fmt_money(sc_cost["base"]))
+    hist = px.histogram(pd.DataFrame({f"PV transition cost ({sym})": mc_res["cost_samples"]}),
+                        x=f"PV transition cost ({sym})", nbins=40,
+                        title="Distribution of PV transition cost")
+    hist.add_vline(x=sc_cost["p50"], line_dash="dash", line_color="#F4721A",
+                   annotation_text="P50")
+    hist.update_layout(height=340, margin=dict(t=50, b=10), showlegend=False)
+    st.plotly_chart(hist, use_container_width=True)
+
+# ===========================================================================
 # Category (layer) attribution of PV
 # ===========================================================================
 st.subheader("Attribution by TCFD category")

@@ -136,6 +136,8 @@ def compute_carbon_cost(
     pass_through_override: Optional[float] = None,
     direct_scale: float = 1.0,
     priced_fraction: float = 1.0,
+    price_scale: float = 1.0,
+    pass_through_scale: float = 1.0,
 ) -> CarbonCostResult:
     """
     Compute Layer-1 carbon cost decomposition for one asset × scenario × year.
@@ -143,12 +145,13 @@ def compute_carbon_cost(
     direct_scale : abatement multiplier on Scope 1+2 for this year (1.0 = no abatement).
     priced_fraction : share of Scope 1+2 actually exposed to the carbon price, net of
                       free allocation / partial coverage (1.0 = fully priced).
+    price_scale, pass_through_scale : Monte-Carlo perturbation multipliers (1.0 = base).
     """
     ngfs_region = get_ngfs_region(region_iso3)
-    price = get_carbon_price(scenario_id, year, ngfs_region)
+    price = get_carbon_price(scenario_id, year, ngfs_region) * max(0.0, price_scale)
     pt_data = get_pass_through(sector)
     pass_through = pass_through_override if pass_through_override is not None else float(pt_data["pass_through"])
-    pass_through = max(0.0, min(1.0, pass_through))
+    pass_through = max(0.0, min(1.0, pass_through * max(0.0, pass_through_scale)))
 
     direct_scale = max(0.0, direct_scale)
     priced_fraction = max(0.0, min(1.0, priced_fraction))
@@ -192,11 +195,14 @@ def carbon_cost_timeline(
     pass_through_override: Optional[float] = None,
     emissions_index: Optional[Dict[int, float]] = None,
     priced_fraction: float = 1.0,
+    price_scale: float = 1.0,
+    pass_through_scale: float = 1.0,
 ) -> List[CarbonCostResult]:
     """Convenience wrapper to compute Layer-1 results across a year range.
 
     emissions_index : optional {year: Scope 1+2 multiplier} abatement pathway.
     priced_fraction : share of Scope 1+2 exposed to the carbon price (free allocation).
+    price_scale, pass_through_scale : Monte-Carlo perturbation multipliers.
     """
     return [
         compute_carbon_cost(
@@ -211,6 +217,8 @@ def carbon_cost_timeline(
             pass_through_override=pass_through_override,
             direct_scale=(emissions_index or {}).get(y, 1.0),
             priced_fraction=priced_fraction,
+            price_scale=price_scale,
+            pass_through_scale=pass_through_scale,
         )
         for y in years
     ]

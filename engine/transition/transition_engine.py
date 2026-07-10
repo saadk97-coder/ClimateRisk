@@ -106,6 +106,8 @@ def run_asset_transition(
     elasticity: float = 1.0,
     enable_layers: tuple = (1, 2, 3, 4),
     scope3_mode: str = "full",
+    price_scale: float = 1.0,
+    pass_through_scale: float = 1.0,
 ) -> TransitionAssetResult:
     """
     Compute a full transition risk timeline for one asset under one scenario.
@@ -151,6 +153,8 @@ def run_asset_transition(
             scope3_emissions_tco2=l1_scope3,
             emissions_index=em_index,
             priced_fraction=priced_fraction,
+            price_scale=price_scale,
+            pass_through_scale=pass_through_scale,
         )
         for r in layer1:
             l1_by_year[r.year] = r.net_carbon_opex_usd
@@ -182,7 +186,7 @@ def run_asset_transition(
     if 3 in enable_layers:
         ngfs_region = get_ngfs_region(region)
         for y in horizon:
-            price = get_carbon_price(scenario_id, y, ngfs_region)
+            price = get_carbon_price(scenario_id, y, ngfs_region) * max(0.0, price_scale)
             sector_shock = build_sectorwide_shock(price)
             shock = propagate_carbon_shock(
                 asset_id=asset.id,
@@ -257,6 +261,8 @@ def run_portfolio_transition(
     elasticity: float = 1.0,
     enable_layers: tuple = (1, 2, 3, 4),
     scope3_mode: str = "full",
+    price_scale: float = 1.0,
+    pass_through_scale: float = 1.0,
 ) -> Dict[str, List[TransitionAssetResult]]:
     """
     Run all assets × scenarios. Returns {scenario_id: [TransitionAssetResult, ...]}.
@@ -279,6 +285,7 @@ def run_portfolio_transition(
                 a, sc, horizon=horizon, layer4_routing=layer4_routing,
                 elasticity=elasticity, enable_layers=enable_layers,
                 scope3_mode=scope3_mode,
+                price_scale=price_scale, pass_through_scale=pass_through_scale,
             )
             out[sc].append(r)
     return out

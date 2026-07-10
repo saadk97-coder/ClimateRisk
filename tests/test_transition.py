@@ -624,3 +624,31 @@ def test_asset_model_p0_fields_default_to_legacy():
     assert a.decarb_target_year == 0
     assert a.decarb_residual_pct == 0.0
     assert a.priced_emissions_fraction == 1.0
+
+
+# ---------------------------------------------------------------------------
+# P1 — Monte-Carlo uncertainty
+# ---------------------------------------------------------------------------
+
+def test_monte_carlo_percentiles_ordered(coal_plant):
+    from engine.transition.uncertainty import run_monte_carlo, MCConfig
+    r = run_monte_carlo([coal_plant], "net_zero_2050", discount_rate=0.09,
+                        config=MCConfig(draws=120, seed=1))
+    s = r.summary()["transition_cost"]
+    assert s["p5"] < s["p50"] < s["p95"]
+    assert s["base"] > 0
+
+
+def test_monte_carlo_is_seed_deterministic(coal_plant):
+    from engine.transition.uncertainty import run_monte_carlo, MCConfig
+    a = run_monte_carlo([coal_plant], "net_zero_2050", config=MCConfig(draws=80, seed=7))
+    b = run_monte_carlo([coal_plant], "net_zero_2050", config=MCConfig(draws=80, seed=7))
+    assert a.summary()["transition_cost"]["p50"] == b.summary()["transition_cost"]["p50"]
+
+
+def test_price_scale_moves_l1_linearly(coal_plant):
+    hi = run_asset_transition(coal_plant, "net_zero_2050", enable_layers=(1,), price_scale=2.0)
+    base = run_asset_transition(coal_plant, "net_zero_2050", enable_layers=(1,), price_scale=1.0)
+    # Layer-1 net cost scales ~linearly with the carbon price
+    r = hi.layer_breakdown["L1_carbon_opex"][2050] / base.layer_breakdown["L1_carbon_opex"][2050]
+    assert abs(r - 2.0) < 0.01
