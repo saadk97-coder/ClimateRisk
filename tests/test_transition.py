@@ -679,3 +679,33 @@ def test_lcoe_solar_below_coal_and_units_mwh():
     assert "cost_2025_usd_per_mwh" in lc["solar_pv"]
     assert "cost_2025_usd_per_mwh" in lc["coal_steam"]
     assert lc["solar_pv"]["cost_2025_usd_per_mwh"] < lc["coal_steam"]["cost_2025_usd_per_mwh"]
+
+
+# ---------------------------------------------------------------------------
+# P2 — Portfolio alignment metrics (financed emissions, ITR, PACTA)
+# ---------------------------------------------------------------------------
+
+def test_financed_emissions_attribution(coal_plant):
+    from engine.transition.alignment import financed_emissions
+    full = financed_emissions([coal_plant])
+    half = financed_emissions([coal_plant], {coal_plant.id: 0.5})
+    assert abs(half.total_s1_s2 - 0.5 * full.total_s1_s2) < 1.0
+    assert abs(full.scope3 - coal_plant.scope3_emissions_tco2) < 1.0
+
+
+def test_itr_abatement_lowers_temperature(coal_plant):
+    from engine.transition.alignment import implied_temperature_rise
+    from engine.asset_model import Asset
+    flat = implied_temperature_rise([coal_plant])["portfolio_itr"]
+    nz = Asset.from_dict({**coal_plant.to_dict(), "decarb_target_year": 2050})
+    aligned = implied_temperature_rise([nz])["portfolio_itr"]
+    assert aligned < flat
+    assert aligned <= 1.7  # net-zero-2050 path scores near the 1.5C benchmark
+
+
+def test_pathway_alignment_status(coal_plant):
+    from engine.transition.alignment import pathway_alignment
+    from engine.asset_model import Asset
+    assert pathway_alignment(coal_plant, "net_zero_2050")["status"] == "misaligned"
+    nz = Asset.from_dict({**coal_plant.to_dict(), "decarb_target_year": 2050})
+    assert pathway_alignment(nz, "net_zero_2050")["status"] == "aligned"

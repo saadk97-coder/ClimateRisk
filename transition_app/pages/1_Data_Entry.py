@@ -47,7 +47,7 @@ st.caption(
 # the text/selectbox column config).
 _STR_COLS = ["id", "name", "region", "sector"]
 _NUM_COLS = ["replacement_value", "annual_revenue", "scope1", "scope2", "scope3",
-             "target_year", "priced_pct"]
+             "target_year", "priced_pct", "attribution_pct"]
 
 rows = T.get_portfolio()
 if rows:
@@ -85,6 +85,10 @@ edited = st.data_editor(
         "priced_pct": st.column_config.NumberColumn(
             "Priced %", min_value=0, max_value=100, step=5, format="%d",
             help="% of Scope 1+2 exposed to the carbon price, net of free allocation. Blank = 100%."),
+        "attribution_pct": st.column_config.NumberColumn(
+            "Attribution %", min_value=0, max_value=100, step=5, format="%d",
+            help="Share of the asset attributed to you (PCAF). 100 = fully owned; a lender/investor "
+                 "enters their stake. Blank = 100%."),
     },
 )
 
@@ -95,6 +99,8 @@ with b1:
         # blank priced_pct means fully priced (100), not 0
         if "priced_pct" in clean:
             clean["priced_pct"] = clean["priced_pct"].fillna(100)
+        if "attribution_pct" in clean:
+            clean["attribution_pct"] = clean["attribution_pct"].fillna(100)
         if "target_year" in clean:
             clean["target_year"] = clean["target_year"].fillna(0)
         clean = clean.fillna(0)

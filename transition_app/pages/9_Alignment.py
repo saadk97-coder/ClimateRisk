@@ -1,0 +1,127 @@
+"""⑨ Alignment — financed emissions (PCAF), Implied Temperature Rise, pathway alignment."""
+
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import tr_common as T  # noqa: E402
+
+import pandas as pd  # noqa: E402
+import plotly.express as px  # noqa: E402
+import streamlit as st  # noqa: E402
+
+from engine.transition.alignment import (  # noqa: E402
+    financed_emissions, implied_temperature_rise, pathway_alignment,
+)
+
+st.set_page_config(page_title="Alignment · " + T.APP_TITLE, page_icon="🎯", layout="wide")
+T.init_state()
+T.page_header("Financed emissions, Implied Temperature Rise, and pathway alignment.",
+              pillar="Alignment & disclosure")
+
+active = T.portfolio_gate()
+T.portfolio_warnings_banner()
+att = T.attribution_map()
+
+# ===========================================================================
+# 1. Financed / attributed emissions (PCAF)
+# ===========================================================================
+st.subheader("Financed / attributed emissions (PCAF)")
+st.caption("Absolute emissions attributed to you by ownership/exposure share (Attribution % on "
+           "Data Entry). 100% = corporate own-asset view; a lender/investor enters their stake.")
+fe = financed_emissions(active, att)
+e1, e2, e3, e4 = st.columns(4)
+e1.metric("Financed Scope 1", f"{fe.scope1:,.0f} tCO₂")
+e2.metric("Financed Scope 2", f"{fe.scope2:,.0f} tCO₂")
+e3.metric("Financed Scope 3", f"{fe.scope3:,.0f} tCO₂")
+e4.metric("Financed Scope 1+2", f"{fe.total_s1_s2:,.0f} tCO₂")
+
+rows = []
+for r in fe.per_asset:
+    a = next(x for x in active if x.id == r["asset_id"])
+    rev = a.annual_revenue  # USD
+    rows.append({
+        "Entity": r["asset_id"], "Sector": T.sector_label(a.sector),
+        "Attribution": f"{r['attribution']*100:.0f}%",
+        "Financed S1+2 (tCO₂)": round(r["scope1_2"], 0),
+        "Financed S3 (tCO₂)": round(r["scope3"], 0),
+        "Economic intensity (tCO₂/$M rev)": round(r["scope1_2"] / (rev / 1e6), 1) if rev > 0 else "—",
+    })
+st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+st.caption("PCAF data-quality note: emissions are reported/estimated inputs; attribution here uses a "
+           "single share per asset. For disclosure, document the PCAF data-quality score per position.")
+
+st.divider()
+
+# ===========================================================================
+# 2. Implied Temperature Rise (ITR)
+# ===========================================================================
+st.subheader("Implied Temperature Rise (ITR)")
+st.caption("Each entity's abated Scope 1+2 pathway vs a 1.5 °C-consistent linear-to-net-zero budget; "
+           "portfolio ITR is Scope 1+2 × attribution weighted. Set targets on Data Entry to improve it.")
+itr = implied_temperature_rise(active, att)
+port = itr["portfolio_itr"]
+band = "🟢 aligned" if port <= 1.6 else ("🟡 lagging" if port <= 2.0 else "🔴 misaligned")
+m1, m2 = st.columns([1, 2])
+m1.metric("Portfolio ITR", f"{port:.2f} °C", band)
+per_itr = pd.DataFrame(itr["per_asset"])
+if not per_itr.empty:
+    per_itr["target_year"] = per_itr["target_year"].fillna(0).astype(int).replace(0, "—")
+    fig = px.bar(per_itr, x="asset_id", y="itr", color="itr",
+                 color_continuous_scale=["#2f7d4f", "#b5730a", "#c0392b"], range_color=[1.2, 3.5],
+                 labels={"itr": "ITR (°C)", "asset_id": "Entity"}, title="Per-entity ITR")
+    fig.add_hline(y=1.5, line_dash="dash", line_color="#666", annotation_text="1.5 °C")
+    fig.update_layout(height=340, margin=dict(t=50, b=10), coloraxis_showscale=False)
+    with m2:
+        st.plotly_chart(fig, use_container_width=True)
+
+st.divider()
+
+# ===========================================================================
+# 3. Technology / pathway alignment (PACTA-style)
+# ===========================================================================
+st.subheader("Pathway alignment (PACTA-style)")
+sc = st.selectbox("Benchmark scenario", T.scenario_options(),
+                  index=T.scenario_options().index("net_zero_2050") if "net_zero_2050" in T.scenario_options() else 0,
+                  format_func=T.scenario_label)
+st.caption("Compares each entity's Scope 1+2 decline by 2050 against the scenario's sector demand "
+           "pathway (the alignment benchmark).")
+_ICON = {"aligned": "🟢 aligned", "lagging": "🟡 lagging", "misaligned": "🔴 misaligned"}
+arows = []
+for a in active:
+    p = pathway_alignment(a, sc)
+    arows.append({
+        "Entity": a.id, "Sector": T.sector_label(a.sector),
+        "Fossil-dependent": "✓" if p["fossil_dependent"] else "—",
+        "Entity 2050 (index)": p["asset_2050_index"],
+        "Benchmark 2050 (index)": p["benchmark_2050_index"],
+        "Gap": p["gap"], "Status": _ICON[p["status"]],
+    })
+st.dataframe(pd.DataFrame(arows), use_container_width=True, hide_index=True)
+
+# ===========================================================================
+# 4. Attributed transition cost (ties alignment to the financial view)
+# ===========================================================================
+st.subheader("Attributed transition cost")
+scenarios = st.session_state.get("tr_scenarios", T.DEFAULT_SCENARIOS)
+results = T.run_engine(active, scenarios)
+if results:
+    wacc = float(st.session_state.get("tr_wacc", 0.09))
+    base_year = min(__import__("engine.transition.transition_engine", fromlist=["DEFAULT_HORIZON"]).DEFAULT_HORIZON)
+
+    def _pv(series):
+        return sum(v / (1 + wacc) ** (y - base_year) for y, v in series.items())
+
+    trows = []
+    for scn, res in results.items():
+        tot = 0.0
+        for r in res:
+            f = att.get(r.asset_id, 1.0)
+            tot += _pv(r.annual_total_cost_usd) * f
+        trows.append({"Scenario": T.scenario_label(scn),
+                      f"Attributed PV transition cost ({T.sym()})": T.fmt_money(tot)})
+    st.dataframe(pd.DataFrame(trows), use_container_width=True, hide_index=True)
+    st.caption("PV of transition cost scaled by each entity's attribution share — the financed "
+               "equivalent of the headline Results figure.")
+
+T.disclaimer()

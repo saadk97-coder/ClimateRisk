@@ -147,22 +147,27 @@ def _float_or(v, default: float) -> float:
 # The intake portfolio is stored as a list of plain dicts (JSON/CSV friendly).
 # target_year: Scope 1+2 net-zero target (0/blank = no abatement, hold emissions flat).
 # priced_pct: % of Scope 1+2 exposed to the carbon price, net of free allocation (100 = fully priced).
+# attribution_pct: share of the asset attributed to the reporting entity (PCAF).
+# 100 = fully owned (corporate view); a lender/investor enters their stake.
 PORTFOLIO_COLUMNS = [
     "id", "name", "region", "sector",
     "replacement_value", "annual_revenue", "scope1", "scope2", "scope3",
-    "target_year", "priced_pct",
+    "target_year", "priced_pct", "attribution_pct",
 ]
 
 SAMPLE_PORTFOLIO = [
     {"id": "COAL-1", "name": "Coal Power Plant", "region": "USA", "sector": "power_coal",
      "replacement_value": 500_000_000, "annual_revenue": 300_000_000,
-     "scope1": 2_500_000, "scope2": 50_000, "scope3": 200_000, "target_year": 0, "priced_pct": 100},
+     "scope1": 2_500_000, "scope2": 50_000, "scope3": 200_000,
+     "target_year": 0, "priced_pct": 100, "attribution_pct": 100},
     {"id": "REF-1", "name": "Oil Refinery", "region": "USA", "sector": "oil_refining",
      "replacement_value": 2_000_000_000, "annual_revenue": 8_000_000_000,
-     "scope1": 4_500_000, "scope2": 300_000, "scope3": 8_000_000, "target_year": 0, "priced_pct": 100},
+     "scope1": 4_500_000, "scope2": 300_000, "scope3": 8_000_000,
+     "target_year": 0, "priced_pct": 100, "attribution_pct": 100},
     {"id": "OFF-1", "name": "Commercial Office", "region": "USA", "sector": "real_estate_commercial",
      "replacement_value": 50_000_000, "annual_revenue": 15_000_000,
-     "scope1": 200, "scope2": 800, "scope3": 0, "target_year": 0, "priced_pct": 100},
+     "scope1": 200, "scope2": 800, "scope3": 0,
+     "target_year": 0, "priced_pct": 100, "attribution_pct": 100},
 ]
 
 
@@ -195,6 +200,14 @@ def get_portfolio() -> list[dict]:
 
 def set_portfolio(rows: list[dict]) -> None:
     st.session_state["tr_assets"] = rows
+
+
+def attribution_map() -> dict:
+    """{asset_id: attribution fraction in [0,1]} from the portfolio (default 1.0)."""
+    out = {}
+    for row in get_portfolio():
+        out[str(row.get("id", "")).strip()] = _float_or(row.get("attribution_pct"), 100.0) / 100.0
+    return out
 
 
 def get_assets() -> list[Asset]:

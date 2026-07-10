@@ -80,6 +80,7 @@ rows.append(("⑥ Results", "L1–L4", "Consolidated financial impact: PV of tra
              "stranded impairment, Monte-Carlo P5–P95 range, emissions and decarbonisation target."))
 rows.append(("⑦ Methodology & Data", "—", "Four-layer mathematics, calibration, Appendices A–E."))
 rows.append(("⑧ Audit", "L1–L4", "Full calculation trace: every number → its inputs, formula and vintage."))
+rows.append(("⑨ Alignment", "—", "Financed emissions (PCAF), Implied Temperature Rise, pathway alignment."))
 
 import pandas as pd  # noqa: E402
 st.dataframe(
