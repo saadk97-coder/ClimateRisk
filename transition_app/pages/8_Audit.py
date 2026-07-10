@@ -99,9 +99,9 @@ l4 = res.layer4_result
 if l4:
     routing = st.session_state.get("tr_l4_routing")
     trace([
-        ("CCE opportunity / regulatory / physical",
+        ("CCE z-score opp / reg / phys",
          f"{l4.cce_opportunity:.2f} / {l4.cce_regulatory:.2f} / {l4.cce_physical:.2f}",
-         "sector median × scenario modifier"),
+         "(sector × scenario modifier − pooled mean) ÷ pooled SD (Sautner Table 1)"),
         ("Credit spread Δ", f"{l4.credit_spread_premium_bps:.0f} bps", "12·reg + 6·phys"),
         ("Equity premium Δ", f"{l4.equity_premium_bps:.0f} bps", "50·(opp+reg+phys)"),
         ("Revenue growth Δ", f"{l4.revenue_growth_modifier_bps:.0f} bps", "35·opp − 25·reg"),

@@ -87,10 +87,10 @@ else:
     st.plotly_chart(fig, use_container_width=True)
 
 st.caption(
-    "Elasticities (bps per SD of exposure): credit_spread = 12·regulatory + 6·physical; "
-    "equity_premium = 50·(opportunity+regulatory+physical); revenue_growth = 35·opportunity − "
-    "25·regulatory. Sector-median CCExposure proxies (Sautner et al. 2023); firm-level data is "
-    "licensed separately."
+    "CCExposure is z-standardised against the pooled Sautner firm-year distribution (JoF 2023 "
+    "Table 1), then priced per standard deviation: credit = 12·z_reg + 6·z_phys; equity = "
+    "50·z_total; revenue = 35·z_opp − 25·z_reg. Sector exposures anchored to Sautner Table 4 by "
+    "SIC industry; the CCE columns above are z-scores (SDs from the average firm)."
 )
 
 T.disclaimer()

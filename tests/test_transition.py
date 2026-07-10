@@ -652,3 +652,30 @@ def test_price_scale_moves_l1_linearly(coal_plant):
     # Layer-1 net cost scales ~linearly with the carbon price
     r = hi.layer_breakdown["L1_carbon_opex"][2050] / base.layer_breakdown["L1_carbon_opex"][2050]
     assert abs(r - 2.0) < 0.01
+
+
+# ---------------------------------------------------------------------------
+# P0 — Layer-4 z-base (D3) and sourced LCOE
+# ---------------------------------------------------------------------------
+
+def test_l4_zbase_low_exposure_sector_near_zero():
+    """After z-standardisation, a low-exposure sector (services) carries a near-zero
+    premium, not the inflated ~65bps of the raw-proxy version."""
+    r = compute_exposure_premium("t", "services", "net_zero_2050", 1e8, list(DEFAULT_HORIZON))
+    assert abs(r.equity_premium_bps) < 20
+    coal = compute_exposure_premium("t", "power_coal", "net_zero_2050", 1e8, list(DEFAULT_HORIZON))
+    # coal (high regulatory exposure) has a materially larger credit premium than services
+    assert coal.credit_spread_premium_bps > r.credit_spread_premium_bps + 10
+
+
+def test_l4_zbase_default_is_pooled_mean_zero():
+    """The default (unmatched) exposure equals the pooled mean → z ≈ 0."""
+    r = compute_exposure_premium("t", "no_such_sector", "current_policies", 1e8, list(DEFAULT_HORIZON))
+    assert abs(r.cce_opportunity) < 0.5 and abs(r.cce_regulatory) < 0.5
+
+
+def test_lcoe_solar_below_coal_and_units_mwh():
+    lc = load_learning_curves()["technologies"]
+    assert "cost_2025_usd_per_mwh" in lc["solar_pv"]
+    assert "cost_2025_usd_per_mwh" in lc["coal_steam"]
+    assert lc["solar_pv"]["cost_2025_usd_per_mwh"] < lc["coal_steam"]["cost_2025_usd_per_mwh"]

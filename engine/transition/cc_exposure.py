@@ -97,20 +97,39 @@ def compute_exposure_premium(
     """
     base = firm_override if firm_override is not None else get_sector_exposure(sector)
     mods = _scenario_modifiers(scenario_id)
-    cce_opp = base.get("opportunity", 0.5) * mods.get("opportunity", 1.0)
-    cce_reg = base.get("regulatory", 0.5) * mods.get("regulatory", 1.0)
-    cce_phy = base.get("physical", 0.5) * mods.get("physical", 1.0)
+    # Raw exposure on the Sautner x10^3 scale, scenario-adjusted.
+    raw_opp = base.get("opportunity", 0.391) * mods.get("opportunity", 1.0)
+    raw_reg = base.get("regulatory", 0.049) * mods.get("regulatory", 1.0)
+    raw_phy = base.get("physical", 0.013) * mods.get("physical", 1.0)
 
-    elasts = load_cc_exposure()["_meta"]["elasticities"]
+    # D3 fix: standardise to z-scores against the pooled firm-year distribution
+    # (Sautner JoF 2023 Table 1), then apply bps-per-SD elasticities. Equity uses
+    # the z-score of OVERALL exposure (the Pricing paper's premium is per 1 SD of
+    # total CCExposure); credit and revenue use the component z-scores.
+    meta = load_cc_exposure()["_meta"]
+    dist = meta["pooled_distribution"]
+
+    def _z(val, key):
+        m, s = dist[key]["mean"], dist[key]["sd"]
+        return (val - m) / s if s else 0.0
+
+    z_opp = _z(raw_opp, "opportunity")
+    z_reg = _z(raw_reg, "regulatory")
+    z_phy = _z(raw_phy, "physical")
+    z_total = _z(raw_opp + raw_reg + raw_phy, "total")
+
+    elasts = meta["elasticities"]
     credit_bps = (
-        cce_reg * float(elasts["credit_spread_bps_per_unit_regulatory"]) +
-        cce_phy * float(elasts["credit_spread_bps_per_unit_physical"])
+        z_reg * float(elasts["credit_spread_bps_per_sd_regulatory"]) +
+        z_phy * float(elasts["credit_spread_bps_per_sd_physical"])
     )
-    equity_bps = (cce_opp + cce_reg + cce_phy) * float(elasts["equity_premium_bps_per_unit_total"])
+    equity_bps = z_total * float(elasts["equity_premium_bps_per_sd_total"])
     rev_growth_bps = (
-        cce_opp * float(elasts["revenue_growth_bps_per_unit_opportunity"])
-        - cce_reg * float(elasts["regulatory_revenue_drag_bps_per_unit"])
+        z_opp * float(elasts["revenue_growth_bps_per_sd_opportunity"])
+        - z_reg * float(elasts["regulatory_revenue_drag_bps_per_sd"])
     )
+    # Report the z-scores as the exposure measures (standardised units).
+    cce_opp, cce_reg, cce_phy = z_opp, z_reg, z_phy
 
     # Revenue modifier USD: applied as basis-point growth to the prior year's revenue,
     # cumulating across the horizon.

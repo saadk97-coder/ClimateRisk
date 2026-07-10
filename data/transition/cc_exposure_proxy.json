@@ -1,55 +1,218 @@
 {
   "_meta": {
-    "description": "Sector-median Climate Change Exposure (CCExposure) scores. Used as fallback when firm-level Sautner et al. data is not available. Three sub-measures: opportunity, regulatory, physical. Scores are normalised: 0 = no climate discussion in earnings calls; 1.0 ~ 1 in 1000 conversational frequency; values reflect approximate 2010-2020 medians from Sautner et al.",
+    "description": "Sector-typical Climate Change Exposure on the real Sautner (x10^3) scale, anchored to the SIC-industry means in Sautner et al. (JoF 2023) Table 4 where available and estimated from adjacent industries otherwise. Consumed as z-scores vs the pooled_distribution (D3 fix — raw 0-2 proxies inflated the elasticities ~500-1000x).",
     "sources": [
       "Sautner, van Lent, Vilkov, Zhang (2023). 'Firm-Level Climate Change Exposure.' Journal of Finance 78(3): 1449-1498. https://doi.org/10.1111/jofi.13219",
       "Sautner et al. (2023). 'Pricing Climate Change Exposure.' Management Science (forthcoming). https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3792366",
       "CCExposure dataset: https://osf.io/fd6jq/ (firm-level — not redistributed here; users with API access should override these defaults)"
     ],
     "elasticities": {
-      "_comment": "Empirical elasticities from Sautner et al. (2023) Management Science — translation of 1-σ CCExposure shock into pricing impact.",
-      "credit_spread_bps_per_unit_regulatory": 12.0,
-      "credit_spread_bps_per_unit_physical":   6.0,
-      "equity_premium_bps_per_unit_total":    50.0,
-      "revenue_growth_bps_per_unit_opportunity": 35.0,
-      "regulatory_revenue_drag_bps_per_unit": 25.0,
-      "source_ref": "Sautner Mgmt Sci 2023 Tables 4-7"
+      "_comment": "Per-SD pricing elasticities. Equity uses the z-score of OVERALL exposure (Sautner Pricing paper: carbon premium per 1 SD of CCExposure); credit and revenue use component z-scores. bps per standard deviation.",
+      "equity_premium_bps_per_sd_total": 50.0,
+      "credit_spread_bps_per_sd_regulatory": 12.0,
+      "credit_spread_bps_per_sd_physical": 6.0,
+      "revenue_growth_bps_per_sd_opportunity": 35.0,
+      "regulatory_revenue_drag_bps_per_sd": 25.0,
+      "source_ref": "Sautner et al. Pricing Climate Change Exposure (Mgmt Sci 2023); distribution from Firm-Level Climate Change Exposure (JoF 2023) Table 1"
     },
     "scenario_modifiers": {
       "_comment": "Scenario-specific multipliers on CCExposure. Disorderly transitions amplify regulatory exposure; ordered transitions amplify opportunity.",
-      "net_zero_2050":      {"opportunity": 1.40, "regulatory": 1.20, "physical": 0.85},
-      "below_2c":           {"opportunity": 1.20, "regulatory": 1.00, "physical": 0.90},
-      "divergent_net_zero": {"opportunity": 1.30, "regulatory": 1.50, "physical": 0.90},
-      "delayed_transition": {"opportunity": 0.90, "regulatory": 1.80, "physical": 1.10},
-      "ndcs_only":          {"opportunity": 1.00, "regulatory": 0.90, "physical": 1.20},
-      "current_policies":   {"opportunity": 0.80, "regulatory": 0.60, "physical": 1.50},
-      "fragmented_world":   {"opportunity": 0.95, "regulatory": 1.55, "physical": 1.45},
-      "iea_nze":            {"opportunity": 1.40, "regulatory": 1.20, "physical": 0.85},
-      "iea_aps":            {"opportunity": 1.20, "regulatory": 1.00, "physical": 0.90},
-      "iea_steps":          {"opportunity": 1.00, "regulatory": 0.90, "physical": 1.20}
+      "net_zero_2050": {
+        "opportunity": 1.4,
+        "regulatory": 1.2,
+        "physical": 0.85
+      },
+      "below_2c": {
+        "opportunity": 1.2,
+        "regulatory": 1.0,
+        "physical": 0.9
+      },
+      "divergent_net_zero": {
+        "opportunity": 1.3,
+        "regulatory": 1.5,
+        "physical": 0.9
+      },
+      "delayed_transition": {
+        "opportunity": 0.9,
+        "regulatory": 1.8,
+        "physical": 1.1
+      },
+      "ndcs_only": {
+        "opportunity": 1.0,
+        "regulatory": 0.9,
+        "physical": 1.2
+      },
+      "current_policies": {
+        "opportunity": 0.8,
+        "regulatory": 0.6,
+        "physical": 1.5
+      },
+      "fragmented_world": {
+        "opportunity": 0.95,
+        "regulatory": 1.55,
+        "physical": 1.45
+      },
+      "iea_nze": {
+        "opportunity": 1.4,
+        "regulatory": 1.2,
+        "physical": 0.85
+      },
+      "iea_aps": {
+        "opportunity": 1.2,
+        "regulatory": 1.0,
+        "physical": 0.9
+      },
+      "iea_steps": {
+        "opportunity": 1.0,
+        "regulatory": 0.9,
+        "physical": 1.2
+      }
+    },
+    "pooled_distribution": {
+      "_comment": "Pooled firm-year distribution of CCExposure (x10^3) from Sautner et al. (JoF 2023) Table 1, used to z-standardise sector exposures. 80,221 firm-years, 10,158 firms, 2002-2019.",
+      "total": {
+        "mean": 0.943,
+        "sd": 2.443
+      },
+      "opportunity": {
+        "mean": 0.391,
+        "sd": 1.344
+      },
+      "regulatory": {
+        "mean": 0.049,
+        "sd": 0.264
+      },
+      "physical": {
+        "mean": 0.013,
+        "sd": 0.103
+      }
     }
   },
   "sectors": {
-    "power_coal":             {"opportunity": 0.32, "regulatory": 1.95, "physical": 0.55},
-    "power_gas":              {"opportunity": 0.65, "regulatory": 1.40, "physical": 0.45},
-    "power_renewable":        {"opportunity": 2.10, "regulatory": 0.70, "physical": 0.40},
-    "oil_upstream":           {"opportunity": 0.28, "regulatory": 1.85, "physical": 0.65},
-    "oil_refining":           {"opportunity": 0.35, "regulatory": 1.70, "physical": 0.55},
-    "gas_distribution":       {"opportunity": 0.45, "regulatory": 1.25, "physical": 0.50},
-    "steel":                  {"opportunity": 0.55, "regulatory": 1.30, "physical": 0.40},
-    "cement":                 {"opportunity": 0.45, "regulatory": 1.40, "physical": 0.45},
-    "chemicals":              {"opportunity": 0.65, "regulatory": 1.15, "physical": 0.50},
-    "aluminium":              {"opportunity": 0.55, "regulatory": 1.25, "physical": 0.45},
-    "road_transport_ice":     {"opportunity": 0.40, "regulatory": 1.65, "physical": 0.30},
-    "road_transport_ev":      {"opportunity": 2.30, "regulatory": 0.55, "physical": 0.25},
-    "aviation":               {"opportunity": 0.35, "regulatory": 1.25, "physical": 0.55},
-    "shipping":               {"opportunity": 0.45, "regulatory": 1.10, "physical": 0.65},
-    "real_estate_commercial": {"opportunity": 0.85, "regulatory": 0.95, "physical": 0.95},
-    "real_estate_residential":{"opportunity": 0.55, "regulatory": 0.65, "physical": 0.85},
-    "agriculture":            {"opportunity": 0.50, "regulatory": 0.80, "physical": 1.20},
-    "data_center":            {"opportunity": 1.20, "regulatory": 0.80, "physical": 0.65},
-    "manufacturing_general":  {"opportunity": 0.55, "regulatory": 0.85, "physical": 0.55},
-    "services":               {"opportunity": 0.45, "regulatory": 0.45, "physical": 0.40}
+    "power_coal": {
+      "opportunity": 0.8,
+      "regulatory": 0.55,
+      "physical": 0.05,
+      "src": "SIC49 utilities + coal (SIC12 reg 0.162) fossil split"
+    },
+    "power_gas": {
+      "opportunity": 1.3,
+      "regulatory": 0.4,
+      "physical": 0.045,
+      "src": "SIC49 utilities, gas split"
+    },
+    "power_renewable": {
+      "opportunity": 2.944,
+      "regulatory": 0.15,
+      "physical": 0.035,
+      "src": "SIC49 utilities opp (real), low reg"
+    },
+    "oil_upstream": {
+      "opportunity": 0.5,
+      "regulatory": 0.3,
+      "physical": 0.05,
+      "src": "SIC13/12 extraction"
+    },
+    "oil_refining": {
+      "opportunity": 0.5,
+      "regulatory": 0.128,
+      "physical": 0.02,
+      "src": "SIC29 petroleum refining reg (real)"
+    },
+    "gas_distribution": {
+      "opportunity": 0.9,
+      "regulatory": 0.3,
+      "physical": 0.04,
+      "src": "SIC49 distribution split"
+    },
+    "steel": {
+      "opportunity": 0.4,
+      "regulatory": 0.085,
+      "physical": 0.02,
+      "src": "SIC33 primary metal reg (real)"
+    },
+    "cement": {
+      "opportunity": 0.3,
+      "regulatory": 0.105,
+      "physical": 0.02,
+      "src": "SIC32 stone/clay/glass reg (real)"
+    },
+    "chemicals": {
+      "opportunity": 0.5,
+      "regulatory": 0.1,
+      "physical": 0.02,
+      "src": "SIC28 estimate"
+    },
+    "aluminium": {
+      "opportunity": 0.4,
+      "regulatory": 0.088,
+      "physical": 0.029,
+      "src": "SIC10 metal mining reg (real)"
+    },
+    "road_transport_ice": {
+      "opportunity": 0.93,
+      "regulatory": 0.076,
+      "physical": 0.01,
+      "src": "SIC37 transport equipment (real)"
+    },
+    "road_transport_ev": {
+      "opportunity": 1.8,
+      "regulatory": 0.04,
+      "physical": 0.01,
+      "src": "SIC37, opportunity-tilted"
+    },
+    "aviation": {
+      "opportunity": 0.5,
+      "regulatory": 0.1,
+      "physical": 0.02,
+      "src": "transport services estimate"
+    },
+    "shipping": {
+      "opportunity": 0.5,
+      "regulatory": 0.1,
+      "physical": 0.02,
+      "src": "transport services estimate"
+    },
+    "real_estate_commercial": {
+      "opportunity": 0.3,
+      "regulatory": 0.04,
+      "physical": 0.03,
+      "src": "SIC65 estimate"
+    },
+    "real_estate_residential": {
+      "opportunity": 0.25,
+      "regulatory": 0.03,
+      "physical": 0.03,
+      "src": "SIC65 estimate"
+    },
+    "agriculture": {
+      "opportunity": 0.35,
+      "regulatory": 0.05,
+      "physical": 0.06,
+      "src": "SIC01/02 estimate, physical-tilted"
+    },
+    "data_center": {
+      "opportunity": 0.954,
+      "regulatory": 0.04,
+      "physical": 0.02,
+      "src": "SIC36 electronic (real opp)"
+    },
+    "manufacturing_general": {
+      "opportunity": 0.7,
+      "regulatory": 0.08,
+      "physical": 0.03,
+      "src": "SIC34/35 blend (real)"
+    },
+    "services": {
+      "opportunity": 0.2,
+      "regulatory": 0.02,
+      "physical": 0.01,
+      "src": "SIC60/58/82 low (real)"
+    }
   },
-  "default_unmatched": {"opportunity": 0.50, "regulatory": 0.85, "physical": 0.60}
+  "default_unmatched": {
+    "opportunity": 0.391,
+    "regulatory": 0.049,
+    "physical": 0.013
+  }
 }

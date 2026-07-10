@@ -2,32 +2,56 @@
   "_meta": {
     "description": "Wright's Law learning rates per technology. Learning rate = fraction of cost reduction per doubling of cumulative installed capacity. Includes Lafond-style log-normal forecast σ for distributional projection. Used by Layer 2 to project crossover years and stranded-asset triggers.",
     "sources": [
-      "Way, Ives, Mealy, Farmer (2022). 'Empirically grounded technology forecasts and the energy transition.' Joule 6(9). https://doi.org/10.1016/j.joule.2022.08.009",
-      "Lafond, Bailey, Bakker, Rebois, Zadourian, McSharry, Farmer (2018). 'How well do experience curves predict technological progress?' Tech Forecasting & Social Change 128: 104-117. https://doi.org/10.1016/j.techfore.2017.11.001",
-      "Santa Fe Institute Performance Curve Database: https://pcdb.santafe.edu/",
       "IRENA (2023). 'Renewable Power Generation Costs in 2022.' https://www.irena.org/publications/2023/Aug/Renewable-Power-Generation-Costs-in-2022",
+      "IRENA (2025). Renewable Power Generation Costs in 2024.",
+      "Lafond, Bailey, Bakker, Rebois, Zadourian, McSharry, Farmer (2018). 'How well do experience curves predict technological progress?' Tech Forecasting & Social Change 128: 104-117. https://doi.org/10.1016/j.techfore.2017.11.001",
+      "Lazard (2025). Levelized Cost of Energy+ v18 (June 2025).",
+      "Santa Fe Institute Performance Curve Database: https://pcdb.santafe.edu/",
+      "Way, Ives, Mealy, Farmer (2022). 'Empirically grounded technology forecasts and the energy transition.' Joule 6(9). https://doi.org/10.1016/j.joule.2022.08.009",
+      "Way, Ives, Mealy, Farmer (2022). Joule 6(9) — learning rates.",
       "Ziegler & Trancik (2021). 'Re-examining rates of lithium-ion battery technology improvement and cost decline.' Energy & Environ Sci 14: 1635-1651."
     ],
-    "method": "Cost(Q) = Cost(Q0) * (Q/Q0)^(log2(1-LR)). LR = learning rate; Q = cumulative production. Lafond σ enables distributional forecasts: log(Cost_t) ~ Normal(log(Cost_pred_t), σ * sqrt(t))."
+    "method": "Cost(Q) = Cost(Q0) * (Q/Q0)^(log2(1-LR)). LR = learning rate; Q = cumulative production. Lafond σ enables distributional forecasts: log(Cost_t) ~ Normal(log(Cost_pred_t), σ * sqrt(t)).",
+    "units_note": "Power-sector base costs are LCOE in USD/MWh (IRENA 2024 / Lazard 2025 v18); industrial base costs remain USD per unit product and are sector estimates pending sourced LCOE ratios."
   },
   "technologies": {
     "solar_pv": {
       "label": "Solar PV (utility-scale)",
       "learning_rate": 0.24,
-      "cost_2025_usd_per_kw": 950,
       "lafond_sigma": 0.085,
       "category": "challenger",
-      "annual_capacity_growth_2025_2050": {"net_zero_2050": 0.18, "below_2c": 0.13, "delayed_transition": 0.10, "ndcs_only": 0.07, "current_policies": 0.05, "fragmented_world": 0.08, "iea_nze": 0.18, "iea_aps": 0.12, "iea_steps": 0.06},
-      "source_ref": "IRENA 2023; Way et al. 2022 Table S1"
+      "annual_capacity_growth_2025_2050": {
+        "net_zero_2050": 0.18,
+        "below_2c": 0.13,
+        "delayed_transition": 0.1,
+        "ndcs_only": 0.07,
+        "current_policies": 0.05,
+        "fragmented_world": 0.08,
+        "iea_nze": 0.18,
+        "iea_aps": 0.12,
+        "iea_steps": 0.06
+      },
+      "source_ref": "IRENA Renewable Power Generation Costs in 2024 (global weighted avg $0.043/kWh)",
+      "cost_2025_usd_per_mwh": 43.0
     },
     "onshore_wind": {
       "label": "Onshore Wind",
       "learning_rate": 0.19,
-      "cost_2025_usd_per_kw": 1300,
       "lafond_sigma": 0.075,
       "category": "challenger",
-      "annual_capacity_growth_2025_2050": {"net_zero_2050": 0.10, "below_2c": 0.08, "delayed_transition": 0.06, "ndcs_only": 0.04, "current_policies": 0.03, "fragmented_world": 0.05, "iea_nze": 0.10, "iea_aps": 0.07, "iea_steps": 0.04},
-      "source_ref": "IRENA 2023"
+      "annual_capacity_growth_2025_2050": {
+        "net_zero_2050": 0.1,
+        "below_2c": 0.08,
+        "delayed_transition": 0.06,
+        "ndcs_only": 0.04,
+        "current_policies": 0.03,
+        "fragmented_world": 0.05,
+        "iea_nze": 0.1,
+        "iea_aps": 0.07,
+        "iea_steps": 0.04
+      },
+      "source_ref": "IRENA Renewable Power Generation Costs in 2024 ($0.034/kWh)",
+      "cost_2025_usd_per_mwh": 34.0
     },
     "offshore_wind": {
       "label": "Offshore Wind",
@@ -35,17 +59,37 @@
       "cost_2025_usd_per_kw": 3100,
       "lafond_sigma": 0.11,
       "category": "challenger",
-      "annual_capacity_growth_2025_2050": {"net_zero_2050": 0.16, "below_2c": 0.12, "delayed_transition": 0.09, "ndcs_only": 0.05, "current_policies": 0.03, "fragmented_world": 0.06, "iea_nze": 0.16, "iea_aps": 0.10, "iea_steps": 0.04},
+      "annual_capacity_growth_2025_2050": {
+        "net_zero_2050": 0.16,
+        "below_2c": 0.12,
+        "delayed_transition": 0.09,
+        "ndcs_only": 0.05,
+        "current_policies": 0.03,
+        "fragmented_world": 0.06,
+        "iea_nze": 0.16,
+        "iea_aps": 0.1,
+        "iea_steps": 0.04
+      },
       "source_ref": "IRENA 2023; Way et al. 2022"
     },
     "battery_storage": {
       "label": "Lithium-ion Battery Storage",
       "learning_rate": 0.22,
-      "cost_2025_usd_per_kwh": 280,
       "lafond_sigma": 0.09,
       "category": "challenger",
-      "annual_capacity_growth_2025_2050": {"net_zero_2050": 0.30, "below_2c": 0.22, "delayed_transition": 0.18, "ndcs_only": 0.12, "current_policies": 0.10, "fragmented_world": 0.14, "iea_nze": 0.30, "iea_aps": 0.20, "iea_steps": 0.10},
-      "source_ref": "Ziegler & Trancik 2021"
+      "annual_capacity_growth_2025_2050": {
+        "net_zero_2050": 0.3,
+        "below_2c": 0.22,
+        "delayed_transition": 0.18,
+        "ndcs_only": 0.12,
+        "current_policies": 0.1,
+        "fragmented_world": 0.14,
+        "iea_nze": 0.3,
+        "iea_aps": 0.2,
+        "iea_steps": 0.1
+      },
+      "source_ref": "Lazard LCOE+ 2025 v18 standalone storage LCOS (~$170/MWh)",
+      "cost_2025_usd_per_mwh": 170.0
     },
     "ev": {
       "label": "Electric Vehicle (battery + powertrain)",
@@ -53,7 +97,17 @@
       "cost_2025_usd_per_unit": 32000,
       "lafond_sigma": 0.07,
       "category": "challenger",
-      "annual_capacity_growth_2025_2050": {"net_zero_2050": 0.25, "below_2c": 0.18, "delayed_transition": 0.15, "ndcs_only": 0.10, "current_policies": 0.07, "fragmented_world": 0.12, "iea_nze": 0.25, "iea_aps": 0.18, "iea_steps": 0.08},
+      "annual_capacity_growth_2025_2050": {
+        "net_zero_2050": 0.25,
+        "below_2c": 0.18,
+        "delayed_transition": 0.15,
+        "ndcs_only": 0.1,
+        "current_policies": 0.07,
+        "fragmented_world": 0.12,
+        "iea_nze": 0.25,
+        "iea_aps": 0.18,
+        "iea_steps": 0.08
+      },
       "source_ref": "Way et al. 2022; BNEF EV Outlook 2023"
     },
     "electrolyser": {
@@ -62,7 +116,17 @@
       "cost_2025_usd_per_kw": 800,
       "lafond_sigma": 0.13,
       "category": "challenger",
-      "annual_capacity_growth_2025_2050": {"net_zero_2050": 0.40, "below_2c": 0.30, "delayed_transition": 0.25, "ndcs_only": 0.10, "current_policies": 0.05, "fragmented_world": 0.18, "iea_nze": 0.40, "iea_aps": 0.25, "iea_steps": 0.06},
+      "annual_capacity_growth_2025_2050": {
+        "net_zero_2050": 0.4,
+        "below_2c": 0.3,
+        "delayed_transition": 0.25,
+        "ndcs_only": 0.1,
+        "current_policies": 0.05,
+        "fragmented_world": 0.18,
+        "iea_nze": 0.4,
+        "iea_aps": 0.25,
+        "iea_steps": 0.06
+      },
       "source_ref": "IEA Global Hydrogen Review 2023"
     },
     "heat_pump": {
@@ -71,16 +135,36 @@
       "cost_2025_usd_per_kw": 700,
       "lafond_sigma": 0.06,
       "category": "challenger",
-      "annual_capacity_growth_2025_2050": {"net_zero_2050": 0.16, "below_2c": 0.12, "delayed_transition": 0.09, "ndcs_only": 0.06, "current_policies": 0.04, "fragmented_world": 0.07, "iea_nze": 0.16, "iea_aps": 0.10, "iea_steps": 0.05},
+      "annual_capacity_growth_2025_2050": {
+        "net_zero_2050": 0.16,
+        "below_2c": 0.12,
+        "delayed_transition": 0.09,
+        "ndcs_only": 0.06,
+        "current_policies": 0.04,
+        "fragmented_world": 0.07,
+        "iea_nze": 0.16,
+        "iea_aps": 0.1,
+        "iea_steps": 0.05
+      },
       "source_ref": "IEA Future of Heat Pumps 2022"
     },
     "h2_dri": {
       "label": "Hydrogen Direct-Reduced Iron (steel)",
-      "learning_rate": 0.10,
+      "learning_rate": 0.1,
       "cost_2025_usd_per_t": 850,
       "lafond_sigma": 0.14,
       "category": "challenger",
-      "annual_capacity_growth_2025_2050": {"net_zero_2050": 0.35, "below_2c": 0.22, "delayed_transition": 0.18, "ndcs_only": 0.05, "current_policies": 0.02, "fragmented_world": 0.10, "iea_nze": 0.35, "iea_aps": 0.18, "iea_steps": 0.03},
+      "annual_capacity_growth_2025_2050": {
+        "net_zero_2050": 0.35,
+        "below_2c": 0.22,
+        "delayed_transition": 0.18,
+        "ndcs_only": 0.05,
+        "current_policies": 0.02,
+        "fragmented_world": 0.1,
+        "iea_nze": 0.35,
+        "iea_aps": 0.18,
+        "iea_steps": 0.03
+      },
       "source_ref": "IEA Iron & Steel Technology Roadmap 2020"
     },
     "saf": {
@@ -89,7 +173,17 @@
       "cost_2025_usd_per_t": 2200,
       "lafond_sigma": 0.12,
       "category": "challenger",
-      "annual_capacity_growth_2025_2050": {"net_zero_2050": 0.45, "below_2c": 0.30, "delayed_transition": 0.25, "ndcs_only": 0.10, "current_policies": 0.05, "fragmented_world": 0.15, "iea_nze": 0.45, "iea_aps": 0.22, "iea_steps": 0.06},
+      "annual_capacity_growth_2025_2050": {
+        "net_zero_2050": 0.45,
+        "below_2c": 0.3,
+        "delayed_transition": 0.25,
+        "ndcs_only": 0.1,
+        "current_policies": 0.05,
+        "fragmented_world": 0.15,
+        "iea_nze": 0.45,
+        "iea_aps": 0.22,
+        "iea_steps": 0.06
+      },
       "source_ref": "ICAO LTAG 2022; IEA Aviation 2023"
     },
     "ammonia": {
@@ -98,16 +192,36 @@
       "cost_2025_usd_per_t": 950,
       "lafond_sigma": 0.13,
       "category": "challenger",
-      "annual_capacity_growth_2025_2050": {"net_zero_2050": 0.38, "below_2c": 0.25, "delayed_transition": 0.20, "ndcs_only": 0.06, "current_policies": 0.02, "fragmented_world": 0.10, "iea_nze": 0.38, "iea_aps": 0.18, "iea_steps": 0.04},
+      "annual_capacity_growth_2025_2050": {
+        "net_zero_2050": 0.38,
+        "below_2c": 0.25,
+        "delayed_transition": 0.2,
+        "ndcs_only": 0.06,
+        "current_policies": 0.02,
+        "fragmented_world": 0.1,
+        "iea_nze": 0.38,
+        "iea_aps": 0.18,
+        "iea_steps": 0.04
+      },
       "source_ref": "IRENA & Methanol Institute 2021"
     },
     "biorefining": {
       "label": "Advanced Biofuel Refining",
       "learning_rate": 0.08,
       "cost_2025_usd_per_t": 1400,
-      "lafond_sigma": 0.10,
+      "lafond_sigma": 0.1,
       "category": "challenger",
-      "annual_capacity_growth_2025_2050": {"net_zero_2050": 0.18, "below_2c": 0.12, "delayed_transition": 0.10, "ndcs_only": 0.05, "current_policies": 0.02, "fragmented_world": 0.06, "iea_nze": 0.18, "iea_aps": 0.10, "iea_steps": 0.03},
+      "annual_capacity_growth_2025_2050": {
+        "net_zero_2050": 0.18,
+        "below_2c": 0.12,
+        "delayed_transition": 0.1,
+        "ndcs_only": 0.05,
+        "current_policies": 0.02,
+        "fragmented_world": 0.06,
+        "iea_nze": 0.18,
+        "iea_aps": 0.1,
+        "iea_steps": 0.03
+      },
       "source_ref": "IEA Bioenergy 2023"
     },
     "low_clinker_ccus": {
@@ -116,53 +230,113 @@
       "cost_2025_usd_per_t": 230,
       "lafond_sigma": 0.11,
       "category": "challenger",
-      "annual_capacity_growth_2025_2050": {"net_zero_2050": 0.22, "below_2c": 0.14, "delayed_transition": 0.11, "ndcs_only": 0.04, "current_policies": 0.02, "fragmented_world": 0.06, "iea_nze": 0.22, "iea_aps": 0.12, "iea_steps": 0.03},
+      "annual_capacity_growth_2025_2050": {
+        "net_zero_2050": 0.22,
+        "below_2c": 0.14,
+        "delayed_transition": 0.11,
+        "ndcs_only": 0.04,
+        "current_policies": 0.02,
+        "fragmented_world": 0.06,
+        "iea_nze": 0.22,
+        "iea_aps": 0.12,
+        "iea_steps": 0.03
+      },
       "source_ref": "IEA Cement Technology Roadmap 2018; CEMBUREAU 2050 Roadmap"
     },
     "renewable_smelter": {
       "label": "Renewable-Powered Smelter",
-      "learning_rate": 0.10,
+      "learning_rate": 0.1,
       "cost_2025_usd_per_t": 2400,
       "lafond_sigma": 0.09,
       "category": "challenger",
-      "annual_capacity_growth_2025_2050": {"net_zero_2050": 0.20, "below_2c": 0.13, "delayed_transition": 0.10, "ndcs_only": 0.04, "current_policies": 0.02, "fragmented_world": 0.05, "iea_nze": 0.20, "iea_aps": 0.10, "iea_steps": 0.03},
+      "annual_capacity_growth_2025_2050": {
+        "net_zero_2050": 0.2,
+        "below_2c": 0.13,
+        "delayed_transition": 0.1,
+        "ndcs_only": 0.04,
+        "current_policies": 0.02,
+        "fragmented_world": 0.05,
+        "iea_nze": 0.2,
+        "iea_aps": 0.1,
+        "iea_steps": 0.03
+      },
       "source_ref": "Mission Possible Partnership 2022"
     },
     "regenerative": {
       "label": "Regenerative Agriculture Practices",
       "learning_rate": 0.05,
       "cost_2025_usd_per_ha": 350,
-      "lafond_sigma": 0.10,
+      "lafond_sigma": 0.1,
       "category": "challenger",
-      "annual_capacity_growth_2025_2050": {"net_zero_2050": 0.10, "below_2c": 0.07, "delayed_transition": 0.05, "ndcs_only": 0.03, "current_policies": 0.02, "fragmented_world": 0.04, "iea_nze": 0.10, "iea_aps": 0.06, "iea_steps": 0.02},
+      "annual_capacity_growth_2025_2050": {
+        "net_zero_2050": 0.1,
+        "below_2c": 0.07,
+        "delayed_transition": 0.05,
+        "ndcs_only": 0.03,
+        "current_policies": 0.02,
+        "fragmented_world": 0.04,
+        "iea_nze": 0.1,
+        "iea_aps": 0.06,
+        "iea_steps": 0.02
+      },
       "source_ref": "FAO 2022; Project Drawdown"
     },
     "renewable_ppa": {
       "label": "Corporate Renewable PPA",
-      "learning_rate": 0.20,
+      "learning_rate": 0.2,
       "cost_2025_usd_per_mwh": 45,
       "lafond_sigma": 0.07,
       "category": "challenger",
-      "annual_capacity_growth_2025_2050": {"net_zero_2050": 0.18, "below_2c": 0.13, "delayed_transition": 0.10, "ndcs_only": 0.07, "current_policies": 0.05, "fragmented_world": 0.08, "iea_nze": 0.18, "iea_aps": 0.12, "iea_steps": 0.06},
+      "annual_capacity_growth_2025_2050": {
+        "net_zero_2050": 0.18,
+        "below_2c": 0.13,
+        "delayed_transition": 0.1,
+        "ndcs_only": 0.07,
+        "current_policies": 0.05,
+        "fragmented_world": 0.08,
+        "iea_nze": 0.18,
+        "iea_aps": 0.12,
+        "iea_steps": 0.06
+      },
       "source_ref": "BNEF Corporate Energy Procurement 2023"
     },
     "coal_steam": {
       "label": "Coal Steam Power (incumbent)",
-      "learning_rate": 0.00,
-      "cost_2025_usd_per_kw": 2200,
+      "learning_rate": 0.0,
       "lafond_sigma": 0.04,
       "category": "incumbent",
-      "annual_capacity_growth_2025_2050": {"net_zero_2050": -0.20, "below_2c": -0.12, "delayed_transition": -0.08, "ndcs_only": -0.02, "current_policies":  0.01, "fragmented_world": -0.04, "iea_nze": -0.20, "iea_aps": -0.10, "iea_steps": -0.02},
-      "source_ref": "IEA Coal 2022"
+      "annual_capacity_growth_2025_2050": {
+        "net_zero_2050": -0.2,
+        "below_2c": -0.12,
+        "delayed_transition": -0.08,
+        "ndcs_only": -0.02,
+        "current_policies": 0.01,
+        "fragmented_world": -0.04,
+        "iea_nze": -0.2,
+        "iea_aps": -0.1,
+        "iea_steps": -0.02
+      },
+      "source_ref": "Lazard LCOE+ 2025 v18 (coal $71-173/MWh, midpoint)",
+      "cost_2025_usd_per_mwh": 118.0
     },
     "gas_ccgt": {
       "label": "Gas Combined Cycle (incumbent)",
       "learning_rate": 0.04,
-      "cost_2025_usd_per_kw": 1100,
       "lafond_sigma": 0.04,
       "category": "incumbent",
-      "annual_capacity_growth_2025_2050": {"net_zero_2050": -0.10, "below_2c": -0.05, "delayed_transition": -0.02, "ndcs_only":  0.02, "current_policies":  0.03, "fragmented_world": -0.01, "iea_nze": -0.10, "iea_aps": -0.04, "iea_steps":  0.01},
-      "source_ref": "IEA Gas Market Report 2023"
+      "annual_capacity_growth_2025_2050": {
+        "net_zero_2050": -0.1,
+        "below_2c": -0.05,
+        "delayed_transition": -0.02,
+        "ndcs_only": 0.02,
+        "current_policies": 0.03,
+        "fragmented_world": -0.01,
+        "iea_nze": -0.1,
+        "iea_aps": -0.04,
+        "iea_steps": 0.01
+      },
+      "source_ref": "Lazard LCOE+ 2025 v18 (gas CCGT $48-109/MWh, midpoint)",
+      "cost_2025_usd_per_mwh": 76.0
     },
     "ice_vehicle": {
       "label": "Internal Combustion Vehicle (incumbent)",
@@ -170,16 +344,36 @@
       "cost_2025_usd_per_unit": 28000,
       "lafond_sigma": 0.04,
       "category": "incumbent",
-      "annual_capacity_growth_2025_2050": {"net_zero_2050": -0.18, "below_2c": -0.10, "delayed_transition": -0.06, "ndcs_only": -0.02, "current_policies":  0.00, "fragmented_world": -0.04, "iea_nze": -0.18, "iea_aps": -0.08, "iea_steps": -0.01},
+      "annual_capacity_growth_2025_2050": {
+        "net_zero_2050": -0.18,
+        "below_2c": -0.1,
+        "delayed_transition": -0.06,
+        "ndcs_only": -0.02,
+        "current_policies": 0.0,
+        "fragmented_world": -0.04,
+        "iea_nze": -0.18,
+        "iea_aps": -0.08,
+        "iea_steps": -0.01
+      },
       "source_ref": "IEA Global EV Outlook 2023"
     },
     "oil_extraction": {
       "label": "Conventional Oil Extraction (incumbent)",
-      "learning_rate": 0.00,
+      "learning_rate": 0.0,
       "cost_2025_usd_per_bbl": 35,
       "lafond_sigma": 0.05,
       "category": "incumbent",
-      "annual_capacity_growth_2025_2050": {"net_zero_2050": -0.15, "below_2c": -0.08, "delayed_transition": -0.05, "ndcs_only":  0.00, "current_policies":  0.01, "fragmented_world": -0.02, "iea_nze": -0.15, "iea_aps": -0.06, "iea_steps":  0.00},
+      "annual_capacity_growth_2025_2050": {
+        "net_zero_2050": -0.15,
+        "below_2c": -0.08,
+        "delayed_transition": -0.05,
+        "ndcs_only": 0.0,
+        "current_policies": 0.01,
+        "fragmented_world": -0.02,
+        "iea_nze": -0.15,
+        "iea_aps": -0.06,
+        "iea_steps": 0.0
+      },
       "source_ref": "IEA WEO 2023; Carbon Tracker 2022"
     },
     "oil_refining": {
@@ -188,7 +382,17 @@
       "cost_2025_usd_per_t": 600,
       "lafond_sigma": 0.04,
       "category": "incumbent",
-      "annual_capacity_growth_2025_2050": {"net_zero_2050": -0.12, "below_2c": -0.06, "delayed_transition": -0.04, "ndcs_only": -0.01, "current_policies":  0.01, "fragmented_world": -0.02, "iea_nze": -0.12, "iea_aps": -0.05, "iea_steps":  0.00},
+      "annual_capacity_growth_2025_2050": {
+        "net_zero_2050": -0.12,
+        "below_2c": -0.06,
+        "delayed_transition": -0.04,
+        "ndcs_only": -0.01,
+        "current_policies": 0.01,
+        "fragmented_world": -0.02,
+        "iea_nze": -0.12,
+        "iea_aps": -0.05,
+        "iea_steps": 0.0
+      },
       "source_ref": "IEA WEO 2023"
     },
     "blast_furnace": {
@@ -197,7 +401,17 @@
       "cost_2025_usd_per_t": 520,
       "lafond_sigma": 0.04,
       "category": "incumbent",
-      "annual_capacity_growth_2025_2050": {"net_zero_2050": -0.10, "below_2c": -0.05, "delayed_transition": -0.03, "ndcs_only": -0.01, "current_policies":  0.01, "fragmented_world": -0.02, "iea_nze": -0.10, "iea_aps": -0.04, "iea_steps":  0.00},
+      "annual_capacity_growth_2025_2050": {
+        "net_zero_2050": -0.1,
+        "below_2c": -0.05,
+        "delayed_transition": -0.03,
+        "ndcs_only": -0.01,
+        "current_policies": 0.01,
+        "fragmented_world": -0.02,
+        "iea_nze": -0.1,
+        "iea_aps": -0.04,
+        "iea_steps": 0.0
+      },
       "source_ref": "WorldSteel 2023"
     },
     "cement_clinker": {
@@ -206,7 +420,17 @@
       "cost_2025_usd_per_t": 90,
       "lafond_sigma": 0.04,
       "category": "incumbent",
-      "annual_capacity_growth_2025_2050": {"net_zero_2050": -0.06, "below_2c": -0.03, "delayed_transition": -0.02, "ndcs_only":  0.00, "current_policies":  0.01, "fragmented_world": -0.01, "iea_nze": -0.06, "iea_aps": -0.02, "iea_steps":  0.00},
+      "annual_capacity_growth_2025_2050": {
+        "net_zero_2050": -0.06,
+        "below_2c": -0.03,
+        "delayed_transition": -0.02,
+        "ndcs_only": 0.0,
+        "current_policies": 0.01,
+        "fragmented_world": -0.01,
+        "iea_nze": -0.06,
+        "iea_aps": -0.02,
+        "iea_steps": 0.0
+      },
       "source_ref": "CEMBUREAU 2050 Roadmap"
     },
     "petrochemical": {
@@ -215,7 +439,17 @@
       "cost_2025_usd_per_t": 950,
       "lafond_sigma": 0.05,
       "category": "incumbent",
-      "annual_capacity_growth_2025_2050": {"net_zero_2050": -0.08, "below_2c": -0.04, "delayed_transition": -0.02, "ndcs_only":  0.00, "current_policies":  0.02, "fragmented_world": -0.01, "iea_nze": -0.08, "iea_aps": -0.03, "iea_steps":  0.01},
+      "annual_capacity_growth_2025_2050": {
+        "net_zero_2050": -0.08,
+        "below_2c": -0.04,
+        "delayed_transition": -0.02,
+        "ndcs_only": 0.0,
+        "current_policies": 0.02,
+        "fragmented_world": -0.01,
+        "iea_nze": -0.08,
+        "iea_aps": -0.03,
+        "iea_steps": 0.01
+      },
       "source_ref": "IEA Petrochemicals 2018"
     },
     "smelter": {
@@ -224,7 +458,17 @@
       "cost_2025_usd_per_t": 2000,
       "lafond_sigma": 0.05,
       "category": "incumbent",
-      "annual_capacity_growth_2025_2050": {"net_zero_2050": -0.04, "below_2c": -0.02, "delayed_transition": -0.01, "ndcs_only":  0.00, "current_policies":  0.01, "fragmented_world":  0.00, "iea_nze": -0.04, "iea_aps": -0.02, "iea_steps":  0.00},
+      "annual_capacity_growth_2025_2050": {
+        "net_zero_2050": -0.04,
+        "below_2c": -0.02,
+        "delayed_transition": -0.01,
+        "ndcs_only": 0.0,
+        "current_policies": 0.01,
+        "fragmented_world": 0.0,
+        "iea_nze": -0.04,
+        "iea_aps": -0.02,
+        "iea_steps": 0.0
+      },
       "source_ref": "International Aluminium Institute 2022"
     },
     "jet_fuel": {
@@ -233,7 +477,17 @@
       "cost_2025_usd_per_t": 800,
       "lafond_sigma": 0.04,
       "category": "incumbent",
-      "annual_capacity_growth_2025_2050": {"net_zero_2050": -0.10, "below_2c": -0.05, "delayed_transition": -0.03, "ndcs_only": -0.01, "current_policies":  0.01, "fragmented_world": -0.02, "iea_nze": -0.10, "iea_aps": -0.04, "iea_steps":  0.00},
+      "annual_capacity_growth_2025_2050": {
+        "net_zero_2050": -0.1,
+        "below_2c": -0.05,
+        "delayed_transition": -0.03,
+        "ndcs_only": -0.01,
+        "current_policies": 0.01,
+        "fragmented_world": -0.02,
+        "iea_nze": -0.1,
+        "iea_aps": -0.04,
+        "iea_steps": 0.0
+      },
       "source_ref": "IEA Aviation 2023"
     },
     "bunker_fuel": {
@@ -242,7 +496,17 @@
       "cost_2025_usd_per_t": 600,
       "lafond_sigma": 0.04,
       "category": "incumbent",
-      "annual_capacity_growth_2025_2050": {"net_zero_2050": -0.12, "below_2c": -0.06, "delayed_transition": -0.04, "ndcs_only": -0.01, "current_policies":  0.01, "fragmented_world": -0.02, "iea_nze": -0.12, "iea_aps": -0.05, "iea_steps":  0.00},
+      "annual_capacity_growth_2025_2050": {
+        "net_zero_2050": -0.12,
+        "below_2c": -0.06,
+        "delayed_transition": -0.04,
+        "ndcs_only": -0.01,
+        "current_policies": 0.01,
+        "fragmented_world": -0.02,
+        "iea_nze": -0.12,
+        "iea_aps": -0.05,
+        "iea_steps": 0.0
+      },
       "source_ref": "IMO 2023 GHG Strategy"
     },
     "gas_boiler": {
@@ -251,7 +515,17 @@
       "cost_2025_usd_per_kw": 350,
       "lafond_sigma": 0.04,
       "category": "incumbent",
-      "annual_capacity_growth_2025_2050": {"net_zero_2050": -0.10, "below_2c": -0.05, "delayed_transition": -0.03, "ndcs_only": -0.01, "current_policies":  0.00, "fragmented_world": -0.02, "iea_nze": -0.10, "iea_aps": -0.04, "iea_steps":  0.00},
+      "annual_capacity_growth_2025_2050": {
+        "net_zero_2050": -0.1,
+        "below_2c": -0.05,
+        "delayed_transition": -0.03,
+        "ndcs_only": -0.01,
+        "current_policies": 0.0,
+        "fragmented_world": -0.02,
+        "iea_nze": -0.1,
+        "iea_aps": -0.04,
+        "iea_steps": 0.0
+      },
       "source_ref": "IEA Future of Heat Pumps 2022"
     },
     "gas_distribution": {
@@ -260,7 +534,17 @@
       "cost_2025_usd_per_km": 850000,
       "lafond_sigma": 0.04,
       "category": "incumbent",
-      "annual_capacity_growth_2025_2050": {"net_zero_2050": -0.08, "below_2c": -0.04, "delayed_transition": -0.02, "ndcs_only":  0.00, "current_policies":  0.01, "fragmented_world": -0.01, "iea_nze": -0.08, "iea_aps": -0.03, "iea_steps":  0.00},
+      "annual_capacity_growth_2025_2050": {
+        "net_zero_2050": -0.08,
+        "below_2c": -0.04,
+        "delayed_transition": -0.02,
+        "ndcs_only": 0.0,
+        "current_policies": 0.01,
+        "fragmented_world": -0.01,
+        "iea_nze": -0.08,
+        "iea_aps": -0.03,
+        "iea_steps": 0.0
+      },
       "source_ref": "IEA Gas 2023"
     },
     "intensive_livestock": {
@@ -269,16 +553,36 @@
       "cost_2025_usd_per_t": 2400,
       "lafond_sigma": 0.05,
       "category": "incumbent",
-      "annual_capacity_growth_2025_2050": {"net_zero_2050": -0.04, "below_2c": -0.02, "delayed_transition": -0.01, "ndcs_only":  0.00, "current_policies":  0.01, "fragmented_world":  0.00, "iea_nze": -0.04, "iea_aps": -0.02, "iea_steps":  0.00},
+      "annual_capacity_growth_2025_2050": {
+        "net_zero_2050": -0.04,
+        "below_2c": -0.02,
+        "delayed_transition": -0.01,
+        "ndcs_only": 0.0,
+        "current_policies": 0.01,
+        "fragmented_world": 0.0,
+        "iea_nze": -0.04,
+        "iea_aps": -0.02,
+        "iea_steps": 0.0
+      },
       "source_ref": "FAO Livestock 2022"
     },
     "grid_electricity": {
       "label": "Grid Electricity (mixed source)",
-      "learning_rate": 0.10,
+      "learning_rate": 0.1,
       "cost_2025_usd_per_mwh": 70,
       "lafond_sigma": 0.05,
       "category": "incumbent",
-      "annual_capacity_growth_2025_2050": {"net_zero_2050": 0.04, "below_2c": 0.03, "delayed_transition": 0.02, "ndcs_only": 0.01, "current_policies": 0.01, "fragmented_world": 0.02, "iea_nze": 0.04, "iea_aps": 0.03, "iea_steps": 0.01},
+      "annual_capacity_growth_2025_2050": {
+        "net_zero_2050": 0.04,
+        "below_2c": 0.03,
+        "delayed_transition": 0.02,
+        "ndcs_only": 0.01,
+        "current_policies": 0.01,
+        "fragmented_world": 0.02,
+        "iea_nze": 0.04,
+        "iea_aps": 0.03,
+        "iea_steps": 0.01
+      },
       "source_ref": "IEA WEO 2023 (electricity demand)"
     },
     "office_operations": {
@@ -287,7 +591,17 @@
       "cost_2025_usd_per_unit": 100,
       "lafond_sigma": 0.05,
       "category": "incumbent",
-      "annual_capacity_growth_2025_2050": {"net_zero_2050": 0.01, "below_2c": 0.01, "delayed_transition": 0.01, "ndcs_only": 0.01, "current_policies": 0.01, "fragmented_world": 0.01, "iea_nze": 0.01, "iea_aps": 0.01, "iea_steps": 0.01},
+      "annual_capacity_growth_2025_2050": {
+        "net_zero_2050": 0.01,
+        "below_2c": 0.01,
+        "delayed_transition": 0.01,
+        "ndcs_only": 0.01,
+        "current_policies": 0.01,
+        "fragmented_world": 0.01,
+        "iea_nze": 0.01,
+        "iea_aps": 0.01,
+        "iea_steps": 0.01
+      },
       "source_ref": "Default services baseline"
     },
     "mixed_industrial": {
@@ -296,7 +610,17 @@
       "cost_2025_usd_per_unit": 100,
       "lafond_sigma": 0.05,
       "category": "incumbent",
-      "annual_capacity_growth_2025_2050": {"net_zero_2050": 0.01, "below_2c": 0.01, "delayed_transition": 0.01, "ndcs_only": 0.01, "current_policies": 0.01, "fragmented_world": 0.01, "iea_nze": 0.01, "iea_aps": 0.01, "iea_steps": 0.01},
+      "annual_capacity_growth_2025_2050": {
+        "net_zero_2050": 0.01,
+        "below_2c": 0.01,
+        "delayed_transition": 0.01,
+        "ndcs_only": 0.01,
+        "current_policies": 0.01,
+        "fragmented_world": 0.01,
+        "iea_nze": 0.01,
+        "iea_aps": 0.01,
+        "iea_steps": 0.01
+      },
       "source_ref": "Industrial average"
     }
   }
