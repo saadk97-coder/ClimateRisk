@@ -56,6 +56,7 @@ engine/transition/
   alignment.py          financed emissions, ITR, pathway alignment, peer benchmark
   macc.py               marginal abatement cost curves (decarbonise vs pay)
   optimizer.py          budget-constrained merit-order abatement allocation
+  levers.py             decarbonization lever library — sector→lever map + plan overlay (reference)
 
 data/transition/
   carbon_prices_ngfs.json      NGFS Phase V REMIND-MAgPIE (real, ×1.18 → USD2020)
@@ -67,6 +68,7 @@ data/transition/
   io_matrix_mrio.npz + meta     20×49 EXIOBASE MRIO (980×980)
   sector_taxonomy.json         20 sectors: tech pairs, fossil flag, emission intensity
   macc.json                    per-sector abatement measures (AR6 WG3 / IEA-informed)
+  lever_library.json           29 decarbonization levers × 5 domains + sector→lever value-chain map
 ```
 
 ### Execution flow
@@ -359,6 +361,31 @@ tonnes per dollar under a linear MACC.
 ### 9.7 Disclosure export
 `build_disclosure_report` generates a Governance → Strategy → Risk Management → Metrics report mapped
 to **IFRS S2** clauses and **ESRS E1** datapoints, plus a provenance-stamped multi-sheet XLSX.
+
+### 9.8 Decarbonization Lever Library (structured reference — NOT a score)
+`engine/transition/levers.py` + `data/transition/lever_library.json`. Approach adapted from **BSR's
+Decarbonization Lever Library**: for each entity, map its *sector* to the specific decarbonization
+levers available to it, positioned by **value-chain stage** — upstream (purchased inputs/suppliers),
+own operations (Scope 1+2), downstream (products/customers/use-phase) — then overlay the entity's own
+**transition plan** to expose coverage and gaps.
+
+- **29 levers in 5 domains** (Electricity & Energy, Transport, Industry, Buildings, FLAG & Water). Each
+  lever carries: indicative abatement-cost band ($/tCO₂e), global mitigation potential (high/med/low),
+  commercial maturity (mature→frontier), 2050 role, key dependencies, a **nature & people** ("just
+  transition") note at each value-chain stage, applicable sectors, and sources.
+- **`sector_lever_map`** links all 20 taxonomy sectors to their levers, each tagged with value-chain
+  position and relevance (primary/secondary) plus a rationale.
+- **Plan overlay** (`overlay_plan`) is a **manual analyst input** — the analyst ticks which levers are
+  in the plan — and returns a *factual* count (primary levers covered / total) and a gap list. It
+  deliberately emits **no synthetic readiness score** (BSR "do-not-automate" boundary): the value is in
+  surfacing which core abatement routes are unaddressed, not in rating the plan.
+- **Data discipline:** the *mapping and value-chain logic* are carried over from BSR; the underlying
+  cost/maturity/potential figures are **refreshed** indicative screening ranges (IEA NZE 2023, WEO
+  2024; IPCC AR6 WG3; IRENA 2024; Lazard 2025; Mission Possible Partnership) — not lifted from the
+  original report.
+
+Surfaced in the app as page **⑪ Levers** (entity lever map + plan overlay + full-library reference,
+CSV export).
 
 ---
 

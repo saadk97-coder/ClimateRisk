@@ -53,6 +53,11 @@ def load_sector_taxonomy() -> dict:
     return _load("sector_taxonomy.json")
 
 
+@lru_cache(maxsize=1)
+def load_lever_library() -> dict:
+    return _load("lever_library.json")
+
+
 def get_ngfs_region(iso3: str) -> str:
     """Map ISO3 country code to NGFS region (advanced / emerging / rest_of_world)."""
     if not iso3:

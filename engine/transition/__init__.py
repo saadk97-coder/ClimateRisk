@@ -19,6 +19,7 @@ from engine.transition.data_loader import (
     load_cc_exposure,
     load_io_matrix,
     load_sector_taxonomy,
+    load_lever_library,
     get_ngfs_region,
     map_scenario_to_ngfs,
 )
@@ -31,6 +32,7 @@ __all__ = [
     "load_cc_exposure",
     "load_io_matrix",
     "load_sector_taxonomy",
+    "load_lever_library",
     "get_ngfs_region",
     "map_scenario_to_ngfs",
 ]

@@ -901,3 +901,88 @@ def test_r3_scope3_incidence_parameter():
     full = compute_carbon_cost("t", "power_coal", "USA", "net_zero_2050", 2050, 0, 0, 1_000_000,
                                scope3_incidence=1.0)
     assert full.scope3_indirect_usd > base.scope3_indirect_usd   # 1.0 > (1−0.85)
+
+
+# ---------------------------------------------------------------------------
+# Decarbonization Lever Library (Session 9) — structured reference, not a score
+# ---------------------------------------------------------------------------
+from engine.transition import levers as LV  # noqa: E402
+
+
+def test_lever_library_loads_and_is_internally_consistent():
+    """Every lever referenced in the sector map must be a real lever, every position
+    and relevance must be valid, and every taxonomy sector must be mapped."""
+    lib = LV.load_lever_library()
+    lever_ids = set(lib["levers"])
+    tax_sectors = set(load_sector_taxonomy()["sectors"])
+    assert len(lever_ids) >= 28
+    assert set(lib["sector_lever_map"]) == tax_sectors  # every sector mapped, no strays
+    for sec, rows in lib["sector_lever_map"].items():
+        for r in rows:
+            assert r["lever"] in lever_ids, f"{sec} references unknown lever {r['lever']}"
+            assert r["position"] in LV.POSITIONS
+            assert r["relevance"] in ("primary", "secondary")
+
+
+def test_every_lever_is_mapped_to_at_least_one_sector():
+    lib = LV.load_lever_library()
+    used = {r["lever"] for rows in lib["sector_lever_map"].values() for r in rows}
+    assert set(lib["levers"]) == used, "orphan levers defined but never mapped"
+
+
+def test_get_lever_hydrates_attributes():
+    lv = LV.get_lever("ccus")
+    assert lv is not None
+    assert lv.domain == "industry" and lv.domain_label
+    assert len(lv.cost_range_usd_per_tco2) == 2
+    assert lv.maturity and lv.mitigation_potential
+    assert set(lv.nature_people) >= {"upstream", "operations", "downstream"}
+    assert LV.get_lever("does_not_exist") is None
+
+
+def test_sector_levers_grouped_and_ordered():
+    grouped = LV.sector_levers_by_position("steel")
+    assert set(grouped) == set(LV.POSITIONS)
+    # steel's core levers include H2-DRI and scrap/material efficiency in own operations
+    own_ids = {sl.lever.id for sl in grouped["own_operations"]}
+    assert {"hydrogen_feedstock", "material_efficiency"} <= own_ids
+    # within a position, primary levers sort before secondary
+    for items in grouped.values():
+        rels = [LV.RELEVANCE_ORDER[sl.relevance] for sl in items]
+        assert rels == sorted(rels)
+
+
+def test_overlay_plan_counts_coverage_and_gaps():
+    all_sl = LV.sector_levers("steel")
+    primaries = [sl.lever.id for sl in all_sl if sl.relevance == "primary"]
+    # plan covers exactly one primary lever
+    gap = LV.overlay_plan("steel", [primaries[0]])
+    assert gap.primary_total == len(primaries)
+    assert gap.primary_covered == 1
+    assert len(gap.covered) == 1
+    assert len(gap.gaps) == len(all_sl) - 1
+    # empty plan → zero coverage, all levers are gaps
+    empty = LV.overlay_plan("steel", [])
+    assert empty.primary_covered == 0
+    assert len(empty.gaps) == len(all_sl)
+    # full plan → no gaps
+    full = LV.overlay_plan("steel", [sl.lever.id for sl in all_sl])
+    assert full.gaps == []
+    assert full.primary_covered == full.primary_total
+
+
+def test_overlay_plan_is_reference_not_score():
+    """No synthetic 0–100 readiness score is emitted — only a factual count caption."""
+    gap = LV.overlay_plan("cement", [])
+    assert not hasattr(gap, "score")
+    assert "score" not in gap.coverage_caption.lower()
+    assert str(gap.primary_total) in gap.coverage_caption
+
+
+def test_applicable_sectors_for_matches_map():
+    secs = LV.applicable_sectors_for("renewable_procurement")
+    # this is a broadly-applicable Scope-2 lever
+    assert "data_center" in secs and "real_estate_commercial" in secs
+    for s in secs:
+        ids = {sl.lever.id for sl in LV.sector_levers(s)}
+        assert "renewable_procurement" in ids
