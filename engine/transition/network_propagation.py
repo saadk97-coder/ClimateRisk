@@ -178,7 +178,10 @@ def propagate_carbon_shock(
 
     # Total cost shock absorbed by sector j (per unit of j's output)
     total_shock = float(np.dot(L[:, j], s))
-    own_shock = float(L[j, j] * s[j]) if s[j] > 0 else 0.0
+    # P3 — subtract only the single DIRECT round L1 already charged (s_j), not
+    # L[j,j]·s_j (which is ≥ s_j and would strip legitimate indirect self-loop
+    # feedback). This counts the focal sector's own carbon dollar exactly once.
+    own_shock = float(s[j])
     propagated = max(0.0, total_shock - own_shock)
 
     # Indirect cost in USD = propagated_shock × asset_revenue (interpreting

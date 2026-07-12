@@ -130,7 +130,7 @@ def propagate_mrio(
 
     col = L[:, j]
     total_shock = float(col @ s_eff)
-    own = float(col[j] * s_eff[j])
+    own = float(s_eff[j])   # P3 — subtract only the direct round already in L1, not L[j,j]·s_j
     propagated = max(0.0, total_shock - own)
     indirect_usd = propagated * max(asset_revenue, 0.0)
 

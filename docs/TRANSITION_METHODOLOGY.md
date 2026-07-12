@@ -114,23 +114,32 @@ abatement_mult(y) = 1.0                              if no target or y ≤ 2025
 
 ### 3.3 Cost decomposition
 ```
-direct   = (Scope1 + Scope2) × abatement_mult(y)
-pass_through = min(1, sector_PT × pt_scale)      (or per-asset override)
-gross    = direct × priced_fraction × price      (priced_fraction = priced_pct/100; free allocation)
-absorbed = gross × (1 − pass_through)             ← margin compression → firm CF
-passed_through = gross × pass_through             ← becomes the L3 market shock
+direct       = (Scope1 + Scope2) × abatement_mult(y)
+pass_through = min(1, sector_PT × pt_scale)          (or per-asset override)
+opportunity  = direct × price                        full carbon opportunity cost
+passed_through = opportunity × pass_through           ← L3 market shock (undiminished by free allocation)
+net_compliance = opportunity × priced_fraction        allowances the firm actually buys
+absorbed     = net_compliance − passed_through        firm's net margin impact (windfall if < 0)
 scope3_indirect = Scope3 × price × (1 − pass_through)
-net_carbon_opex = absorbed + scope3_indirect      ← what hits the firm's cash flow
+net_carbon_opex = absorbed + scope3_indirect          ← what hits the firm's cash flow
 ```
 
+- **Windfall economics (Round-1 P5).** The marginal carbon price sets the pass-through opportunity
+  cost regardless of free allocation (Sijm 2012), so pass-through — and the L3 shock — are based on
+  the **full opportunity cost**; `priced_fraction` reduces only the firm's own compliance leg. With
+  generous free allocation and high pass-through, `absorbed` goes **negative** (a windfall gain). At
+  the default `priced_fraction = 1` this reduces to `absorbed = opportunity × (1 − PT)` (legacy).
 - **priced_fraction** models free allocation / partial ETS coverage (P0). Default 1.0.
 - **Scope-3 mode** (P0): `full` counts scope3_indirect in L1 *and* propagates upstream in L3
   (reproduces the methodology's worked examples). `auto` sets the L1 Scope-3 term to 0 whenever
   L3 is enabled, so upstream cost is counted once.
 
-**Data:** `carbon_prices_ngfs.json` — real NGFS Phase V REMIND-MAgPIE 3.3-4.8 prices pulled from the
-IIASA explorer, rebased ×1.18 (US GDP deflator 2010→2020) to ~USD2020. Six scenarios carry real data;
-`divergent_net_zero` + three IEA scenarios retain Appendix-D placeholders.
+**Data:** `carbon_prices_ngfs.json` — real **NGFS Phase V** (released Nov 2024) REMIND-MAgPIE 3.3-4.8
+prices pulled live from the IIASA `ngfs_phase_5` explorer, rebased ×1.18 (US GDP deflator 2010→2020)
+to ~USD2020. Six scenarios carry real data; `divergent_net_zero` + three IEA scenarios retain
+Appendix-D placeholders. *(Round-1 P4: the Kotz et al. 2024 retraction affects only NGFS
+physical-damage variables, not the transition/price pathways — L1 uses standard REMIND-MAgPIE
+transition price variables and is unaffected.)*
 **Pass-through:** `sector_pass_through.json`, sector medians (Sijm 2012; Fabra & Reguant 2014; Cludius 2020).
 
 ---
@@ -263,7 +272,17 @@ impairment(y) = L2 annual_impairment            (balance-sheet, NOT in total_cf)
 wacc_premium_bps = L4 credit+equity              (only if ROUTE_WACC)
 ```
 `run_portfolio_transition` runs all assets × scenarios and returns
-`{scenario: [TransitionAssetResult]}`. Present value uses `Σ cost / (1 + wacc)^(y − 2025)`.
+`{scenario: [TransitionAssetResult]}`.
+
+**Present value & discount basis (Round-1 P2).** Carbon prices are **real** (USD2020), so PV
+discounts the real cash flows at a **real** rate = nominal WACC − long-run inflation
+(`PV = Σ cost / (1 + real)^(y − 2025)`). Discounting real flows at the nominal WACC would
+systematically understate PV. Both are app inputs (nominal WACC default 9%, inflation 2.5% → real 6.5%).
+
+**Impairment vs cash-flow cost are NOT additive (Round-1 P1).** L2 stranded impairment is the PV
+writedown of the same future cash flows whose erosion already feeds the cash-flow cost. They are two
+**lenses on one loss** — reported side by side, never summed into a combined total (enforced in the
+dashboard, XLSX, and disclosure export; guarded by a test).
 
 ---
 
@@ -369,8 +388,14 @@ LCOE preserves the 2025 crossover).
 - **Cascade θ / contagion** are judgment parameters; the linear result is the default.
 - **ITR / MACC / peer benchmark** are screening approximations aligned to SBTi/PACTA/PCAF/AR6 in
   spirit, not certified implementations.
-- **Carbon-price vintage** is NGFS Phase V (Nov 2023); refresh for disclosure.
+- **Carbon-price vintage** is NGFS Phase V (Nov 2024); refresh for disclosure.
 - Emissions decarbonise only if a target is set; without one, Scope 1+2 are held flat.
+- **Structural simplifications (Round-1 U3):** (i) IAM shadow prices are treated as *realised*
+  carbon prices — a first-best assumption that overstates cost where policy underdelivers;
+  (ii) the default world 20×20 matrix carries I-O aggregation bias; (iii) three price bands
+  (advanced/emerging/RoW) proxy NGFS's ~12 model regions (the 20×49 MRIO mode relaxes this).
+- **Endogenous-default cascade (Round-1 U2)** rests on Reisch et al. 2025, an un-peer-reviewed
+  preprint — research-grade only; default-off and excluded from the disclosure export.
 
 ---
 

@@ -156,9 +156,17 @@ def compute_carbon_cost(
     direct_scale = max(0.0, direct_scale)
     priced_fraction = max(0.0, min(1.0, priced_fraction))
     direct_emissions = max(0.0, scope1_emissions_tco2 + scope2_emissions_tco2) * direct_scale
-    gross = direct_emissions * priced_fraction * price
-    absorbed = gross * (1.0 - pass_through)
-    passed = gross * pass_through
+
+    # P5 — windfall economics (Sijm 2012). The marginal carbon price sets the pass-through
+    # opportunity cost regardless of free allocation, so pass-through (and the L3 shock) is
+    # based on the FULL opportunity cost. priced_fraction (free allocation / partial coverage)
+    # reduces only the firm's own compliance cost. Net margin impact = compliance − pass-through
+    # revenue, which can go NEGATIVE when generous free allocation meets high pass-through.
+    opportunity = direct_emissions * price          # full carbon opportunity cost
+    passed = opportunity * pass_through             # undiminished by free allocation → L3 shock
+    net_compliance = opportunity * priced_fraction  # allowances the firm actually buys
+    absorbed = net_compliance - passed              # firm's net margin impact (windfall if < 0)
+    gross = opportunity
     scope3_indirect = max(0.0, scope3_emissions_tco2) * price * (1.0 - pass_through)
     net = absorbed + scope3_indirect
 

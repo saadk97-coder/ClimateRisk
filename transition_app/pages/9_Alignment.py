@@ -136,7 +136,7 @@ st.subheader("Attributed transition cost")
 scenarios = st.session_state.get("tr_scenarios", T.DEFAULT_SCENARIOS)
 results = T.run_engine(active, scenarios)
 if results:
-    wacc = float(st.session_state.get("tr_wacc", 0.09))
+    wacc = T.real_discount()  # P2 real discount
     base_year = min(__import__("engine.transition.transition_engine", fromlist=["DEFAULT_HORIZON"]).DEFAULT_HORIZON)
 
     def _pv(series):
@@ -193,7 +193,7 @@ with st.expander("Governance narrative inputs (populate the report's Governance 
 
 if results:
     report = T.build_disclosure_report(active, results, scenarios,
-                                       float(st.session_state.get("tr_wacc", 0.09)))
+                                       T.real_discount())
     dcol1, dcol2 = st.columns([1, 3])
     with dcol1:
         st.download_button("⬇ Download report (Markdown)", report,

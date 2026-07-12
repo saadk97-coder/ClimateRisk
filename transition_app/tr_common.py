@@ -182,7 +182,8 @@ def _defaults() -> dict:
         "tr_l4_routing": ROUTE_CASHFLOWS,
         "tr_elasticity": 1.0,
         "tr_layers": [1, 2, 3, 4],
-        "tr_wacc": 0.09,                       # discount rate for PV metrics
+        "tr_wacc": 0.09,                       # NOMINAL WACC
+        "tr_inflation": 0.025,                 # long-run inflation → real discount = wacc − inflation
         "tr_governance": {},                   # TCFD governance narrative
         "tr_target_year": 2050,                # net-zero target year
         "tr_scope3_mode": "full",              # 'full' | 'auto' (drop L1 scope-3 when L3 on)
@@ -247,6 +248,14 @@ def sym() -> str:
 def fmt_money(x_usd: float) -> str:
     """Format a USD amount in the reporting currency (converts USD → display)."""
     return _fmt(x_usd / fx_to_usd(), currency())
+
+
+def real_discount() -> float:
+    """P2 — carbon prices are real (USD2020), so PV of real cash flows uses a REAL
+    discount rate = nominal WACC − long-run inflation. Discounting real flows at the
+    nominal WACC would systematically understate PV."""
+    return max(0.0, float(st.session_state.get("tr_wacc", 0.09))
+               - float(st.session_state.get("tr_inflation", 0.025)))
 
 
 # ---------------------------------------------------------------------------
@@ -350,10 +359,10 @@ def build_results_xlsx(results, active, scenarios, discount_rate: float) -> byte
     for sc, res in results.items():
         pv_c = sum(_pv(r.annual_total_cost_usd) for r in res) / fx
         pv_i = sum(_pv(r.annual_impairment_usd) for r in res) / fx
+        # P1 — cost and impairment are alternative lenses on the same loss; not summed.
         summary.append({"scenario": scenario_label(sc),
                         f"pv_transition_cost_{currency()}": round(pv_c, 2),
-                        f"pv_stranded_impairment_{currency()}": round(pv_i, 2),
-                        f"pv_total_{currency()}": round(pv_c + pv_i, 2)})
+                        f"pv_stranded_impairment_alt_lens_{currency()}": round(pv_i, 2)})
 
     annual = []
     for sc, res in results.items():
@@ -557,10 +566,19 @@ def sidebar_settings() -> list[str]:
         st.session_state["tr_layers"] = layers or [1, 2, 3, 4]
 
         wacc = st.number_input(
-            "Discount rate (WACC) for PV", 0.0, 0.30,
+            "Nominal WACC", 0.0, 0.30,
             float(st.session_state.get("tr_wacc", 0.09)), 0.005, format="%.3f",
         )
         st.session_state["tr_wacc"] = wacc
+        infl = st.number_input(
+            "Long-run inflation", 0.0, 0.10,
+            float(st.session_state.get("tr_inflation", 0.025)), 0.0025, format="%.4f",
+            help="Carbon prices are real (USD2020); PV discounts real cash flows at a REAL "
+                 "rate = nominal WACC − inflation. (real = {:.1%})".format(
+                     max(0.0, float(st.session_state.get("tr_wacc", 0.09))
+                         - float(st.session_state.get("tr_inflation", 0.025)))),
+        )
+        st.session_state["tr_inflation"] = infl
 
         modes = ["full", "auto"]
         s3 = st.radio(

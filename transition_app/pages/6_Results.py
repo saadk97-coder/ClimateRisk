@@ -29,7 +29,7 @@ if not results:
     st.error("No results — check Data Entry.")
     st.stop()
 sym = T.sym()
-wacc = float(st.session_state.get("tr_wacc", 0.09))
+wacc = T.real_discount()   # P2 — real cash flows discounted at a real rate
 BASE = 2025
 
 
@@ -53,7 +53,7 @@ e4.metric("Scope 1+2 (tCO₂)", f"{s1+s2:,.0f}")
 # ===========================================================================
 # PV of transition impact by scenario
 # ===========================================================================
-st.subheader(f"Present value of transition impact (discount {wacc*100:.1f}%)")
+st.subheader(f"Present value of transition impact (real discount {wacc*100:.1f}%)")
 srows = []
 for sc, res in results.items():
     pv_cost = sum(_pv(r.annual_total_cost_usd) for r in res)
@@ -62,7 +62,6 @@ for sc, res in results.items():
         "Scenario": T.scenario_label(sc),
         f"PV transition cost ({sym})": pv_cost,
         f"PV stranded impairment ({sym})": pv_imp,
-        f"PV total ({sym})": pv_cost + pv_imp,
     })
 sdf = pd.DataFrame(srows)
 show = sdf.copy()
@@ -70,10 +69,16 @@ for c in show.columns[1:]:
     show[c] = show[c].map(T.fmt_money)
 st.dataframe(show, use_container_width=True, hide_index=True)
 
+# P1 — the two are ALTERNATIVE LENSES on the same demand-collapse loss, not additive.
+# Cash-flow cost carries it through eroded revenue; stranded impairment is the PV writedown
+# of the same future cash flows. Shown side-by-side (grouped), never summed.
 fig = px.bar(sdf, x="Scenario", y=[f"PV transition cost ({sym})", f"PV stranded impairment ({sym})"],
-             barmode="stack", title="PV of transition cost + stranded impairment")
+             barmode="group", title="PV impact — two lenses (do not add)")
 fig.update_layout(height=380, legend=dict(orientation="h", y=-0.25), margin=dict(t=50, b=10))
 st.plotly_chart(fig, use_container_width=True)
+st.caption("⚠️ **Not additive.** Cash-flow transition cost and stranded impairment are two lenses on "
+           "the same demand-collapse loss — the impairment is the PV writedown of the very cash flows "
+           "the erosion already reflects. Read them as alternatives, never as a combined total.")
 
 # ===========================================================================
 # Uncertainty (Monte-Carlo)

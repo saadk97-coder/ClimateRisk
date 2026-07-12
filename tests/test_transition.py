@@ -836,3 +836,55 @@ def test_intensity_benchmark_positions(coal_plant, office):
     # coal plant is extremely carbon-intensive → top quartile; office is low
     assert b[coal_plant.id]["position"] == "high (top quartile)"
     assert b[coal_plant.id]["entity_intensity"] > b[office.id]["entity_intensity"]
+
+
+# ---------------------------------------------------------------------------
+# Fixes Round 1 — P5 windfall, P3 L1↔L3 reconciliation
+# ---------------------------------------------------------------------------
+
+def test_p5_passthrough_undiminished_by_free_allocation():
+    """Free allocation cuts the firm's compliance cost but NOT pass-through revenue —
+    the marginal carbon price sets the opportunity cost regardless (Sijm 2012)."""
+    full = compute_carbon_cost("t", "power_coal", "USA", "net_zero_2050", 2050, 1e6, 0, 0,
+                               priced_fraction=1.0)
+    alloc = compute_carbon_cost("t", "power_coal", "USA", "net_zero_2050", 2050, 1e6, 0, 0,
+                                priced_fraction=0.3)
+    assert abs(full.passed_through_usd - alloc.passed_through_usd) < 1.0   # undiminished
+    assert full.gross_cost_usd == alloc.gross_cost_usd                     # same opportunity cost
+
+
+def test_p5_windfall_when_generous_free_allocation():
+    """High free allocation + high pass-through → net gain (absorbed < 0)."""
+    r = compute_carbon_cost("t", "power_coal", "USA", "net_zero_2050", 2050, 1e6, 0, 0,
+                            priced_fraction=0.2)   # 80% free allowances, coal PT ~0.85
+    assert r.absorbed_cost_usd < 0
+
+
+def test_p3_focal_own_carbon_counted_once():
+    """L3 subtracts only the single direct round (s_j); indirect self-loop feedback
+    (L[j,j]−1)·s_j is retained."""
+    import numpy as np
+    from engine.transition.network_propagation import get_leontief_inverse, propagate_carbon_shock
+    L, sectors = get_leontief_inverse()
+    j = sectors.index("steel")
+    shock = {s: 0.0 for s in sectors}
+    shock["steel"] = 0.01   # only the focal sector has a shock
+    r = propagate_carbon_shock("t", "steel", "net_zero_2050", 2050, 1_000_000,
+                               sector_carbon_costs=shock, sector_outputs=None)
+    expected = (L[j, j] - 1.0) * 0.01           # total (L[j,j]·s) minus direct s
+    assert abs(r.propagated_input_shock - expected) < 1e-6
+
+
+def test_p1_impairment_not_summed_into_cashflow_damages(coal_plant):
+    """Stranded impairment and cash-flow transition cost are alternative lenses on the
+    same loss — no combined output may sum them (P1)."""
+    from engine.transition.transition_dcf import compute_combined_dcf
+    res = run_portfolio_transition([coal_plant], ["net_zero_2050"])["net_zero_2050"]
+    phys = pd.DataFrame({"year": [2025], "ead": [0.0], "scenario_id": ["net_zero_2050"]})
+    inp = DCFInputs(name="t", base_year=2025, forecast_years=26, wacc=0.08,
+                    asset_value=coal_plant.replacement_value)
+    cdcf = compute_combined_dcf(inp, phys, res, "net_zero_2050")
+    assert cdcf.total_pv_stranded_impairment > 0
+    # combined cash-flow damages must NOT include the impairment
+    assert cdcf.combined_dcf.total_pv_damages < (
+        cdcf.total_pv_transition_costs + cdcf.total_pv_stranded_impairment)
