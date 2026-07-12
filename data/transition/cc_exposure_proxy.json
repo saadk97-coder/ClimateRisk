@@ -13,7 +13,14 @@
       "credit_spread_bps_per_sd_physical": 6.0,
       "revenue_growth_bps_per_sd_opportunity": 35.0,
       "regulatory_revenue_drag_bps_per_sd": 25.0,
-      "source_ref": "Sautner et al. Pricing Climate Change Exposure (Mgmt Sci 2023); distribution from Firm-Level Climate Change Exposure (JoF 2023) Table 1"
+      "source_ref": "Sautner et al. Pricing Climate Change Exposure (Mgmt Sci 2023); distribution from Firm-Level Climate Change Exposure (JoF 2023) Table 1",
+      "_provenance": {
+        "equity_premium_bps_per_sd_total": "SOURCED — Sautner et al. Pricing Climate Change Exposure (Mgmt Sci 2023): an equity risk premium (cost of capital). Route to WACC.",
+        "credit_spread_bps_per_sd_regulatory": "UNSOURCED PLACEHOLDER — cannot derive from an equity paper; pending a bond/CDS climate-spread study.",
+        "credit_spread_bps_per_sd_physical": "UNSOURCED PLACEHOLDER — as above.",
+        "revenue_growth_bps_per_sd_opportunity": "UNSOURCED — market-opportunity / green-demand uplift is a competitive-position judgment, not a text-proxy elasticity. Belongs to the manual layer; off unless routing=cashflows is chosen deliberately.",
+        "regulatory_revenue_drag_bps_per_sd": "UNSOURCED — as above."
+      }
     },
     "scenario_modifiers": {
       "_comment": "Scenario-specific multipliers on CCExposure. Disorderly transitions amplify regulatory exposure; ordered transitions amplify opportunity.",

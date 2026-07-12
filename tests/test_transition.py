@@ -511,12 +511,16 @@ def test_orchestrator_scenario_differentiation(coal_plant):
     assert nz_total > 5 * cp_total, "NZ should be >>5x Current Policies for a coal plant"
 
 
-def test_clean_asset_can_have_negative_total_cost(office):
-    """An office building with low emissions in NZ scenario should see a NET
-    revenue uplift from CCExposure opportunity exceeding modest carbon cost."""
-    r = run_asset_transition(office, "net_zero_2050")
-    # Negative cost = net benefit; not required, but L4 component should be negative
-    assert r.layer_breakdown["L4_revenue_modifier"][2050] < 0
+def test_l4_default_routes_to_wacc_not_revenue(office):
+    """R5 — the sourced L4 channel is an equity risk premium (cost of capital), so the
+    DEFAULT routing is WACC; the unsourced market-opportunity revenue uplift is off by
+    default. The opt-in cash-flow route still produces the (unsourced) uplift."""
+    default = run_asset_transition(office, "net_zero_2050")   # default = WACC now
+    assert default.layer_breakdown["L4_revenue_modifier"][2050] == 0.0
+    from engine.transition.cc_exposure import ROUTE_CASHFLOWS as _CF
+    cf = run_asset_transition(office, "net_zero_2050", layer4_routing=_CF)
+    # office: high opportunity, low regulatory → revenue uplift (negative cost) on the opt-in route
+    assert cf.layer_breakdown["L4_revenue_modifier"][2050] < 0
 
 
 # ---------------------------------------------------------------------------
@@ -888,3 +892,12 @@ def test_p1_impairment_not_summed_into_cashflow_damages(coal_plant):
     # combined cash-flow damages must NOT include the impairment
     assert cdcf.combined_dcf.total_pv_damages < (
         cdcf.total_pv_transition_costs + cdcf.total_pv_stranded_impairment)
+
+
+def test_r3_scope3_incidence_parameter():
+    """R3 — Scope-3 incidence defaults to legacy (1−own PT) but is overridable toward the
+    conceptually-correct supplier-pass-through-to-buyer."""
+    base = compute_carbon_cost("t", "power_coal", "USA", "net_zero_2050", 2050, 0, 0, 1_000_000)
+    full = compute_carbon_cost("t", "power_coal", "USA", "net_zero_2050", 2050, 0, 0, 1_000_000,
+                               scope3_incidence=1.0)
+    assert full.scope3_indirect_usd > base.scope3_indirect_usd   # 1.0 > (1−0.85)

@@ -21,7 +21,7 @@ and routed to exactly one **financial destination** (the *non-duplication* rule)
 | Policy & Legal | **L1** | (Scope 1+2) × NGFS carbon price × (1 − pass-through) | Cash-flow OpEx |
 | Technology | **L2** | Wright's-Law cost crossover / demand collapse → logistic impairment | Cash flow + asset value |
 | Market | **L3** | Sector shock → Leontief inverse → focal input cost | Cash-flow input cost |
-| Reputation | **L4** | Sautner CCExposure (z-scored) × per-SD elasticities | Cash flow **or** WACC |
+| Reputation | **L4** | Sautner CCExposure (z-scored) × per-SD elasticities | WACC (default) **or** cash flow |
 
 On top of the four layers sit a **decision & assurance layer**: Monte-Carlo uncertainty, tornado
 sensitivity, PCAF financed emissions, Implied Temperature Rise, PACTA-style alignment, peer
@@ -252,10 +252,23 @@ equipment → autos, primary metal → steel …), estimated from adjacent indus
 Effect: average-exposure sectors carry ≈0 premium (the inflation is gone); coal keeps ~29 bps credit
 / −39 bps revenue drag; renewables +85 bps revenue uplift.
 
-**Routing (non-duplication):** `ROUTE_CASHFLOWS` (default) applies the revenue-growth modifier to cash
-flows (credit/equity are diagnostic); `ROUTE_WACC` adds credit+equity to the discount rate and zeroes
-the revenue modifier. **Firm override (P2):** a licensed firm-level CCExposure feed replaces the
-sector median via `firm_override`.
+**Routing (non-duplication):** `ROUTE_WACC` (**default, R5**) adds the equity premium to the discount
+rate and zeroes the revenue modifier; `ROUTE_CASHFLOWS` applies the revenue-growth modifier to cash
+flows instead. **Firm override (P2):** a licensed firm-level CCExposure feed replaces the sector
+median via `firm_override`.
+
+**R5 — elasticity provenance (which coefficient is real).** Only one of the three L4 elasticities is
+sourced, and the default routing reflects that:
+
+| Coefficient | Value | Provenance | Route |
+|-------------|-------|-----------|-------|
+| **equity → WACC** | 50·z_total bps | **SOURCED** — Sautner et al. (2023, JoF) *Pricing* paper: CCExposure priced into the cost of capital | **WACC (default)** |
+| credit spread | 12·z_reg + 6·z_phy bps | **UNSOURCED placeholder** — plausible sign/magnitude, not fitted | diagnostic only |
+| revenue growth | 35·z_opp − 25·z_reg bps | **UNSOURCED** — market-opportunity judgement, not an estimated elasticity | manual cash-flow overlay |
+
+Because the equity→WACC channel is the only empirically grounded one, `ROUTE_WACC` is the default and
+the cash-flow revenue route is presented in the UI as a **manual analyst overlay**, not a model output.
+The credit-spread figures are shown for diagnostics but never routed into headline numbers.
 
 ---
 

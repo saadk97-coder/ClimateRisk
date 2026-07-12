@@ -179,7 +179,7 @@ def _defaults() -> dict:
         "tr_assets": [],                       # list[dict]
         "tr_currency": "USD",
         "tr_scenarios": list(DEFAULT_SCENARIOS),
-        "tr_l4_routing": ROUTE_CASHFLOWS,
+        "tr_l4_routing": ROUTE_WACC,           # R5 — equity premium (sourced) → cost of capital by default
         "tr_elasticity": 1.0,
         "tr_layers": [1, 2, 3, 4],
         "tr_wacc": 0.09,                       # NOMINAL WACC
@@ -271,7 +271,7 @@ def run_engine(assets: list[Asset], scenarios: list[str]):
         assets=active,
         scenario_ids=scenarios,
         horizon=DEFAULT_HORIZON,
-        layer4_routing=st.session_state.get("tr_l4_routing", ROUTE_CASHFLOWS),
+        layer4_routing=st.session_state.get("tr_l4_routing", ROUTE_WACC),
         elasticity=float(st.session_state.get("tr_elasticity", 1.0)),
         enable_layers=tuple(st.session_state.get("tr_layers", [1, 2, 3, 4])),
         scope3_mode=st.session_state.get("tr_scope3_mode", "full"),
@@ -544,10 +544,14 @@ def sidebar_settings() -> list[str]:
         st.session_state["tr_scenarios"] = scenarios
 
         route = st.radio(
-            "Layer 4 routing", [ROUTE_CASHFLOWS, ROUTE_WACC],
-            index=0 if st.session_state.get("tr_l4_routing", ROUTE_CASHFLOWS) == ROUTE_CASHFLOWS else 1,
-            format_func=lambda r: "Cash flows" if r == ROUTE_CASHFLOWS else "WACC",
-            help="CCExposure premium flows to cash-flow revenue OR to WACC — one only.",
+            "Layer 4 routing", [ROUTE_WACC, ROUTE_CASHFLOWS],
+            index=0 if st.session_state.get("tr_l4_routing", ROUTE_WACC) == ROUTE_WACC else 1,
+            format_func=lambda r: "WACC (equity premium — sourced)" if r == ROUTE_WACC
+            else "Cash flows (revenue — manual layer)",
+            help="CCExposure routes exactly once (non-duplication). WACC is the default: "
+            "the equity premium is the only sourced elasticity (Sautner et al. 2023, JoF, "
+            "pricing→cost-of-capital). The cash-flow route applies an UNSOURCED market-"
+            "opportunity revenue modifier — treat it as a manual overlay, not a model output.",
         )
         st.session_state["tr_l4_routing"] = route
 

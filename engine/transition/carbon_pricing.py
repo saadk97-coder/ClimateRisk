@@ -138,6 +138,7 @@ def compute_carbon_cost(
     priced_fraction: float = 1.0,
     price_scale: float = 1.0,
     pass_through_scale: float = 1.0,
+    scope3_incidence: Optional[float] = None,
 ) -> CarbonCostResult:
     """
     Compute Layer-1 carbon cost decomposition for one asset × scenario × year.
@@ -167,7 +168,13 @@ def compute_carbon_cost(
     net_compliance = opportunity * priced_fraction  # allowances the firm actually buys
     absorbed = net_compliance - passed              # firm's net margin impact (windfall if < 0)
     gross = opportunity
-    scope3_indirect = max(0.0, scope3_emissions_tco2) * price * (1.0 - pass_through)
+    # R3 — Scope-3 incidence. The conceptually-correct parameter is the SUPPLIER's
+    # pass-through-to-buyer (how much upstream carbon cost reaches this firm), not the
+    # firm's own PT (wrong direction). Real value-chain mapping is a manual exercise, so
+    # this defaults to the legacy (1 − own PT) unless an incidence is supplied. Scope-3 is
+    # NOT decarbonised by the firm's own Scope 1+2 target (that needs a value-chain target).
+    s3_inc = (1.0 - pass_through) if scope3_incidence is None else max(0.0, min(1.0, scope3_incidence))
+    scope3_indirect = max(0.0, scope3_emissions_tco2) * price * s3_inc
     net = absorbed + scope3_indirect
 
     return CarbonCostResult(

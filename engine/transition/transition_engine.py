@@ -12,8 +12,9 @@ Each channel is routed exactly once:
   * Layer 1 (carbon cost)              → CASH FLOW (OpEx)
   * Layer 2 (technology / stranding)   → ASSET VALUE (impairment) + CASH FLOW (revenue erosion)
   * Layer 3 (network propagation)      → CASH FLOW (input cost)
-  * Layer 4 (reputation / capital)     → either CASH FLOW (revenue) OR WACC, never both
-                                          (default = CASH FLOW; orchestrator caller picks)
+  * Layer 4 (reputation / capital)     → WACC (equity risk premium, Sautner Pricing) by
+                                          DEFAULT; the cash-flow revenue route is opt-in and
+                                          UNSOURCED (market-opportunity → manual layer). R5.
 
 Outputs
 -------
@@ -102,7 +103,7 @@ def run_asset_transition(
     asset: Asset,
     scenario_id: str,
     horizon: Optional[List[int]] = None,
-    layer4_routing: str = ROUTE_CASHFLOWS,
+    layer4_routing: str = ROUTE_WACC,
     elasticity: float = 1.0,
     enable_layers: tuple = (1, 2, 3, 4),
     scope3_mode: str = "full",
@@ -277,7 +278,7 @@ def run_portfolio_transition(
     assets: List,
     scenario_ids: List[str],
     horizon: Optional[List[int]] = None,
-    layer4_routing: str = ROUTE_CASHFLOWS,
+    layer4_routing: str = ROUTE_WACC,
     elasticity: float = 1.0,
     enable_layers: tuple = (1, 2, 3, 4),
     scope3_mode: str = "full",

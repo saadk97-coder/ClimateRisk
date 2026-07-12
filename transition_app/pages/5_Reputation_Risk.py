@@ -38,12 +38,15 @@ sc = st.selectbox("Scenario", scenarios, format_func=T.scenario_label)
 res = results.get(sc, [])
 
 st.info(
-    ("**Routing = Cash flows.** The revenue-growth modifier is applied to cash flows; the "
-     "credit/equity premiums below are diagnostic. Switch to *WACC* in the sidebar to route "
-     "the financing premium to the discount rate instead.")
-    if routing != ROUTE_WACC else
-    ("**Routing = WACC.** The credit + equity premium is added to the discount rate; the "
-     "revenue modifier is zeroed to preserve non-duplication."),
+    ("**Routing = WACC (default).** The equity premium is added to the discount rate. This is the "
+     "only *sourced* Layer-4 elasticity — Sautner et al. (2023, JoF) price CCExposure into the "
+     "cost of capital. The revenue modifier is zeroed to preserve non-duplication. Credit-spread "
+     "coefficients are an unsourced placeholder shown for diagnostics only.")
+    if routing == ROUTE_WACC else
+    ("**Routing = Cash flows (manual overlay).** The revenue-growth modifier is applied to cash "
+     "flows. ⚠️ This coefficient is *unsourced* — a market-opportunity judgement, not a fitted "
+     "elasticity — so treat this route as a manual analyst overlay, not a model output. Switch to "
+     "*WACC* in the sidebar for the sourced, default treatment."),
     icon="🔀",
 )
 
@@ -90,7 +93,10 @@ st.caption(
     "CCExposure is z-standardised against the pooled Sautner firm-year distribution (JoF 2023 "
     "Table 1), then priced per standard deviation: credit = 12·z_reg + 6·z_phys; equity = "
     "50·z_total; revenue = 35·z_opp − 25·z_reg. Sector exposures anchored to Sautner Table 4 by "
-    "SIC industry; the CCE columns above are z-scores (SDs from the average firm)."
+    "SIC industry; the CCE columns above are z-scores (SDs from the average firm). "
+    "**Provenance (R5):** only the *equity → WACC* elasticity is sourced (Sautner pricing result). "
+    "The *credit-spread* coefficients are an unsourced placeholder; the *revenue* coefficients are "
+    "an unsourced market-opportunity judgement routed to the manual cash-flow overlay."
 )
 
 with st.expander("⬆ Firm-level CCExposure override (licensed Sautner feed)"):
