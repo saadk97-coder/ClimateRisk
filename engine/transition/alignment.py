@@ -2,10 +2,14 @@
 Portfolio climate-alignment metrics: financed emissions (PCAF-style), Implied
 Temperature Rise (ITR), and technology/pathway alignment (PACTA-style).
 
-Screening-grade. Attribution follows PCAF: the reporting entity is attributed a
-share of each asset's absolute emissions and transition cost. ITR compares each
-asset's (abated) Scope 1+2 pathway to a 1.5°C-consistent linear-to-net-zero budget;
-pathway alignment compares the asset's decline to the scenario's sector pathway.
+Screening-grade SCREENING INDICATORS — NOT standard-compliant disclosures. These
+approximate the *shape* of PCAF financed emissions, SBTi/CDP-WWF temperature scoring
+and PACTA alignment, but none is implemented to the respective standard and none
+should be reported as "PCAF/SBTi/PACTA-compliant". Attribution follows the PCAF
+idea: the reporting entity is attributed a share of each asset's absolute emissions
+and transition cost. The temperature score compares each asset's (abated) Scope 1+2
+pathway to a 1.5°C linear-to-net-zero budget; pathway alignment compares the asset's
+decline to the scenario's sector pathway.
 
 References
 ----------
@@ -72,12 +76,15 @@ def implied_temperature_rise(
     assets: List, attribution: Optional[Dict[str, float]] = None,
     years: Optional[List[int]] = None, base_temp: float = 1.5, beta: float = 1.2,
 ) -> dict:
-    """Emissions-weighted portfolio ITR and per-asset ITR.
+    """Emissions-weighted **emissions-budget ratio score** (a screening proxy for ITR).
 
-    Each asset's 1.5°C budget is the area under a straight line from today's Scope
-    1+2 to zero by BUDGET_END. ITR = base_temp + beta × (cumulative_actual/budget − 1),
-    clamped to [1.2, 4.0]. An asset on a net-zero-by-2050 path scores ~base_temp;
-    flat emissions score materially hotter.
+    NOTE: this is NOT a standard-compliant Implied Temperature Rise (e.g. CDP-WWF /
+    SBTi temperature scoring, which translate validated targets into temperature
+    scores with a 1.5 °C best-score floor). It is a transparent screening indicator:
+    each asset's 1.5 °C budget is the area under a straight line from today's Scope 1+2
+    to zero by BUDGET_END, and score = base_temp + beta × (cumulative_actual/budget − 1),
+    floored at the 1.5 °C best case and capped at 4.0. An asset on a net-zero-by-2050
+    path scores ~1.5; flat emissions score materially hotter.
     """
     years = years or list(range(BUDGET_START, BUDGET_END + 1))
     attribution = attribution or {}
@@ -92,7 +99,10 @@ def implied_temperature_rise(
         actual = sum(_asset_s12_path(a, years).values())
         budget = 0.5 * e0 * span  # triangle: e0 → 0 over the horizon
         ratio = (actual / budget - 1.0) if budget > 0 else 0.0
-        itr = min(4.0, max(1.2, base_temp + beta * ratio))
+        # Floor at the 1.5 °C best case (an aligned pathway cannot score "better than
+        # 1.5"), cap at 4.0. The old 1.2 °C floor implied sub-1.5 alignment and was
+        # not defensible (reviewer).
+        itr = min(4.0, max(base_temp, base_temp + beta * ratio))
         f = max(0.0, min(1.0, attribution.get(a.id, 1.0)))
         w = e0 * f
         weighted += itr * w

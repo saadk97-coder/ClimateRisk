@@ -186,7 +186,7 @@ def _defaults() -> dict:
         "tr_inflation": 0.025,                 # long-run inflation → real discount = wacc − inflation
         "tr_governance": {},                   # TCFD governance narrative
         "tr_target_year": 2050,                # net-zero target year
-        "tr_scope3_mode": "full",              # 'full' | 'auto' (drop L1 scope-3 when L3 on)
+        "tr_scope3_mode": "auto",              # 'full' | 'auto' (drop L1 scope-3 when L3 on)
         "tr_l3_mode": "world",                 # 'world' (20×20) | 'mrio' (20×49 EXIOBASE)
         "tr_cascade": False,                   # Reisch endogenous-default cascade (mrio only)
         "tr_cascade_theta": 0.02,              # default threshold (fraction of output)
@@ -277,7 +277,7 @@ def run_engine(assets: list[Asset], scenarios: list[str]):
         layer4_routing=st.session_state.get("tr_l4_routing", ROUTE_WACC),
         elasticity=float(st.session_state.get("tr_elasticity", 1.0)),
         enable_layers=tuple(st.session_state.get("tr_layers", [1, 2, 3, 4])),
-        scope3_mode=st.session_state.get("tr_scope3_mode", "full"),
+        scope3_mode=st.session_state.get("tr_scope3_mode", "auto"),
         l3_mode=st.session_state.get("tr_l3_mode", "world"),
         cascade=bool(st.session_state.get("tr_cascade", False)),
         cascade_theta=float(st.session_state.get("tr_cascade_theta", 0.02)),
@@ -394,7 +394,7 @@ def build_results_xlsx(results, active, scenarios, discount_rate: float) -> byte
         ("Reporting currency", currency()), ("FX basis", FX_AS_OF),
         ("Discount rate (WACC)", discount_rate),
         ("Scenarios", ", ".join(scenario_label(s) for s in scenarios)),
-        ("Scope-3 mode", st.session_state.get("tr_scope3_mode", "full")),
+        ("Scope-3 mode", st.session_state.get("tr_scope3_mode", "auto")),
         ("Layer-4 routing", st.session_state.get("tr_l4_routing", "cashflows")),
         ("L3 substitution σ", st.session_state.get("tr_elasticity", 1.0)),
         ("Layers enabled", st.session_state.get("tr_layers", [1, 2, 3, 4])),
@@ -445,14 +445,16 @@ def build_disclosure_report(active, results, scenarios, discount_rate: float) ->
             layer4_routing=st.session_state.get("tr_l4_routing", ROUTE_WACC),
             elasticity=float(st.session_state.get("tr_elasticity", 1.0)),
             enable_layers=tuple(st.session_state.get("tr_layers", [1, 2, 3, 4])),
-            scope3_mode=st.session_state.get("tr_scope3_mode", "full"),
+            scope3_mode=st.session_state.get("tr_scope3_mode", "auto"),
             l3_mode=st.session_state.get("tr_l3_mode", "world"),
             cascade=False,                                   # ← hard exclusion
             firm_cce_overrides=st.session_state.get("tr_firm_cce") or None,
         )
 
     def _pv(series):
-        return sum(v / (1 + discount_rate) ** (y - base_year) for y, v in series.items())
+        # End-of-year convention (y − base_year + 1), matching dcf_engine and the
+        # uncertainty / sensitivity modules so all transition PVs are consistent.
+        return sum(v / (1 + discount_rate) ** (y - base_year + 1) for y, v in series.items())
 
     scen_lines = []
     for sc, res in results.items():
@@ -619,7 +621,7 @@ def sidebar_settings() -> list[str]:
         modes = ["full", "auto"]
         s3 = st.radio(
             "Scope-3 treatment", modes,
-            index=modes.index(st.session_state.get("tr_scope3_mode", "full")),
+            index=modes.index(st.session_state.get("tr_scope3_mode", "auto")),
             format_func=lambda m: "Full (L1 + L3)" if m == "full"
             else "Auto — no double count (recommended)",
             help="'Full' reproduces the methodology's worked examples (Scope-3 in L1 AND "

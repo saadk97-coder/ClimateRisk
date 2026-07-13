@@ -16,13 +16,14 @@ total cost shock absorbed by sector j is:
 where L = (I - A)^-1 is the Leontief inverse and A is the direct-requirements
 matrix.
 
-Endogenous-substitution refinement (Reisch et al. 2025)
--------------------------------------------------------
+Substitution damping (screening approximation)
+-----------------------------------------------
 Allowing intermediate-input substitution (CES with elasticity σ > 1) dampens
-shock propagation. We approximate this using a softmax-tempered weighting that
-scales L by exp(-θ * shock_intensity), where θ encodes substitutability.
-Default θ = 0 (= Cobb-Douglas baseline). For high-substitution sectors,
-θ > 0 reduces propagated shock; for inelastic sectors θ ≤ 0.
+shock propagation. We approximate this by scaling the OFF-DIAGONAL direct-
+requirements coefficients by 1/σ before inverting (diagonal preserved): σ = 1 is
+the Cobb-Douglas baseline, σ > 1 shrinks off-diagonals (more substitution → less
+propagation), σ < 1 amplifies them. (The full Reisch et al. 2025 endogenous-default
+cascade is a separate, opt-in mechanism in network_mrio._cascade.)
 
 Important caveats
 -----------------
@@ -102,15 +103,19 @@ class NetworkShockResult:
     notes: str = ""
 
 
-def build_sectorwide_shock(carbon_price_usd_per_t: float) -> Dict[str, float]:
+def build_sectorwide_shock(
+    carbon_price_usd_per_t: float,
+    pass_through_scale: float = 1.0,
+) -> Dict[str, float]:
     """
-    Build a sector-typical shock vector. Each sector's shock (fraction of output)
-    is:
+    Build a sector-typical shock vector. Each sector's shock (fraction of gross
+    output) is:
         shock_i = emission_intensity_i × carbon_price × pass_through_i × 1e-6
 
-    The 1e-6 factor converts emission_intensity from tCO2 per million USD revenue
-    (the field's actual unit — a typical figure is 1–10 tCO2/M$) to tCO2 per USD.
-    Used by Layer 3 to compute indirect input-cost exposure for any focal asset.
+    emission_intensity_i is tCO2 per MILLION USD of sector GROSS OUTPUT; the 1e-6
+    factor converts it to tCO2 per USD so the product is a fraction of output.
+    `pass_through_scale` is the Monte-Carlo / sensitivity multiplier on pass-through
+    (so L3 responds to the pass-through channel, not just L1).
     """
     from engine.transition.data_loader import load_sector_taxonomy
     tax = load_sector_taxonomy()["sectors"]
@@ -119,7 +124,12 @@ def build_sectorwide_shock(carbon_price_usd_per_t: float) -> Dict[str, float]:
     for sec_key, sec_meta in tax.items():
         ei_per_musd = float(sec_meta.get("emission_intensity_t_per_revenue", 0.0))
         pt = float(spt.get(sec_key, {"pass_through": 0.4})["pass_through"])
-        out[sec_key] = ei_per_musd * 1e-6 * carbon_price_usd_per_t * pt
+        pt = max(0.0, min(1.0, pt * max(0.0, pass_through_scale)))
+        # Clamp the per-sector shock to 1.0: carbon cost cannot inflate output price by
+        # more than 100% within the linear Leontief basis — beyond that the sector is
+        # stranding (Layer 2), not passing input cost. Keeps propagation well-conditioned
+        # for very high-carbon sectors at high carbon prices (screening safeguard).
+        out[sec_key] = min(1.0, ei_per_musd * 1e-6 * carbon_price_usd_per_t * pt)
     return out
 
 
@@ -161,6 +171,7 @@ def propagate_carbon_shock(
 
     if sector not in sector_idx:
         # Unmapped sector: assume "services" position
+        _log.warning("L3: sector '%s' not in the IO matrix; using 'services' position.", sector)
         sector = "services"
     j = sector_idx[sector]
 

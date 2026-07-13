@@ -24,7 +24,7 @@ from typing import Dict, List, Optional
 import numpy as np
 
 from engine.transition.transition_engine import run_portfolio_transition, DEFAULT_HORIZON
-from engine.transition.cc_exposure import ROUTE_CASHFLOWS
+from engine.transition.cc_exposure import ROUTE_WACC
 
 
 @dataclass
@@ -64,7 +64,9 @@ class MCResult:
 
 
 def _pv(series: Dict[int, float], base_year: int, discount: float) -> float:
-    return sum(v / (1.0 + discount) ** (y - base_year) for y, v in series.items())
+    # End-of-year convention (y − base_year + 1), matching dcf_engine and
+    # transition_dcf so every transition PV in the app is discounted identically.
+    return sum(v / (1.0 + discount) ** (y - base_year + 1) for y, v in series.items())
 
 
 def _portfolio_pv(results, base_year: int, discount: float):
@@ -78,9 +80,9 @@ def run_monte_carlo(
     scenario_id: str,
     discount_rate: float = 0.09,
     horizon: Optional[List[int]] = None,
-    layer4_routing: str = ROUTE_CASHFLOWS,
+    layer4_routing: str = ROUTE_WACC,
     enable_layers: tuple = (1, 2, 3, 4),
-    scope3_mode: str = "full",
+    scope3_mode: str = "auto",
     config: Optional[MCConfig] = None,
 ) -> MCResult:
     """Run the four-layer model over `config.draws` perturbed samples for one scenario."""

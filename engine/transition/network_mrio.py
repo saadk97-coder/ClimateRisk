@@ -80,20 +80,27 @@ def get_mrio_leontief(elasticity: float = 1.0) -> Tuple[np.ndarray, tuple, tuple
     return L, sectors, regions
 
 
-def build_mrio_shock(scenario_id: str, year: int) -> np.ndarray:
-    """980-vector: shock_{region r, sector i} = EI_i × price(band(r)) × PT_i × 1e-6."""
+def build_mrio_shock(scenario_id: str, year: int,
+                     price_scale: float = 1.0, pass_through_scale: float = 1.0) -> np.ndarray:
+    """980-vector: shock_{region r, sector i} = EI_i × price(band(r)) × PT_i × 1e-6.
+
+    price_scale / pass_through_scale are the Monte-Carlo / sensitivity multipliers so
+    the MRIO L3 responds to the same perturbations as the world L3 and L1 (bug fix)."""
     _, sectors, regions = _load_mrio()
     tax = load_sector_taxonomy()["sectors"]
     spt = load_sector_pass_through()["sectors"]
     ei = np.array([float(tax.get(s, {}).get("emission_intensity_t_per_revenue", 0.0)) for s in sectors])
     pt = np.array([float(spt.get(s, {"pass_through": 0.4})["pass_through"]) for s in sectors])
+    pt = np.clip(pt * max(0.0, pass_through_scale), 0.0, 1.0)
     # price per region band (cache per band within this call)
-    band_price = {b: get_carbon_price(scenario_id, year, b)
+    band_price = {b: get_carbon_price(scenario_id, year, b) * max(0.0, price_scale)
                   for b in ("advanced", "emerging", "rest_of_world")}
     s = np.empty(len(regions) * len(sectors))
     for r_i, r in enumerate(regions):
         price = band_price[_exio_band(r)]
-        s[r_i * len(sectors):(r_i + 1) * len(sectors)] = ei * price * pt * 1e-6
+        # Clamp each sector shock to 1.0 (see network_propagation.build_sectorwide_shock):
+        # carbon cost cannot inflate output price >100% in the linear basis.
+        s[r_i * len(sectors):(r_i + 1) * len(sectors)] = np.minimum(1.0, ei * price * pt * 1e-6)
     return s
 
 
@@ -116,7 +123,7 @@ def propagate_mrio(
     scenario_id: str, year: int, asset_revenue: float,
     elasticity: float = 1.0, cascade: bool = False,
     cascade_theta: float = 0.5, cascade_contagion: float = 0.5,
-    absorption: float = 1.0,
+    absorption: float = 1.0, price_scale: float = 1.0, pass_through_scale: float = 1.0,
 ) -> NetworkShockResult:
     L, sectors, regions = get_mrio_leontief(elasticity)
     n_sec = len(sectors)
@@ -126,7 +133,8 @@ def propagate_mrio(
     s_i = sectors.index(sector)
     j = r_i * n_sec + s_i
 
-    s = build_mrio_shock(scenario_id, year)
+    s = build_mrio_shock(scenario_id, year, price_scale=price_scale,
+                         pass_through_scale=pass_through_scale)
     s_eff = _cascade(L, s, cascade_theta, cascade_contagion) if cascade else s
 
     col = L[:, j]

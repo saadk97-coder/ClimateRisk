@@ -1100,3 +1100,160 @@ def test_u2_disclosure_excludes_cascade():
     dummy = T.run_engine(active, scenarios)
     report = T.build_disclosure_report(active, dummy, scenarios, discount_rate=0.09)
     assert "excluded from the figures in this disclosure" in report
+
+
+# ---------------------------------------------------------------------------
+# External-review batch (Session 10): findings 1–5 + code-review bugs
+# ---------------------------------------------------------------------------
+def test_review_l2_percent_stranded_equals_recognized_dollars():
+    """Finding 1 — reported % stranded must equal the dollars actually recognised
+    (cumulative impairment ÷ replacement value); the strandable ceiling is separate."""
+    rv = 500_000_000
+    r = compute_stranding("A1", "power_coal", rv, "net_zero_2050", _YEARS)
+    cum = sum(r.annual_impairment_usd.values())
+    # fraction is rounded to 4dp; allow the rounding bound (0.5e-4 × value)
+    assert abs(r.stranded_fraction_2050 * rv - cum) < rv * 1e-4  # % × value == dollars
+    assert r.strandable_ceiling_frac >= r.stranded_fraction_2050  # ceiling ≥ recognised
+    # the ceiling (what COULD strand) is materially higher than what is recognised by 2050
+    assert r.strandable_ceiling_frac > r.stranded_fraction_2050
+
+
+def test_review_scope2_dropped_from_l1_when_l3_on(office):
+    """Finding 2 — Scope 2 is routed via the electricity sector in L3 (auto), not charged
+    directly in L1, unless the firm pays an explicit carbon charge (scope2_mode='direct')."""
+    dc = Asset(id="DC", name="DC", lat=0, lon=0, asset_type="x", replacement_value=1e8,
+               construction_material="concrete", year_built=2020, stories=1, basement=False,
+               roof_type="flat", first_floor_height_m=0, terrain_elevation_asl_m=0, floor_area_m2=0,
+               region="USA", sector="data_center", scope1_emissions_tco2=0.0,
+               scope2_emissions_tco2=100_000.0, scope3_emissions_tco2=0.0, annual_revenue=5e8)
+    auto = run_asset_transition(dc, "net_zero_2050", enable_layers=(1, 3), scope2_mode="auto")
+    direct = run_asset_transition(dc, "net_zero_2050", enable_layers=(1, 3), scope2_mode="direct")
+    l1_auto = sum(auto.layer_breakdown["L1_carbon_opex"].values())
+    l1_direct = sum(direct.layer_breakdown["L1_carbon_opex"].values())
+    assert l1_auto == 0.0            # zero Scope 1, Scope 2 not charged directly
+    assert l1_direct > 0.0           # explicit charge → Scope 2 in L1
+
+
+def test_review_scope3_mode_defaults_to_auto():
+    """Finding 2 — the non-duplication-safe 'auto' mode is now the default."""
+    import inspect
+    from engine.transition import transition_engine as te
+    assert inspect.signature(te.run_asset_transition).parameters["scope3_mode"].default == "auto"
+    assert inspect.signature(te.run_portfolio_transition).parameters["scope3_mode"].default == "auto"
+
+
+def test_review_l3_intensity_same_order_as_fixture():
+    """Finding 3 — taxonomy sector emission intensity (tCO2/$M gross output) must be within
+    an order of magnitude of the coal fixture's implied intensity (not ~1000× too small)."""
+    tax = load_sector_taxonomy()["sectors"]
+    coal_ei = tax["power_coal"]["emission_intensity_t_per_revenue"]
+    fixture_ei = 2_550_000 / 300.0   # 2.55 MtCO2 Scope 1+2 / $300M revenue ≈ 8500 t/$M
+    ratio = coal_ei / fixture_ei
+    assert 0.1 < ratio < 10.0, f"coal intensity {coal_ei} vs fixture {fixture_ei:.0f} (ratio {ratio:.2f})"
+
+
+def test_review_l3_now_material_and_responds_to_scales():
+    """Finding 3 / bug 4 — L3 is visible after recalibration and responds to the
+    Monte-Carlo price and pass-through scales (world and MRIO)."""
+    ref = Asset(id="C1", name="Ref", lat=29, lon=-95, asset_type="x", replacement_value=2e9,
+                construction_material="concrete", year_built=2005, stories=4, basement=False,
+                roof_type="flat", first_floor_height_m=0.5, terrain_elevation_asl_m=5, floor_area_m2=1e5,
+                region="USA", sector="oil_refining", scope1_emissions_tco2=4_500_000,
+                scope2_emissions_tco2=300_000, scope3_emissions_tco2=8_000_000, annual_revenue=8e9)
+    base = run_asset_transition(ref, "net_zero_2050", enable_layers=(3,))
+    hi = run_asset_transition(ref, "net_zero_2050", enable_layers=(3,), price_scale=1.5)
+    base_l3 = sum(base.layer_breakdown["L3_network_input_cost"].values())
+    hi_l3 = sum(hi.layer_breakdown["L3_network_input_cost"].values())
+    assert base_l3 > 1e6            # material, not invisible
+    assert hi_l3 > base_l3          # responds to price_scale
+    # MRIO path also responds to price_scale
+    m_base = run_asset_transition(ref, "net_zero_2050", enable_layers=(3,), l3_mode="mrio")
+    m_hi = run_asset_transition(ref, "net_zero_2050", enable_layers=(3,), l3_mode="mrio", price_scale=1.5)
+    assert sum(m_hi.layer_breakdown["L3_network_input_cost"].values()) > \
+           sum(m_base.layer_breakdown["L3_network_input_cost"].values())
+
+
+def test_review_l4_wacc_capital_structure_weighted():
+    """Finding 4 — the L4→WACC premium is capital-structure weighted, not credit+equity
+    added one-for-one."""
+    coal = Asset(id="A1", name="Coal", lat=40, lon=-100, asset_type="x", replacement_value=5e8,
+                 construction_material="concrete", year_built=2010, stories=3, basement=False,
+                 roof_type="flat", first_floor_height_m=0, terrain_elevation_asl_m=200, floor_area_m2=2e4,
+                 region="USA", sector="power_coal", scope1_emissions_tco2=2_500_000,
+                 scope2_emissions_tco2=50_000, scope3_emissions_tco2=200_000, annual_revenue=3e8)
+    r = run_asset_transition(coal, "net_zero_2050", layer4_routing=ROUTE_WACC)
+    l4 = r.layer4_result
+    expected = 0.6 * l4.equity_premium_bps + 0.4 * l4.credit_spread_premium_bps * (1 - 0.25)
+    assert abs(r.wacc_premium_bps - expected) < 0.01
+    # and it is NOT the naive credit+equity sum
+    assert abs(r.wacc_premium_bps - (l4.equity_premium_bps + l4.credit_spread_premium_bps)) > 0.01
+
+
+def test_review_dcf_applies_wacc_premium():
+    """Finding 4 / bug 1 — the WACC premium actually changes the transition DCF valuation."""
+    from engine.dcf_engine import DCFInputs
+    from engine.transition.transition_dcf import compute_combined_dcf
+    coal = Asset(id="A1", name="Coal", lat=40, lon=-100, asset_type="x", replacement_value=5e8,
+                 construction_material="concrete", year_built=2010, stories=3, basement=False,
+                 roof_type="flat", first_floor_height_m=0, terrain_elevation_asl_m=200, floor_area_m2=2e4,
+                 region="USA", sector="power_coal", scope1_emissions_tco2=2_500_000,
+                 scope2_emissions_tco2=50_000, scope3_emissions_tco2=200_000, annual_revenue=3e8)
+    inp = DCFInputs(name="Coal", asset_value=5e8, cashflows=[3e7] * 26, forecast_years=25)
+    empty = pd.DataFrame(columns=["year", "ead", "scenario_id"])
+    with_prem = compute_combined_dcf(inp, empty, [run_asset_transition(coal, "net_zero_2050",
+                                     layer4_routing=ROUTE_WACC)], "net_zero_2050")
+    no_prem = compute_combined_dcf(inp, empty, [run_asset_transition(coal, "net_zero_2050",
+                                   layer4_routing=ROUTE_CASHFLOWS)], "net_zero_2050")
+    assert with_prem.wacc_premium_bps > 0.0
+    assert no_prem.wacc_premium_bps == 0.0
+    assert with_prem.combined_dcf.npv_climate != no_prem.combined_dcf.npv_climate
+
+
+def test_review_pv_timing_convention_is_consistent():
+    """Bug 2 — the transition PV helpers all use the same end-of-year convention
+    (y − base_year + 1) as the DCF engine."""
+    import inspect
+    from engine.transition import uncertainty, sensitivity
+    for mod in (uncertainty, sensitivity):
+        src = inspect.getsource(mod._pv)
+        assert "y - base_year + 1" in src
+
+
+def test_review_l4_module_defaults_unified_to_wacc():
+    """Bug 8 — uncertainty and sensitivity default to the same L4 routing as the
+    orchestrator (WACC), so base and MC/tornado are consistent."""
+    import inspect
+    from engine.transition import uncertainty, sensitivity
+    from engine.transition.transition_engine import run_asset_transition as ra
+    assert inspect.signature(ra).parameters["layer4_routing"].default == ROUTE_WACC
+    assert inspect.signature(uncertainty.run_monte_carlo).parameters["layer4_routing"].default == ROUTE_WACC
+    assert inspect.signature(sensitivity.tornado).parameters["layer4_routing"].default == ROUTE_WACC
+
+
+def test_review_data_quality_flag(coal_plant):
+    """Finding (data-quality) — every result carries a data-quality classification;
+    a missing-revenue / firm-override case flips it appropriately."""
+    r = run_asset_transition(coal_plant, "net_zero_2050")
+    assert r.data_quality in ("firm", "sector-proxy", "degraded")
+    assert r.data_quality == "sector-proxy"          # sector medians, no firm feed
+    assert any("sector median" in f.lower() for f in r.data_quality_flags)
+    # firm-level CCExposure override → firm-grade
+    rf = run_asset_transition(coal_plant, "net_zero_2050",
+                              firm_cce_override={"opportunity": 0.4, "regulatory": 0.3, "physical": 0.1})
+    assert rf.data_quality == "firm"
+    # zero-revenue asset with L3/L4 on → degraded
+    from dataclasses import replace
+    poor = replace(coal_plant, annual_revenue=0.0)
+    rp = run_asset_transition(poor, "net_zero_2050")
+    assert rp.data_quality == "degraded"
+
+
+def test_review_unknown_scenario_warns(caplog):
+    """Finding (loud failures) — an unknown scenario logs a DEGRADED-proxy warning
+    instead of silently returning zero."""
+    import logging
+    from engine.transition.data_loader import map_scenario_to_ngfs
+    with caplog.at_level(logging.WARNING):
+        out = map_scenario_to_ngfs("totally_made_up_scenario")
+    assert out == "current_policies"
+    assert any("Unknown scenario" in rec.message for rec in caplog.records)

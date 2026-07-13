@@ -64,12 +64,21 @@ def compute_combined_dcf(
         total_adaptation_capex=total_adaptation_capex,
     )
 
-    # 2. Transition-only DCF
+    # Layer-4 financing premium (already capital-structure-weighted in the
+    # orchestrator) is applied to the discount rate for the transition and combined
+    # DCFs by ADDING it to climate_risk_premium. Physical-only keeps the base WACC.
+    wacc_bps = 0.0
+    if transition_results:
+        wacc_bps = sum(tr.wacc_premium_bps for tr in transition_results) / len(transition_results)
+    from dataclasses import replace as _dc_replace
+    inputs_l4 = _dc_replace(inputs, climate_risk_premium=inputs.climate_risk_premium + wacc_bps / 10_000.0)
+
+    # 2. Transition-only DCF (discount rate augmented by the L4 financing premium)
     trans_df = transition_results_to_damage_df({scenario_id: transition_results})
     if trans_df.empty:
         trans_df = pd.DataFrame({"year": [inputs.base_year], "ead": [0.0], "scenario_id": [scenario_id]})
     trans = compute_climate_dcf(
-        inputs=inputs,
+        inputs=inputs_l4,
         annual_damages_df=trans_df,
         scenario_id=scenario_id,
     )
@@ -79,33 +88,31 @@ def compute_combined_dcf(
         if not physical_damages_df.empty else pd.DataFrame(columns=["year", "ead"])
     trans_part = trans_df[trans_df["scenario_id"] == scenario_id][["year", "ead"]].copy()
 
-    if phys_part.empty and trans_part.empty:
+    _parts = [p for p in (phys_part, trans_part) if not p.empty]
+    if not _parts:
         combined_part = pd.DataFrame(columns=["year", "ead"])
     else:
-        combined_part = pd.concat([phys_part, trans_part], ignore_index=True)
+        combined_part = pd.concat(_parts, ignore_index=True)
         combined_part = combined_part.groupby("year", as_index=False)["ead"].sum()
     combined_part["scenario_id"] = scenario_id
 
     combined = compute_climate_dcf(
-        inputs=inputs,
+        inputs=inputs_l4,
         annual_damages_df=combined_part,
         scenario_id=scenario_id,
         adaptation_savings_df=adaptation_savings_df,
         total_adaptation_capex=total_adaptation_capex,
     )
 
-    # Stranded-asset PV impairment (not in CFs; reported separately)
+    # Stranded-asset PV impairment (not in CFs; reported separately). Uses the same
+    # end-of-year discount convention (y − base_year + 1) as compute_climate_dcf, so
+    # every transition PV in the app shares one timing convention.
     pv_strand = 0.0
-    discount = (1.0 + inputs.wacc + inputs.climate_risk_premium)
+    discount = (1.0 + inputs_l4.wacc + inputs_l4.climate_risk_premium)
     for tr in transition_results:
         for y, imp in tr.annual_impairment_usd.items():
             t = max(0, y - inputs.base_year + 1)
             pv_strand += imp / (discount ** t)
-
-    # Average WACC premium across assets (if any layer was routed to WACC)
-    wacc_bps = 0.0
-    if transition_results:
-        wacc_bps = sum(tr.wacc_premium_bps for tr in transition_results) / len(transition_results)
 
     return CombinedDCFResult(
         scenario_id=scenario_id,

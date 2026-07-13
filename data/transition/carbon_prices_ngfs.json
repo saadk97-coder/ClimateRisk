@@ -1,10 +1,10 @@
 {
   "_meta": {
-    "description": "NGFS Phase V carbon prices (Price|Carbon) pulled live from the IIASA NGFS Phase 5 Scenario Explorer.",
+    "description": "NGFS Phase V carbon prices (Price|Carbon) pulled from the IIASA NGFS Phase V Scenario Explorer. NGFS Phase V was published November 2024.",
     "model": "REMIND-MAgPIE 3.3-4.8",
-    "source_unit": "US$2010/t CO2",
+    "source_unit": "US$2010/tCO2",
     "deflator_applied": 1.18,
-    "reported_unit": "US$2010/t CO2 x 1.18 (rebased)",
+    "reported_unit": "US$2020/tCO2 (2010 series rebased x1.18 via US GDP deflator)",
     "region_mapping": {
       "OECD & EU (R5)": "advanced",
       "Asia (R5)": "emerging",
@@ -25,7 +25,8 @@
       "iea_steps"
     ],
     "retrieved_utc": "2026-07-08T22:33:44Z",
-    "source_url": "https://data.ene.iiasa.ac.at/ngfs/"
+    "source_url": "https://data.ene.iiasa.ac.at/ngfs/",
+    "phase": "NGFS Phase V (published November 2024)"
   },
   "scenarios": {
     "net_zero_2050": {

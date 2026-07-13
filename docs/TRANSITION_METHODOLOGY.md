@@ -132,9 +132,13 @@ net_carbon_opex = absorbed + scope3_indirect          ← what hits the firm's c
   generous free allocation and high pass-through, `absorbed` goes **negative** (a windfall gain). At
   the default `priced_fraction = 1` this reduces to `absorbed = opportunity × (1 − PT)` (legacy).
 - **priced_fraction** models free allocation / partial ETS coverage (P0). Default 1.0.
-- **Scope-3 mode** (P0): `full` counts scope3_indirect in L1 *and* propagates upstream in L3
-  (reproduces the methodology's worked examples). `auto` sets the L1 Scope-3 term to 0 whenever
-  L3 is enabled, so upstream cost is counted once.
+- **Scope-2 & Scope-3 incidence (external review).** Purchased-electricity carbon (Scope 2) and
+  upstream Scope 3 are *supplier* costs that reach the firm through prices, which Layer 3 already
+  models. Charging them again as a direct L1 liability double-counts, so **`scope2_mode` and
+  `scope3_mode` now default to `auto`**: both are dropped from L1 whenever Layer 3 is enabled —
+  Scope 2 unless the firm pays an explicit carbon charge on its electricity (`scope2_mode="direct"`).
+  `full` keeps them in L1 and should be used only with Layer 3 off. `scope3_incidence` (R3) lets
+  the analyst set the supplier-to-buyer pass-through directly.
 
 **Data:** `carbon_prices_ngfs.json` — real **NGFS Phase V** (released Nov 2024) REMIND-MAgPIE 3.3-4.8
 prices pulled live from the IIASA `ngfs_phase_5` explorer, rebased ×1.18 (US GDP deflator 2010→2020)
@@ -185,6 +189,11 @@ cap      = max(0, 1 − pathway(2050)) × base               scenario-scaled cei
 annual_impairment(y) = (frac(y) − frac(y−1)) × cap
 ```
 Impairment is a **balance-sheet** figure, reported separately from cash flow.
+**% stranded = recognised, not the ceiling (external review finding 1).** The headline
+`stranded_fraction_2050` is the *recognised* cumulative impairment over 2025–50 ÷ replacement value,
+so it always equals the dollar impairment (e.g. coal ≈ **53%** = $266M ÷ $500M). The logistic *level*
+at 2050 (which includes pre-2025 stranding never booked) is reported separately as the
+`strandable_ceiling` (coal ≈ 98%). The two must not be conflated.
 **R7 — per-sector slope** is read from `sector_taxonomy.stranding_slope` (calibrated to asset-turnover
 speed; power fast, heavy industry & networks slow); the two documented calibration anchors (power_coal,
 oil_refining) are held at the legacy 0.20. **R1 — non-fossil base fraction** is configurable in the UI.
@@ -208,9 +217,16 @@ storage 170). Learning rates: Way et al. 2022 / IRENA. Industrial base costs rem
 ### 5.1 Sectoral shock
 Each sector's carbon shock as a fraction of its output:
 ```
-sᵢ = emission_intensityᵢ × price × pass_throughᵢ × 1e−6
+sᵢ = min(1.0, emission_intensityᵢ × price × pass_throughᵢ × 1e−6)
 ```
-(emission_intensity in tCO₂ per M$ revenue; 1e−6 → per-USD.) Using sector-typical exposure avoids
+(emission_intensity in tCO₂ per **M$ of sector gross output**; 1e−6 → per-USD.) **Scale correction
+(external review finding 3):** the intensities were ~1000× too low (implied t/$k), which made L3
+invisible; they are now realistic EEIO/EXIOBASE-informed direct Scope-1 intensities (fossil sectors
+O(1000s) tCO₂/M$, services O(10s)), verified against the fixtures by a unit test. Each sector shock is
+**clamped to 1.0** — carbon cost cannot inflate a sector's output price by more than 100% in the linear
+Leontief basis; beyond that the sector is stranding (Layer 2), not passing input cost. The shock also
+responds to the Monte-Carlo `price_scale` and `pass_through_scale` in both the world and MRIO paths.
+Using sector-typical exposure avoids
 double-counting the focal asset's own pass-through.
 
 ### 5.2 Leontief propagation
@@ -298,17 +314,25 @@ The credit-spread figures are shown for diagnostics but never routed into headli
 total_cf(y) = L1 net_carbon_opex
             + L2 revenue_erosion
             + L3 indirect_input_cost
-            + L4 revenue_modifier (as a cost: −modifier)
+            + L4 revenue_modifier (as a cost: −modifier)    (only if ROUTE_CASHFLOWS)
 impairment(y) = L2 annual_impairment            (balance-sheet, NOT in total_cf)
-wacc_premium_bps = L4 credit+equity              (only if ROUTE_WACC)
+ΔWACC_bps  = equity_weight·equity_premium + debt_weight·credit_spread·(1−tax)   (only if ROUTE_WACC)
 ```
-`run_portfolio_transition` runs all assets × scenarios and returns
-`{scenario: [TransitionAssetResult]}`.
+**Capital-structure-weighted WACC (external review finding 4).** The L4 premium is no longer
+`credit + equity` added one-for-one; the equity premium enters the cost of equity and the credit
+spread the after-tax cost of debt, weighted by capital structure (default 60/40, 25% tax). It is now
+**actually applied** in `transition_dcf.compute_combined_dcf` (added to `climate_risk_premium` for the
+transition and combined DCFs) — previously it was computed but never discounted, so L4→WACC had no
+valuation effect. `run_portfolio_transition` runs all assets × scenarios and returns
+`{scenario: [TransitionAssetResult]}`, each tagged with a **data-quality flag** (firm / sector-proxy /
+degraded) that surfaces on the Audit page.
 
-**Present value & discount basis (Round-1 P2).** Carbon prices are **real** (USD2020), so PV
-discounts the real cash flows at a **real** rate = nominal WACC − long-run inflation
-(`PV = Σ cost / (1 + real)^(y − 2025)`). Discounting real flows at the nominal WACC would
-systematically understate PV. Both are app inputs (nominal WACC default 9%, inflation 2.5% → real 6.5%).
+**Present value & discount basis (Round-1 P2 + external review).** Carbon prices are **real**
+(USD2020), so PV discounts the real cash flows at a **real** rate = nominal WACC − long-run inflation.
+Discounting real flows at the nominal WACC would systematically understate PV. Both are app inputs
+(nominal WACC default 9%, inflation 2.5% → real 6.5%). **One timing convention** is now used everywhere —
+end-of-year `PV = Σ cost / (1 + real)^(y − 2025 + 1)` — across the DCF engine, Monte-Carlo, tornado,
+disclosure export and the stranded-impairment PV (previously these mixed `y−2025` and `y−2025+1`).
 
 **Impairment vs cash-flow cost are NOT additive (Round-1 P1).** L2 stranded impairment is the PV
 writedown of the same future cash flows whose erosion already feeds the cash-flow cost. They are two
@@ -350,15 +374,18 @@ One-at-a-time swing of each driver, all others at base, sorted by |swing|. Two t
 Attributed emissions = Σ `attribution_pct` × (Scope 1/2/3). 100% = corporate own-asset view; a
 lender/investor enters their stake.
 
-### 9.2 Implied Temperature Rise
-Each entity's abated Scope 1+2 pathway vs a 1.5 °C linear-to-net-zero budget:
+### 9.2 Emissions-budget temperature score (screening ITR proxy)
+A **screening indicator**, NOT a standard-compliant Implied Temperature Rise (SBTi / CDP-WWF
+temperature scoring). Each entity's abated Scope 1+2 pathway vs a 1.5 °C linear-to-net-zero budget:
 ```
 budget = 0.5 × E₀ × (2050 − 2025)                     area under a straight line to zero
 ratio  = cumulative_actual / budget − 1
-ITR    = clamp[1.2, 4.0]( 1.5 + 1.2 × ratio )
-portfolio ITR = Scope1+2 × attribution weighted mean
+score  = clamp[1.5, 4.0]( 1.5 + 1.2 × ratio )         floored at 1.5 °C best case
+portfolio score = Scope1+2 × attribution weighted mean
 ```
-Net-zero-by-2050 ≈ 1.5 °C; flat emissions ≈ 2.8 °C.
+Net-zero-by-2050 ≈ 1.5 °C; flat emissions ≈ 2.8 °C. **External review:** the old 1.2 °C lower bound
+implied sub-1.5 alignment and was not defensible — the floor is now the 1.5 °C best case. Report this
+as a screening score, not a certified ITR.
 
 ### 9.3 Pathway alignment (PACTA-style)
 Compares the entity's Scope 1+2 decline by 2050 to the scenario's sector demand pathway;
@@ -421,7 +448,7 @@ CSV export).
 
 | Component | Source | Vintage |
 |---|---|---|
-| Carbon prices (L1) | NGFS Phase V REMIND-MAgPIE 3.3-4.8 (IIASA) | Nov 2023, ×1.18 → USD2020 |
+| Carbon prices (L1) | NGFS Phase V REMIND-MAgPIE 3.3-4.8 (IIASA), published Nov 2024 | US$2010 series ×1.18 (US GDP deflator) → US$2020 |
 | Pass-through (L1) | Sijm 2012; Fabra & Reguant 2014; Cludius 2020 | sector medians |
 | Learning rates (L2) | Way et al. 2022; IRENA | 2022–23 |
 | LCOE base costs (L2) | IRENA RPGC 2024; Lazard LCOE+ 2025 v18 | 2024–25 |
@@ -432,16 +459,20 @@ CSV export).
 
 ---
 
-## 11. Calibration — worked examples (default settings, Scope-3 full)
+## 11. Calibration — worked examples (default settings)
 
-- **Coal plant** ($500M, 2.5 MtCO₂): Net-Zero-2050 L1-2050 ≈ **$169M**; cumulative impairment
-  **$266.1M** / 97.3% stranded (crossover 2025). Current Policies ≈ $7M / $33M.
-- **Oil refinery** ($2B, 12.8 MtCO₂): stranding triggered by **demand collapse** (crossover 2039),
-  not cost crossover.
+- **Coal plant** ($500M, 2.5 MtCO₂): Net-Zero-2050 cumulative impairment **$266.1M** — now reported as
+  **53% recognised** stranded (= $266M ÷ $500M), against a **98% strandable ceiling** (crossover 2025).
+  Current Policies ≈ $33M.
+- **Oil refinery** ($2B, 12.8 MtCO₂): stranding triggered by **demand collapse** (crossover 2039), not
+  cost crossover; cumulative impairment ≈ $1.36B.
 - **Office** ($50M, 1k tCO₂): no stranding; small net cost / reputational uplift.
 
-These are unchanged by the P0–P3 upgrades (abatement/priced default to legacy; world L3 default;
-LCOE preserves the 2025 crossover).
+Impairment dollars are unchanged by the upgrades (abatement/priced default to legacy; anchor sectors
+hold slope 0.20). What changed at the external-review stage: the **% stranded label** now reports the
+recognised figure (53%) not the ceiling (98%); L1 cash-flow cost is lower where Scope 2/3 shift to L3
+under the new `auto` default; and L3 is now materially larger after the emission-intensity scale
+correction.
 
 ---
 

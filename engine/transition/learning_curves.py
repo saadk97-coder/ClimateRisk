@@ -73,12 +73,13 @@ class StrandingResult:
     incumbent_tech: str
     challenger_tech: Optional[str]
     crossover_year: Optional[int]    # None if no crossover within horizon
-    stranded_fraction_2050: float    # fraction of replacement value impaired by 2050
+    stranded_fraction_2050: float    # RECOGNISED cumulative impairment 2025–50 ÷ replacement value
     annual_impairment_usd: Dict[int, float]  # {year: impairment in USD}
     revenue_index: Dict[int, float]  # {year: revenue multiplier (sector_pathways)}
     crossover_year_early: Optional[int] = None   # R6 — Lafond-band earliest crossover
     crossover_year_late: Optional[int] = None    # R6 — Lafond-band latest crossover
     stranding_slope: float = 0.20                # R7 — logistic slope actually used
+    strandable_ceiling_frac: float = 0.0         # cap ÷ replacement value (max that COULD strand)
     notes: str = ""
 
 
@@ -322,7 +323,14 @@ def compute_stranding(
         # Sector pathway revenue index
         rev_index[y] = _interp_pathway(pathway_curve, y)
 
-    stranded_2050 = _logistic_impairment(2050, crossover, slope) * cap if crossover else 0.0
+    # % stranded MUST equal the dollars actually recognised (reviewer finding 1):
+    # report the recognised cumulative impairment over the horizon ÷ replacement
+    # value, NOT the logistic level at 2050 (which includes pre-2025 stranding that
+    # is never booked). The strandable *ceiling* (cap ÷ value) is reported alongside
+    # as the theoretical maximum, clearly distinct from what is recognised.
+    recognised_cum = sum(annual_impairment.values())
+    stranded_fraction = recognised_cum / max(replacement_value, 1.0)
+    ceiling_frac = cap / max(replacement_value, 1.0)
 
     return StrandingResult(
         asset_id=asset_id,
@@ -331,12 +339,13 @@ def compute_stranding(
         incumbent_tech=incumbent or "",
         challenger_tech=challenger,
         crossover_year=crossover,
-        stranded_fraction_2050=round(stranded_2050 / max(replacement_value, 1.0), 4),
+        stranded_fraction_2050=round(stranded_fraction, 4),
         annual_impairment_usd=annual_impairment,
         revenue_index=rev_index,
         crossover_year_early=crossover_early,
         crossover_year_late=crossover_late,
         stranding_slope=slope,
+        strandable_ceiling_frac=round(ceiling_frac, 4),
         notes=(
             "Wright's Law projection (Way et al. 2022); Lafond bands; "
             f"slope={slope:g}; carbon_inclusive={carbon_inclusive_crossover}; "

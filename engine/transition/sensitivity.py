@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional
 
 from engine.transition.transition_engine import run_portfolio_transition, DEFAULT_HORIZON
-from engine.transition.cc_exposure import ROUTE_CASHFLOWS
+from engine.transition.cc_exposure import ROUTE_WACC
 
 
 @dataclass
@@ -28,7 +28,8 @@ class TornadoBar:
 
 
 def _pv(series: Dict[int, float], base_year: int, discount: float) -> float:
-    return sum(v / (1.0 + discount) ** (y - base_year) for y, v in series.items())
+    # End-of-year convention (y − base_year + 1), consistent with dcf_engine.
+    return sum(v / (1.0 + discount) ** (y - base_year + 1) for y, v in series.items())
 
 
 def _stream(r, target: str) -> Dict[int, float]:
@@ -43,8 +44,8 @@ def _portfolio_pv(assets, scenario, discount, base_year, target="cost", **kw) ->
 
 def tornado(
     assets: List, scenario: str, discount_rate: float = 0.09,
-    layer4_routing: str = ROUTE_CASHFLOWS, enable_layers: tuple = (1, 2, 3, 4),
-    scope3_mode: str = "full", target: str = "cost",
+    layer4_routing: str = ROUTE_WACC, enable_layers: tuple = (1, 2, 3, 4),
+    scope3_mode: str = "auto", target: str = "cost",
 ) -> dict:
     """
     One-at-a-time sensitivity tornado for one scenario.

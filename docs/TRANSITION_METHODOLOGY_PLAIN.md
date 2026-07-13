@@ -60,7 +60,8 @@ the standard **NGFS** scenarios central banks use.
 
 The tool follows the four transition-risk categories defined by the **TCFD** (the global
 climate-disclosure framework). Each is one "layer," each is computed separately, and — this
-is important — **each is counted exactly once** so nothing is double-charged.
+is important — **each is routed once by design**, with a couple of disclosed boundary
+exceptions (see §5) rather than a blanket "counted exactly once" guarantee.
 
 ### Layer 1 — Policy & Legal risk (the carbon-price channel)
 **Question it answers:** *What does it cost to emit, once emissions carry a price?*
@@ -122,10 +123,11 @@ the revenue route is offered as a clearly-labeled *manual* overlay.
 
 ---
 
-## 5. The golden rule: count each risk once
+## 5. The golden rule: route each risk once (with two disclosed exceptions)
 
 The biggest way climate models mislead is by **double-counting** — charging the same dollar
-twice. The whole architecture is built to prevent that:
+twice. The architecture routes each channel to one destination, with two honestly-flagged
+boundary cases rather than a blanket guarantee:
 
 | Channel | Where it lands (once) |
 |---------|-----------------------|
@@ -136,7 +138,16 @@ twice. The whole architecture is built to prevent that:
 
 For example, the carbon a firm passes on to customers is removed from *its* cost (Layer 1)
 and only enters the supply chain (Layer 3) — never both. Stranded value (a balance-sheet
-write-down) is kept in its own column and never added into the cash-flow cost total.
+write-down) is kept in its own column and never added into the cash-flow cost total. And a
+company's **purchased-electricity carbon (Scope 2)** is charged only once — through the higher
+power prices in Layer 3, not also as a direct Layer-1 bill (unless it actually pays an explicit
+carbon charge on that electricity).
+
+**The two disclosed exceptions.** (1) A demand collapse shows up as *both* eroded revenue
+(cash flow) and a stranded write-down (balance sheet) — these are two **lenses on the same
+loss**, shown side by side and never summed. (2) The "% stranded" figure is defined as the
+write-down actually recognised by 2050, so it always matches the dollar impairment; a separate
+"strandable ceiling" shows the theoretical maximum.
 
 ---
 
@@ -160,8 +171,10 @@ write-down) is kept in its own column and never added into the cash-flow cost to
 
 The tool doesn't stop at "here's the cost." It also helps answer *what to do*:
 
-- **Financed emissions & Implied Temperature Rise** — standard portfolio-alignment metrics
-  (PCAF, a 1.5 °C benchmark) for investors and disclosure.
+- **Financed emissions & a temperature score** — *screening indicators* that approximate the
+  shape of PCAF financed emissions and an Implied Temperature Rise (1.5 °C benchmark). They are
+  **not** the certified PCAF / SBTi / PACTA metrics and shouldn't be reported as compliant with
+  them.
 - **Marginal Abatement Cost Curves + optimizer** — given a budget, which emission cuts buy
   the most reduction per dollar (cheapest-first).
 - **Decarbonization Lever Library** — for each sector, the concrete options to cut emissions
@@ -201,7 +214,19 @@ channels, avoids double-counting, shows its working, and ranges its answers.
   label it as such rather than dressing it up as full VaR.
 - A finished regulatory disclosure. It structures the output against IFRS S2 / ESRS E1, but
   a real filing needs specialist review and assured data.
+- A full real-estate transition model. Buildings show near-zero here because only carbon
+  pricing is modelled; performance standards, retrofit capex, and green-vs-brown rent effects
+  are not yet built — so a low real-estate number is *not* a clean bill of health.
+- A free-decarbonization model. Setting a net-zero target lowers future carbon cost, but the
+  **capital and operating cost of the abatement** to get there is analysed separately (in the
+  abatement/MACC view) and is not automatically netted into the headline — treat a target as
+  reducing gross exposure, not as costless.
+- A technology-equivalence oracle. Layer 2 compares a challenger's cost to an incumbent's, but
+  those costs aren't always like-for-like (e.g. solar power vs coal power ignores firming/grid
+  value) — the crossover year is indicative, not a dispatch-accurate parity date.
 
 The guiding principle throughout: **be useful and be honest about the limits.** Every place
 where a figure is a proxy, an assumption, or an opt-in refinement is labeled as such — in the
-tool, the audit trail, and the full methodology document.
+tool, the audit trail, and the full methodology document. Every engine result also carries a
+**data-quality flag** (firm / sector-proxy / degraded) so a number built on placeholders is
+never mistaken for one built on company data.

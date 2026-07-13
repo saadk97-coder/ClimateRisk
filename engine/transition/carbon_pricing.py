@@ -212,12 +212,15 @@ def carbon_cost_timeline(
     priced_fraction: float = 1.0,
     price_scale: float = 1.0,
     pass_through_scale: float = 1.0,
+    scope3_incidence: Optional[float] = None,
 ) -> List[CarbonCostResult]:
     """Convenience wrapper to compute Layer-1 results across a year range.
 
     emissions_index : optional {year: Scope 1+2 multiplier} abatement pathway.
     priced_fraction : share of Scope 1+2 exposed to the carbon price (free allocation).
     price_scale, pass_through_scale : Monte-Carlo perturbation multipliers.
+    scope3_incidence : share of Scope-3 carbon cost that reaches this firm (R3);
+        None → legacy (1 − own pass-through).
     """
     return [
         compute_carbon_cost(
@@ -234,6 +237,7 @@ def carbon_cost_timeline(
             priced_fraction=priced_fraction,
             price_scale=price_scale,
             pass_through_scale=pass_through_scale,
+            scope3_incidence=scope3_incidence,
         )
         for y in years
     ]

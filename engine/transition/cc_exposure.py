@@ -1,5 +1,15 @@
 """
-Layer 4 — Reputational and capital-access overlay.
+Layer 4 — CCExposure financing proxy (reputational / capital-access overlay).
+
+Provenance caveat (reviewer)
+----------------------------
+CCExposure measures earnings-call ATTENTION to climate, not "reputation" per se, and
+only ONE of the three elasticities here is sourced: the **equity premium → cost of
+equity → WACC** channel (Sautner et al. Pricing paper). The **credit-spread** and
+**revenue** coefficients are UNSOURCED placeholders. Accordingly the default routes the
+equity premium to WACC (capital-structure weighted in the orchestrator); the revenue
+route is an opt-in manual overlay and the credit figures are diagnostic only. Sector
+medians also compress the firm-level signal — supply a `firm_override` for firm-grade.
 
 Methodology
 -----------

@@ -76,11 +76,20 @@ for ar in res:
         "Challenger tech": l2.challenger_tech or "—",
         "Crossover / trigger": l2.crossover_year if l2.crossover_year else "none",
         "Crossover range (±1σ)": _rng,
-        "Stranded fraction 2050": f"{l2.stranded_fraction_2050*100:.1f}%",
+        "% stranded (recognised by 2050)": f"{l2.stranded_fraction_2050*100:.1f}%",
+        "Strandable ceiling": f"{l2.strandable_ceiling_frac*100:.1f}%",
         f"Cum. impairment ({sym})": T.fmt_money(sum(l2.annual_impairment_usd.values())),
     })
 if rows:
-    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+    _ddf = pd.DataFrame(rows).astype(str)   # mixed int/str columns → str for clean Arrow display
+    st.dataframe(_ddf, use_container_width=True, hide_index=True)
+    st.caption(
+        "**% stranded (recognised)** is the cumulative impairment actually booked over 2025–50 "
+        "as a share of replacement value — it equals the dollar figure in the last column. The "
+        "**strandable ceiling** is the theoretical maximum that *could* strand (demand-scaled). "
+        "Impairment is a balance-sheet write-down and is **not added** to the transition cash-flow "
+        "cost shown on the Results page."
+    )
 
 # --- Cost-crossover chart --------------------------------------------------
 st.subheader("Technology cost crossover (Wright's Law)")

@@ -42,6 +42,16 @@ res = next((r for r in results.get(sc, []) if r.asset_id == aid), None)
 if res is None:
     st.stop()
 
+# --- Data-quality banner (finding: a $X on proxies ≠ a $X on firm data) ------
+_dq = getattr(res, "data_quality", "sector-proxy")
+_flags = getattr(res, "data_quality_flags", [])
+_badge = {"firm": ("✅", "success"), "sector-proxy": ("🟡", "warning"),
+          "degraded": ("🔴", "error")}.get(_dq, ("🟡", "warning"))
+getattr(st, _badge[1])(
+    f"{_badge[0]} **Data quality: {_dq}.** This estimate is only as good as its inputs — "
+    + ("; ".join(_flags) if _flags else "sector-median proxies in use.")
+)
+
 
 def trace(rows):
     df = pd.DataFrame(rows, columns=["Quantity", "Value", "How it is computed"])
@@ -75,10 +85,11 @@ if l2:
         ("Incumbent / challenger", f"{l2.incumbent_tech} → {l2.challenger_tech or '—'}", "sector taxonomy"),
         ("Crossover / trigger year", l2.crossover_year or "none", "challenger ≤ incumbent cost, or demand < 0.5"),
         ("Demand index @2050", f"{(l2.revenue_index or {}).get(2050, 1.0):.2f}", "sector pathway"),
-        ("Stranded fraction @2050", f"{l2.stranded_fraction_2050*100:.1f}%", "logistic(2050) × cap ÷ value"),
+        ("Strandable ceiling", f"{l2.strandable_ceiling_frac*100:.1f}%", "cap ÷ value = max(0,1−pathway₂₀₅₀)×base"),
+        ("% stranded (recognised)", f"{l2.stranded_fraction_2050*100:.1f}%", "Σ annual impairment ÷ value"),
         (f"Impairment @{yr}", T.fmt_money(l2.annual_impairment_usd.get(yr, 0.0)),
          "(logistic(y) − logistic(y−1)) × cap"),
-        ("Cumulative impairment", T.fmt_money(sum(l2.annual_impairment_usd.values())), "Σ annual impairment"),
+        ("Cumulative impairment", T.fmt_money(sum(l2.annual_impairment_usd.values())), "Σ annual impairment (= % stranded × value)"),
     ])
 
 st.markdown(f"### Layer 3 — Market (network), {yr}")

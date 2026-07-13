@@ -7,7 +7,10 @@ plugs into the existing climate-adjusted DCF engine.
 
 Non-duplication discipline (BSR framework rule)
 -----------------------------------------------
-Each channel is routed exactly once:
+Each channel is ROUTED ONCE BY DESIGN, with disclosed boundary exceptions (Scope 2/3
+incidence is handled by the scope2_mode/scope3_mode switches; demand-collapse loss
+appears as BOTH revenue erosion in cash flows AND a separate impairment lens — never
+summed). Channel → destination:
 
   * Layer 1 (carbon cost)              → CASH FLOW (OpEx)
   * Layer 2 (technology / stranding)   → ASSET VALUE (impairment) + CASH FLOW (revenue erosion)
@@ -49,7 +52,7 @@ from engine.transition.network_propagation import (
     NetworkShockResult,
 )
 from engine.transition.carbon_pricing import get_carbon_price
-from engine.transition.data_loader import get_ngfs_region
+from engine.transition.data_loader import get_ngfs_region, map_scenario_to_ngfs
 from engine.transition.cc_exposure import (
     compute_exposure_premium,
     CCExposureResult,
@@ -79,6 +82,8 @@ class TransitionAssetResult:
     layer2_result: Optional[StrandingResult] = None
     layer3_results: List[NetworkShockResult] = field(default_factory=list)
     layer4_result: Optional[CCExposureResult] = None
+    data_quality: str = "sector-proxy"          # 'firm' | 'sector-proxy' | 'degraded'
+    data_quality_flags: List[str] = field(default_factory=list)
 
     def to_dataframe(self) -> pd.DataFrame:
         rows = []
@@ -106,7 +111,7 @@ def run_asset_transition(
     layer4_routing: str = ROUTE_WACC,
     elasticity: float = 1.0,
     enable_layers: tuple = (1, 2, 3, 4),
-    scope3_mode: str = "full",
+    scope3_mode: str = "auto",
     price_scale: float = 1.0,
     pass_through_scale: float = 1.0,
     l3_mode: str = "world",
@@ -118,6 +123,11 @@ def run_asset_transition(
     non_fossil_base_fraction: float = 0.5,
     stranding_slope: Optional[float] = None,
     l3_partial_pass_through: bool = False,
+    scope3_incidence: Optional[float] = None,
+    scope2_mode: str = "auto",
+    equity_weight: float = 0.6,
+    debt_weight: float = 0.4,
+    tax_rate: float = 0.25,
 ) -> TransitionAssetResult:
     """
     Compute a full transition risk timeline for one asset under one scenario.
@@ -130,13 +140,33 @@ def run_asset_transition(
     layer4_routing : ROUTE_CASHFLOWS or ROUTE_WACC — picks the non-duplication channel
     elasticity : Layer-3 substitution elasticity (default 1.0 = Cobb-Douglas)
     enable_layers : tuple of layer numbers to compute (e.g., (1, 2) skips 3 and 4)
-    scope3_mode : 'full' (default — L1 always adds the Scope-3 term) or 'auto'
-        (drop the L1 Scope-3 term whenever Layer 3 is enabled, so upstream cost is
-        counted once via the network cascade rather than twice).
+    scope3_mode : 'auto' (default — drop the L1 Scope-3 term whenever Layer 3 is
+        enabled, so upstream carbon is counted once via the network cascade rather
+        than twice) or 'full' (keep Scope-3 in L1; use only when Layer 3 is off).
+    scope2_mode : 'auto' (default — drop the L1 Scope-2 term when Layer 3 is enabled,
+        since purchased-electricity carbon reaches the firm through power prices
+        modelled in L3) or 'direct' (keep Scope 2 in L1, for a firm that pays an
+        explicit carbon charge on its electricity).
+    equity_weight, debt_weight, tax_rate : capital structure for converting the
+        Layer-4 equity premium and credit spread into a single ΔWACC (default
+        60/40, 25% tax) — used only when layer4_routing = ROUTE_WACC.
     """
     horizon = horizon or DEFAULT_HORIZON
 
+    # Loud validation of mode/routing enums (they otherwise fall through silently).
+    if layer4_routing not in (ROUTE_WACC, ROUTE_CASHFLOWS):
+        _log.warning("Unknown layer4_routing '%s'; defaulting to ROUTE_WACC.", layer4_routing)
+        layer4_routing = ROUTE_WACC
+    if l3_mode not in ("world", "mrio"):
+        _log.warning("Unknown l3_mode '%s'; defaulting to 'world'.", l3_mode)
+        l3_mode = "world"
+    if scope3_mode not in ("auto", "full"):
+        _log.warning("Unknown scope3_mode '%s'; defaulting to 'auto'.", scope3_mode)
+        scope3_mode = "auto"
+
     sector = asset.sector or "services"
+    if not asset.sector:
+        _log.warning("Asset %s has no sector; using 'services' proxy.", asset.id)
     region = asset.region
 
     # ── Layer 1 ────────────────────────────────────────────────────────────
@@ -150,8 +180,16 @@ def run_asset_transition(
             list(horizon),
         )
         priced_fraction = getattr(asset, "priced_emissions_fraction", 1.0)
-        # Non-duplication: when L3 models upstream cost, drop the L1 Scope-3 term.
+        # Non-duplication (Scope 2 & 3 incidence): Scope 2 is the power supplier's
+        # carbon cost reaching the firm through electricity prices, and upstream
+        # Scope 3 is supplier incidence. When Layer 3 models those supplier costs,
+        # charging them AGAIN as a direct L1 liability double-counts. So by default
+        # ("auto") both are dropped from L1 when L3 is enabled — Scope 2 unless the
+        # firm pays an EXPLICIT carbon charge on purchased electricity (scope2_mode
+        # = "direct"). "full" keeps them in L1 (use only when L3 is off).
         l1_scope3 = 0.0 if (scope3_mode == "auto" and 3 in enable_layers) else asset.scope3_emissions_tco2
+        drop_scope2 = (scope2_mode == "auto" and 3 in enable_layers)
+        l1_scope2 = 0.0 if drop_scope2 else asset.scope2_emissions_tco2
         layer1 = carbon_cost_timeline(
             asset_id=asset.id,
             sector=sector,
@@ -159,12 +197,13 @@ def run_asset_transition(
             scenario_id=scenario_id,
             years=horizon,
             scope1_emissions_tco2=asset.scope1_emissions_tco2,
-            scope2_emissions_tco2=asset.scope2_emissions_tco2,
+            scope2_emissions_tco2=l1_scope2,
             scope3_emissions_tco2=l1_scope3,
             emissions_index=em_index,
             priced_fraction=priced_fraction,
             price_scale=price_scale,
             pass_through_scale=pass_through_scale,
+            scope3_incidence=scope3_incidence,
         )
         for r in layer1:
             l1_by_year[r.year] = r.net_carbon_opex_usd
@@ -219,13 +258,14 @@ def run_asset_transition(
                     cascade=cascade, cascade_theta=cascade_theta,
                     cascade_contagion=cascade_contagion,
                     absorption=l3_absorption,
+                    price_scale=price_scale, pass_through_scale=pass_through_scale,
                 )
                 layer3.append(shock)
                 l3_by_year[y] = shock.total_indirect_cost_usd
         else:
             for y in horizon:
                 price = get_carbon_price(scenario_id, y, ngfs_region) * max(0.0, price_scale)
-                sector_shock = build_sectorwide_shock(price)
+                sector_shock = build_sectorwide_shock(price, pass_through_scale=pass_through_scale)
                 shock = propagate_carbon_shock(
                     asset_id=asset.id,
                     sector=sector,
@@ -259,8 +299,15 @@ def run_asset_transition(
             # Negative opportunity (regulatory drag dominates) → positive cost.
             l4_by_year = {y: -float(v) for y, v in layer4.annual_revenue_modifier_usd.items()}
         else:
-            # ROUTE_WACC — financing premium adds to discount rate; no CF impact.
-            wacc_premium_bps = layer4.credit_spread_premium_bps + layer4.equity_premium_bps
+            # ROUTE_WACC — financing premium adds to the discount rate; no CF impact.
+            # The equity premium enters the COST OF EQUITY and the credit spread the
+            # AFTER-TAX COST OF DEBT, weighted by capital structure — NOT added
+            # one-for-one (that overstated the WACC hit). Sautner's sourced result is
+            # the equity-premium term; the credit term is an unsourced placeholder.
+            wacc_premium_bps = (
+                equity_weight * layer4.equity_premium_bps
+                + debt_weight * layer4.credit_spread_premium_bps * (1.0 - tax_rate)
+            )
 
     # ── Aggregate ──────────────────────────────────────────────────────────
     total_by_year = {
@@ -276,6 +323,31 @@ def run_asset_transition(
         "L4_revenue_modifier": l4_by_year,
     }
 
+    # ── Data-quality classification (audit trail) ───────────────────────────
+    # Every result is at best a sector-proxy estimate unless firm data is supplied.
+    # Degrading conditions (missing sector/revenue, scenario fallback, unknown
+    # region) are flagged loudly so a $X built on proxies is never mistaken for a
+    # $X built on firm data.
+    dq_flags: List[str] = []
+    if not asset.sector:
+        dq_flags.append("no sector set → 'services' proxy (degraded)")
+    if map_scenario_to_ngfs(scenario_id) != scenario_id:
+        dq_flags.append(f"scenario '{scenario_id}' mapped to a carbon-price analog (proxy)")
+    if get_ngfs_region(region) == "rest_of_world" and region not in ("", None):
+        dq_flags.append(f"region '{region}' not classified → rest-of-world carbon-price band")
+    if 3 in enable_layers or 4 in enable_layers:
+        if asset.annual_revenue <= 0:
+            dq_flags.append("no annual revenue → L3/L4 read zero (degraded)")
+    if 4 in enable_layers and firm_cce_override is None:
+        dq_flags.append("L4 uses sector-median CCExposure (no firm-level feed)")
+    dq_flags.append("L1 pass-through & L3 intensities are sector medians")
+    degraded = any("degraded" in f for f in dq_flags)
+    firm_grade = (firm_cce_override is not None and asset.annual_revenue > 0 and bool(asset.sector))
+    data_quality = "degraded" if degraded else ("firm" if firm_grade else "sector-proxy")
+    if degraded:
+        _log.warning("Asset %s: DEGRADED transition result — %s", asset.id,
+                     "; ".join(f for f in dq_flags if "degraded" in f))
+
     return TransitionAssetResult(
         asset_id=asset.id,
         sector=sector,
@@ -290,6 +362,8 @@ def run_asset_transition(
         layer2_result=layer2,
         layer3_results=layer3,
         layer4_result=layer4,
+        data_quality=data_quality,
+        data_quality_flags=dq_flags,
     )
 
 
@@ -300,7 +374,7 @@ def run_portfolio_transition(
     layer4_routing: str = ROUTE_WACC,
     elasticity: float = 1.0,
     enable_layers: tuple = (1, 2, 3, 4),
-    scope3_mode: str = "full",
+    scope3_mode: str = "auto",
     price_scale: float = 1.0,
     pass_through_scale: float = 1.0,
     l3_mode: str = "world",
@@ -312,6 +386,11 @@ def run_portfolio_transition(
     non_fossil_base_fraction: float = 0.5,
     stranding_slope: Optional[float] = None,
     l3_partial_pass_through: bool = False,
+    scope3_incidence: Optional[float] = None,
+    scope2_mode: str = "auto",
+    equity_weight: float = 0.6,
+    debt_weight: float = 0.4,
+    tax_rate: float = 0.25,
 ) -> Dict[str, List[TransitionAssetResult]]:
     """
     Run all assets × scenarios. Returns {scenario_id: [TransitionAssetResult, ...]}.
@@ -319,10 +398,11 @@ def run_portfolio_transition(
     firm_cce_overrides : optional {asset_id: {opportunity, regulatory, physical}} firm-level
     Sautner CCExposure, overriding the sector-median proxy in Layer 4.
 
-    Layer 3 is computed per-asset using only that asset's own Layer-1 cost as
-    shock — this is the screening default. For a portfolio-pooled cascade
-    (memo's "bespoke add-on"), call propagate_carbon_shock directly with
-    aggregate_sector_carbon_costs(all_layer1_results) as input.
+    Layer 3 is computed per-asset from a SECTOR-TYPICAL shock vector (every sector
+    pays carbon × pass-through on its typical emission intensity), reading off the
+    focal sector's indirect input-cost exposure — NOT the asset's own L1 cost. For a
+    portfolio-pooled cascade (memo's "bespoke add-on"), call propagate_carbon_shock
+    directly with aggregate_sector_carbon_costs(all_layer1_results) as input.
     """
     horizon = horizon or DEFAULT_HORIZON
     assets = normalize_assets(assets)
@@ -345,6 +425,11 @@ def run_portfolio_transition(
                 non_fossil_base_fraction=non_fossil_base_fraction,
                 stranding_slope=stranding_slope,
                 l3_partial_pass_through=l3_partial_pass_through,
+                scope3_incidence=scope3_incidence,
+                scope2_mode=scope2_mode,
+                equity_weight=equity_weight,
+                debt_weight=debt_weight,
+                tax_rate=tax_rate,
             )
             out[sc].append(r)
     return out

@@ -5,10 +5,12 @@ repo's data/transition/ directory. Loaders are cached at module level.
 
 from __future__ import annotations
 import json
+import logging
 import os
 from functools import lru_cache
 from typing import Dict, List
 
+_log = logging.getLogger(__name__)
 _DATA_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", "data", "transition"))
 
 
@@ -80,7 +82,13 @@ def map_scenario_to_ngfs(scenario_id: str) -> str:
     if scenario_id in scenarios:
         return scenario_id
     fallback = load_carbon_prices().get("ipcc_fallback_map", {})
-    return fallback.get(scenario_id, "current_policies")
+    if scenario_id in fallback:
+        _log.warning("Scenario '%s' has no NGFS carbon-price data; using analog '%s'.",
+                     scenario_id, fallback[scenario_id])
+        return fallback[scenario_id]
+    _log.warning("Unknown scenario '%s' (no NGFS data, no fallback map entry); "
+                 "defaulting to 'current_policies' — results are a DEGRADED proxy.", scenario_id)
+    return "current_policies"
 
 
 def list_sectors() -> List[str]:

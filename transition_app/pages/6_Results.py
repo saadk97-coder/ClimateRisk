@@ -34,7 +34,8 @@ BASE = 2025
 
 
 def _pv(series: dict) -> float:
-    return sum(v / (1.0 + wacc) ** (y - BASE) for y, v in series.items())
+    # End-of-year convention (y − BASE + 1), consistent with the engine PV helpers.
+    return sum(v / (1.0 + wacc) ** (y - BASE + 1) for y, v in series.items())
 
 
 # ===========================================================================
@@ -103,13 +104,13 @@ with uc3:
 
 if run_mc:
     from engine.transition.uncertainty import run_monte_carlo, MCConfig  # noqa: E402
-    from engine.transition.cc_exposure import ROUTE_CASHFLOWS  # noqa: E402
+    from engine.transition.cc_exposure import ROUTE_WACC  # noqa: E402
     with st.spinner(f"Running {draws} draws…"):
         mc = run_monte_carlo(
             active, mc_sc, discount_rate=wacc,
-            layer4_routing=st.session_state.get("tr_l4_routing", ROUTE_CASHFLOWS),
+            layer4_routing=st.session_state.get("tr_l4_routing", ROUTE_WACC),
             enable_layers=tuple(st.session_state.get("tr_layers", [1, 2, 3, 4])),
-            scope3_mode=st.session_state.get("tr_scope3_mode", "full"),
+            scope3_mode=st.session_state.get("tr_scope3_mode", "auto"),
             config=MCConfig(draws=draws),
         )
     st.session_state["mc_result"] = {
@@ -132,7 +133,10 @@ if mc_res:
                         title="Distribution of PV transition cost")
     hist.add_vline(x=sc_cost["p50"], line_dash="dash", line_color="#F4721A",
                    annotation_text="P50")
-    hist.update_layout(height=340, margin=dict(t=50, b=10), showlegend=False)
+    hist.add_annotation(xref="paper", yref="paper", x=0.5, y=1.12, showarrow=False,
+                        font=dict(size=11, color="#B33"),
+                        text="Conditional floor — excludes scenario / model-form / data uncertainty")
+    hist.update_layout(height=360, margin=dict(t=70, b=10), showlegend=False)
     st.plotly_chart(hist, use_container_width=True)
 
 # ===========================================================================
@@ -153,12 +157,12 @@ with tcol2:
 tgt = "impairment" if tgt_label.startswith("Stranded") else "cost"
 fx = T.fx_to_usd()  # USD → reporting currency divisor for chart axes
 from engine.transition.sensitivity import tornado  # noqa: E402
-from engine.transition.cc_exposure import ROUTE_CASHFLOWS as _RC  # noqa: E402
+from engine.transition.cc_exposure import ROUTE_WACC as _RW  # noqa: E402
 with st.spinner("Computing sensitivities…"):
     tor = tornado(active, tsc, discount_rate=wacc,
-                  layer4_routing=st.session_state.get("tr_l4_routing", _RC),
+                  layer4_routing=st.session_state.get("tr_l4_routing", _RW),
                   enable_layers=tuple(st.session_state.get("tr_layers", [1, 2, 3, 4])),
-                  scope3_mode=st.session_state.get("tr_scope3_mode", "full"),
+                  scope3_mode=st.session_state.get("tr_scope3_mode", "auto"),
                   target=tgt)
 base_pv = tor["base_pv"]
 bars = tor["bars"]

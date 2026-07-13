@@ -86,9 +86,11 @@ st.divider()
 # ===========================================================================
 # 2. Implied Temperature Rise (ITR)
 # ===========================================================================
-st.subheader("Implied Temperature Rise (ITR)")
-st.caption("Each entity's abated Scope 1+2 pathway vs a 1.5 °C-consistent linear-to-net-zero budget; "
-           "portfolio ITR is Scope 1+2 × attribution weighted. Set targets on Data Entry to improve it.")
+st.subheader("Emissions-budget temperature score (screening ITR proxy)")
+st.caption("⚠️ A **screening indicator**, not a standard-compliant Implied Temperature Rise "
+           "(SBTi / CDP-WWF temperature scoring). Each entity's abated Scope 1+2 pathway is compared "
+           "to a 1.5 °C linear-to-net-zero budget; the portfolio score is Scope 1+2 × attribution "
+           "weighted and floored at 1.5 °C. Set targets on Data Entry to improve it.")
 itr = implied_temperature_rise(active, att)
 port = itr["portfolio_itr"]
 band = "🟢 aligned" if port <= 1.6 else ("🟡 lagging" if port <= 2.0 else "🔴 misaligned")
