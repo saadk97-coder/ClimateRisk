@@ -87,6 +87,11 @@ st.subheader("Uncertainty — Monte-Carlo")
 st.caption("Re-runs the four-layer model over many draws, perturbing the carbon-price path "
            "(log-normal), pass-through (normal) and network substitution σ (uniform). Turns "
            "single-point estimates into a P5–P95 range.")
+st.caption("⚠️ **The P5–P95 range is a *conditional floor*, not full uncertainty.** It is "
+           "conditional on the selected NGFS scenario and varies only the three sampled "
+           "parameters — it excludes scenario/policy-path uncertainty, the L2 stranding "
+           "trigger-year and the demand pathway. Widen with the Sensitivity tornado below "
+           "(cost **and** impairment views) for the trigger-year and pathway drivers.")
 uc1, uc2, uc3 = st.columns([2, 2, 1])
 with uc1:
     mc_sc = st.selectbox("Scenario", scenarios, format_func=T.scenario_label, key="mc_sc")
@@ -120,7 +125,7 @@ if mc_res:
     q1, q2, q3, q4 = st.columns(4)
     q1.metric("P5 (optimistic)", T.fmt_money(sc_cost["p5"]))
     q2.metric("P50 (median)", T.fmt_money(sc_cost["p50"]))
-    q3.metric("P95 (severe)", T.fmt_money(sc_cost["p95"]))
+    q3.metric("P95 (conditional floor)", T.fmt_money(sc_cost["p95"]))
     q4.metric("Base (deterministic)", T.fmt_money(sc_cost["base"]))
     hist = px.histogram(pd.DataFrame({f"PV transition cost ({sym})": mc_res["cost_samples"]}),
                         x=f"PV transition cost ({sym})", nbins=40,
@@ -136,7 +141,16 @@ if mc_res:
 st.subheader("Sensitivity — what drives the number?")
 st.caption("One-at-a-time swing of each assumption (others held at base). The widest bar is the "
            "assumption your result is most exposed to — where better data pays off most.")
-tsc = st.selectbox("Scenario", scenarios, format_func=T.scenario_label, key="tornado_sc")
+tcol1, tcol2 = st.columns(2)
+with tcol1:
+    tsc = st.selectbox("Scenario", scenarios, format_func=T.scenario_label, key="tornado_sc")
+with tcol2:
+    tgt_label = st.radio("Target", ["Cash-flow cost", "Stranded impairment"],
+                         horizontal=True, key="tornado_target",
+                         help="Cost view swings price/pass-through drivers; impairment view "
+                              "swings the L2 trigger-year, stranding slope and base — the "
+                              "assumptions that dominate stranding.")
+tgt = "impairment" if tgt_label.startswith("Stranded") else "cost"
 fx = T.fx_to_usd()  # USD → reporting currency divisor for chart axes
 from engine.transition.sensitivity import tornado  # noqa: E402
 from engine.transition.cc_exposure import ROUTE_CASHFLOWS as _RC  # noqa: E402
@@ -144,9 +158,11 @@ with st.spinner("Computing sensitivities…"):
     tor = tornado(active, tsc, discount_rate=wacc,
                   layer4_routing=st.session_state.get("tr_l4_routing", _RC),
                   enable_layers=tuple(st.session_state.get("tr_layers", [1, 2, 3, 4])),
-                  scope3_mode=st.session_state.get("tr_scope3_mode", "full"))
+                  scope3_mode=st.session_state.get("tr_scope3_mode", "full"),
+                  target=tgt)
 base_pv = tor["base_pv"]
 bars = tor["bars"]
+_axis_label = "PV stranded impairment" if tgt == "impairment" else "PV transition cost"
 if bars:
     fig = go.Figure()
     for b in reversed(bars):  # widest at top
@@ -158,8 +174,8 @@ if bars:
     fig.add_vline(x=base_pv / fx, line_dash="dash", line_color="#F4721A",
                   annotation_text="base")
     fig.update_layout(height=300, margin=dict(t=30, b=10),
-                      xaxis_title=f"PV transition cost ({sym})",
-                      title=f"Sensitivity — {T.scenario_label(tsc)}")
+                      xaxis_title=f"{_axis_label} ({sym})",
+                      title=f"Sensitivity — {T.scenario_label(tsc)} · {tgt_label}")
     st.plotly_chart(fig, use_container_width=True)
     top = bars[0]
     st.caption(f"Most influential: **{top.driver}** (swing {T.fmt_money(top.swing)}). "

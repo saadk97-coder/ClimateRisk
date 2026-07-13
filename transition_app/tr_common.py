@@ -191,6 +191,9 @@ def _defaults() -> dict:
         "tr_cascade": False,                   # Reisch endogenous-default cascade (mrio only)
         "tr_cascade_theta": 0.02,              # default threshold (fraction of output)
         "tr_firm_cce": {},                     # {asset_id: {opportunity, regulatory, physical}} L4 override
+        "tr_carbon_inclusive_crossover": False,  # P6 — add incumbent carbon cost to L2 crossover
+        "tr_non_fossil_base_frac": 0.5,        # R1 — non-fossil impairment base share
+        "tr_l3_partial_pt": False,             # R2 — firm recovers its PT share of upstream cost
     }
 
 
@@ -279,6 +282,9 @@ def run_engine(assets: list[Asset], scenarios: list[str]):
         cascade=bool(st.session_state.get("tr_cascade", False)),
         cascade_theta=float(st.session_state.get("tr_cascade_theta", 0.02)),
         firm_cce_overrides=st.session_state.get("tr_firm_cce") or None,
+        carbon_inclusive_crossover=bool(st.session_state.get("tr_carbon_inclusive_crossover", False)),
+        non_fossil_base_fraction=float(st.session_state.get("tr_non_fossil_base_frac", 0.5)),
+        l3_partial_pass_through=bool(st.session_state.get("tr_l3_partial_pt", False)),
     )
 
 
@@ -417,11 +423,33 @@ def build_disclosure_report(active, results, scenarios, discount_rate: float) ->
     from engine.transition.data_loader import load_carbon_prices, load_io_matrix, load_cc_exposure
     from engine.transition.transition_engine import DEFAULT_HORIZON
 
+    from engine.transition.transition_engine import run_portfolio_transition
+
     gov = st.session_state.get("tr_governance", {})
     att = attribution_map()
     fe = financed_emissions(active, att)
     itr = implied_temperature_rise(active, att)
     base_year = min(DEFAULT_HORIZON)
+
+    # U2 — hard-exclude the experimental endogenous-default cascade (Reisch 2025)
+    # from the regulatory disclosure figures, REGARDLESS of the UI toggle. The
+    # cascade is a research amplification, not a defensible disclosure input, so
+    # the disclosure always recomputes with cascade=False rather than trusting the
+    # passed-in `results` (which may have been computed with the cascade on).
+    active_sectored = [a for a in active if getattr(a, "sector", "")]
+    if active_sectored and scenarios:
+        results = run_portfolio_transition(
+            assets=active_sectored,
+            scenario_ids=list(scenarios),
+            horizon=DEFAULT_HORIZON,
+            layer4_routing=st.session_state.get("tr_l4_routing", ROUTE_WACC),
+            elasticity=float(st.session_state.get("tr_elasticity", 1.0)),
+            enable_layers=tuple(st.session_state.get("tr_layers", [1, 2, 3, 4])),
+            scope3_mode=st.session_state.get("tr_scope3_mode", "full"),
+            l3_mode=st.session_state.get("tr_l3_mode", "world"),
+            cascade=False,                                   # ← hard exclusion
+            firm_cce_overrides=st.session_state.get("tr_firm_cce") or None,
+        )
 
     def _pv(series):
         return sum(v / (1 + discount_rate) ** (y - base_year) for y, v in series.items())
@@ -487,6 +515,10 @@ financial destination (non-duplication): **Policy & Legal** → carbon cost (L1)
 **Technology** → learning-curve stranding (L2); **Market** → supply-chain network (L3);
 **Reputation** → cost of capital (L4). Uncertainty is assessed by Monte-Carlo over the
 carbon price, pass-through and substitution elasticity.
+
+The experimental endogenous-default contagion cascade (Reisch et al. 2025) is a research
+amplification and is **excluded from the figures in this disclosure** — the network layer here
+is the transparent Leontief propagation only.
 
 ---
 

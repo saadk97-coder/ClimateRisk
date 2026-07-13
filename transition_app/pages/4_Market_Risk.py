@@ -26,6 +26,13 @@ if not scenarios:
     st.info("Pick scenarios in the sidebar.")
     st.stop()
 
+with st.expander("⚙ Layer-3 model options (network)"):
+    st.checkbox(
+        "Partial pass-through of input-cost shock (R2)", key="tr_l3_partial_pt",
+        help="By default the firm absorbs the full upstream carbon-cost shock. Enable this to let "
+             "the firm recover its own sector's pass-through share downstream, absorbing only "
+             "(1 − pass-through) — a more realistic net margin impact for sectors with pricing power.")
+
 results = T.run_engine(active, scenarios)
 if not results:
     st.error("No results — check Data Entry.")

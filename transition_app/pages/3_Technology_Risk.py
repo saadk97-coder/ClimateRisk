@@ -28,6 +28,19 @@ if not scenarios:
     st.info("Pick scenarios in the sidebar.")
     st.stop()
 
+with st.expander("⚙ Layer-2 model options (stranding)"):
+    st.checkbox(
+        "Carbon-inclusive crossover (P6)", key="tr_carbon_inclusive_crossover",
+        help="Add the incumbent technology's carbon cost (carbon price × emission factor) to its "
+             "effective cost when finding the cost-parity crossover. A rising carbon price pulls the "
+             "crossover — and stranding — earlier. Off by default (pure LCOE).")
+    st.slider(
+        "Non-fossil impairment base share (R1)", 0.0, 1.0,
+        float(st.session_state.get("tr_non_fossil_base_frac", 0.5)), 0.05,
+        key="tr_non_fossil_base_frac",
+        help="For non-fossil sectors, the share of replacement value tied to the incumbent "
+             "technology that can strand. Fossil-dependent sectors always use the full value.")
+
 results = T.run_engine(active, scenarios)
 if not results:
     st.error("No results — check Data Entry.")
@@ -54,11 +67,15 @@ for ar in res:
     l2 = ar.layer2_result
     if not l2:
         continue
+    _rng = "—"
+    if l2.crossover_year and (l2.crossover_year_early or l2.crossover_year_late):
+        _rng = f"{l2.crossover_year_early or l2.crossover_year}–{l2.crossover_year_late or l2.crossover_year}"
     rows.append({
         "Entity": ar.asset_id, "Sector": T.sector_label(ar.sector),
         "Incumbent tech": l2.incumbent_tech or "—",
         "Challenger tech": l2.challenger_tech or "—",
         "Crossover / trigger": l2.crossover_year if l2.crossover_year else "none",
+        "Crossover range (±1σ)": _rng,
         "Stranded fraction 2050": f"{l2.stranded_fraction_2050*100:.1f}%",
         f"Cum. impairment ({sym})": T.fmt_money(sum(l2.annual_impairment_usd.values())),
     })

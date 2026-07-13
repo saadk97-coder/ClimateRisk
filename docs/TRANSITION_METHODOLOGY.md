@@ -167,16 +167,27 @@ cost_lo = pred × e^(−σ_t) ,  cost_hi = pred × e^(+σ_t)
 ### 4.3 Stranding trigger (either fires)
 - **Cost crossover** — first year challenger cost ≤ incumbent cost.
 - **Demand collapse** (fossil-dependent sectors only) — first year the sector pathway falls below 0.5.
+- **P6 — carbon-inclusive crossover (opt-in).** When enabled, the incumbent's effective cost adds its
+  carbon cost `carbon_price(scenario, region, y) × carbon_ef_per_unit` (Scope-1 emission factor in the
+  tech's cost unit; fossil incumbents only). A rising carbon price then pulls the crossover — and
+  stranding — earlier. Off by default → pure-LCOE crossover, preserving anchors.
+- **R6 — crossover band.** The Lafond ±1σ bands give an *early* (challenger-low vs incumbent-high) and
+  *late* (challenger-high vs incumbent-low) crossover year that bracket the central estimate; surfaced
+  as a crossover range in the Technology page and as an impairment tornado driver.
 
 ### 4.4 Impairment
 ```
-frac(y)  = 1 / (1 + e^(−0.20·(y − crossover)))            logistic, slope 0.20
+frac(y)  = 1 / (1 + e^(−slope·(y − crossover)))          logistic
+slope    = per-sector (R7; default 0.20)                 e.g. power_coal 0.20 (anchor), ICE autos 0.22
 base     = replacement_value            if fossil-dependent
-         = replacement_value × 0.5      otherwise         (only incumbent-tied value can strand)
+         = replacement_value × f        otherwise, f = non_fossil_base_fraction (R1; default 0.5)
 cap      = max(0, 1 − pathway(2050)) × base               scenario-scaled ceiling
 annual_impairment(y) = (frac(y) − frac(y−1)) × cap
 ```
 Impairment is a **balance-sheet** figure, reported separately from cash flow.
+**R7 — per-sector slope** is read from `sector_taxonomy.stranding_slope` (calibrated to asset-turnover
+speed; power fast, heavy industry & networks slow); the two documented calibration anchors (power_coal,
+oil_refining) are held at the legacy 0.20. **R1 — non-fossil base fraction** is configurable in the UI.
 
 ### 4.5 Revenue erosion
 ```
@@ -206,11 +217,16 @@ double-counting the focal asset's own pass-through.
 ```
 L = (I − A)⁻¹
 total_shock_j = Σᵢ L[i,j] · sᵢ
-propagated_j  = total_shock_j − own       (own = L[j,j]·s_j, already in L1)
-indirect_cost = propagated_j × asset_revenue
+propagated_j  = total_shock_j − own       (own = s_j, the single L1 direct round — P3)
+indirect_cost = propagated_j × asset_revenue × absorption
 ```
 **CES damping:** off-diagonal A scaled by 1/σ before inversion (σ = substitution elasticity;
 Papageorgiou 2017 range 1.3–3.0). σ=1 is Cobb-Douglas.
+
+**R2 — partial pass-through (opt-in).** `absorption` is the share of the propagated upstream cost the
+focal firm *absorbs* rather than passing to its own customers. Default 1.0 (full absorption, legacy).
+When enabled it is set to `1 − pass_through_j`, so sectors with pricing power recover part of the
+input-cost shock downstream and their net margin impact falls.
 
 ### 5.3 Resolution (P2)
 - **World** (default): 20×20 single-region matrix (EXIOBASE-3 world totals, `io_matrix.json`).
@@ -312,10 +328,19 @@ elasticity σ       ~ Uniform(1.0, 2.5)       network substitution
 ```
 Returns P5 / P50 / P95 of PV transition cost and stranded impairment. Seed-deterministic.
 
+**U1 — the P5–P95 range is a *conditional floor*, not full uncertainty.** It is conditional on the
+selected scenario and varies only the three sampled parameters — it excludes scenario/policy-path
+uncertainty, the L2 stranding trigger-year and the demand pathway. The UI labels the P95 accordingly
+and points to the tornado for the excluded drivers.
+
 ### 8.2 Tornado (`sensitivity.py`)
-One-at-a-time swing of each driver (carbon price ±30%, pass-through ±20%, σ 1.0–2.5, Scope-3 mode,
-discount ±2pp) with all others at base; sorted by |swing|. Attributes the Monte-Carlo spread to
-individual assumptions so you know which input to firm up.
+One-at-a-time swing of each driver, all others at base, sorted by |swing|. Two targets (U1):
+- **Cash-flow cost** — carbon price ±30%, pass-through ±20%, L3 input-cost pass-through (R2),
+  σ 1.0–2.5, Scope-3 mode, discount ±2pp.
+- **Stranded impairment** — crossover trigger (pure-LCOE vs carbon-inclusive, R6/P6), stranding slope
+  0.12–0.35 (R7), non-fossil base share 0.25–0.75 (R1), carbon price ±30%, discount ±2pp. This view
+  surfaces the trigger-year and base assumptions that dominate stranding but are invisible to the
+  cash-flow tornado and to the Monte-Carlo floor.
 
 ---
 
@@ -361,6 +386,9 @@ tonnes per dollar under a linear MACC.
 ### 9.7 Disclosure export
 `build_disclosure_report` generates a Governance → Strategy → Risk Management → Metrics report mapped
 to **IFRS S2** clauses and **ESRS E1** datapoints, plus a provenance-stamped multi-sheet XLSX.
+**U2 — the experimental endogenous-default cascade (§5.4) is hard-excluded from the disclosure in
+code:** the report recomputes its figures with `cascade=False` regardless of the UI toggle, and states
+the exclusion, so a research amplification can never leak into a regulatory-style export.
 
 ### 9.8 Decarbonization Lever Library (structured reference — NOT a score)
 `engine/transition/levers.py` + `data/transition/lever_library.json`. Approach adapted from **BSR's

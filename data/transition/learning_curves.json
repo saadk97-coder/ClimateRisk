@@ -12,7 +12,8 @@
       "Ziegler & Trancik (2021). 'Re-examining rates of lithium-ion battery technology improvement and cost decline.' Energy & Environ Sci 14: 1635-1651."
     ],
     "method": "Cost(Q) = Cost(Q0) * (Q/Q0)^(log2(1-LR)). LR = learning rate; Q = cumulative production. Lafond σ enables distributional forecasts: log(Cost_t) ~ Normal(log(Cost_pred_t), σ * sqrt(t)).",
-    "units_note": "Power-sector base costs are LCOE in USD/MWh (IRENA 2024 / Lazard 2025 v18); industrial base costs remain USD per unit product and are sector estimates pending sourced LCOE ratios."
+    "units_note": "Power-sector base costs are LCOE in USD/MWh (IRENA 2024 / Lazard 2025 v18); industrial base costs remain USD per unit product and are sector estimates pending sourced LCOE ratios.",
+    "carbon_ef_note": "carbon_ef_per_unit: Scope-1 tCO2 per the tech's cost functional unit (P6). Used ONLY when carbon_inclusive=True to add carbon_price*EF to the incumbent's effective cost when finding the L2 crossover year. Fossil incumbents only; absent = no carbon adder."
   },
   "technologies": {
     "solar_pv": {
@@ -305,6 +306,7 @@
       "learning_rate": 0.0,
       "lafond_sigma": 0.04,
       "category": "incumbent",
+      "carbon_ef_per_unit": 0.95,
       "annual_capacity_growth_2025_2050": {
         "net_zero_2050": -0.2,
         "below_2c": -0.12,
@@ -324,6 +326,7 @@
       "learning_rate": 0.04,
       "lafond_sigma": 0.04,
       "category": "incumbent",
+      "carbon_ef_per_unit": 0.37,
       "annual_capacity_growth_2025_2050": {
         "net_zero_2050": -0.1,
         "below_2c": -0.05,
@@ -382,6 +385,7 @@
       "cost_2025_usd_per_t": 600,
       "lafond_sigma": 0.04,
       "category": "incumbent",
+      "carbon_ef_per_unit": 0.3,
       "annual_capacity_growth_2025_2050": {
         "net_zero_2050": -0.12,
         "below_2c": -0.06,
@@ -401,6 +405,7 @@
       "cost_2025_usd_per_t": 520,
       "lafond_sigma": 0.04,
       "category": "incumbent",
+      "carbon_ef_per_unit": 1.8,
       "annual_capacity_growth_2025_2050": {
         "net_zero_2050": -0.1,
         "below_2c": -0.05,
@@ -420,6 +425,7 @@
       "cost_2025_usd_per_t": 90,
       "lafond_sigma": 0.04,
       "category": "incumbent",
+      "carbon_ef_per_unit": 0.86,
       "annual_capacity_growth_2025_2050": {
         "net_zero_2050": -0.06,
         "below_2c": -0.03,
@@ -439,6 +445,7 @@
       "cost_2025_usd_per_t": 950,
       "lafond_sigma": 0.05,
       "category": "incumbent",
+      "carbon_ef_per_unit": 0.55,
       "annual_capacity_growth_2025_2050": {
         "net_zero_2050": -0.08,
         "below_2c": -0.04,
@@ -477,6 +484,7 @@
       "cost_2025_usd_per_t": 800,
       "lafond_sigma": 0.04,
       "category": "incumbent",
+      "carbon_ef_per_unit": 3.15,
       "annual_capacity_growth_2025_2050": {
         "net_zero_2050": -0.1,
         "below_2c": -0.05,
@@ -496,6 +504,7 @@
       "cost_2025_usd_per_t": 600,
       "lafond_sigma": 0.04,
       "category": "incumbent",
+      "carbon_ef_per_unit": 3.11,
       "annual_capacity_growth_2025_2050": {
         "net_zero_2050": -0.12,
         "below_2c": -0.06,

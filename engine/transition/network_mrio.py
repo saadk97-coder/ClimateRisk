@@ -116,6 +116,7 @@ def propagate_mrio(
     scenario_id: str, year: int, asset_revenue: float,
     elasticity: float = 1.0, cascade: bool = False,
     cascade_theta: float = 0.5, cascade_contagion: float = 0.5,
+    absorption: float = 1.0,
 ) -> NetworkShockResult:
     L, sectors, regions = get_mrio_leontief(elasticity)
     n_sec = len(sectors)
@@ -132,7 +133,8 @@ def propagate_mrio(
     total_shock = float(col @ s_eff)
     own = float(s_eff[j])   # P3 — subtract only the direct round already in L1, not L[j,j]·s_j
     propagated = max(0.0, total_shock - own)
-    indirect_usd = propagated * max(asset_revenue, 0.0)
+    absorption = max(0.0, min(1.0, absorption))   # R2 — share absorbed vs passed downstream
+    indirect_usd = propagated * max(asset_revenue, 0.0) * absorption
 
     # top upstream sources aggregated by SECTOR (summed across regions)
     contrib = col * s_eff
@@ -152,6 +154,6 @@ def propagate_mrio(
         direct_carbon_shock=round(own, 6),
         propagated_input_shock=round(propagated, 6),
         total_indirect_cost_usd=round(indirect_usd, 2),
-        top_upstream_sources=[(sec, round(c * max(asset_revenue, 0.0), 2)) for sec, c in top5],
+        top_upstream_sources=[(sec, round(c * max(asset_revenue, 0.0) * absorption, 2)) for sec, c in top5],
         notes=note,
     )

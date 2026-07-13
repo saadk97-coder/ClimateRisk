@@ -132,6 +132,7 @@ def propagate_carbon_shock(
     sector_carbon_costs: Dict[str, float],
     sector_outputs: Optional[Dict[str, float]] = None,
     elasticity: float = 1.0,
+    absorption: float = 1.0,
 ) -> NetworkShockResult:
     """
     Propagate sectoral carbon-cost shocks through the IO network and compute the
@@ -149,6 +150,10 @@ def propagate_carbon_shock(
                      this means the shock is interpreted as a relative price
                      index across sectors (acceptable for screening).
     elasticity : substitution elasticity (default 1.0 = Cobb-Douglas)
+    absorption : R2 — share of the propagated upstream cost the focal firm
+        ABSORBS rather than passing on to its own customers. 1.0 (default) = full
+        absorption (legacy). Set to (1 − focal-sector pass-through) to let the
+        firm recover part of the input-cost shock downstream.
     """
     L, sectors = get_leontief_inverse(elasticity=elasticity)
     n = len(sectors)
@@ -185,8 +190,10 @@ def propagate_carbon_shock(
     propagated = max(0.0, total_shock - own_shock)
 
     # Indirect cost in USD = propagated_shock × asset_revenue (interpreting
-    # asset_revenue as the firm's share of sector j's output)
-    indirect_usd = propagated * max(asset_revenue, 0.0)
+    # asset_revenue as the firm's share of sector j's output), net of the share
+    # the firm passes downstream (R2 — absorption; 1.0 = full absorption).
+    absorption = max(0.0, min(1.0, absorption))
+    indirect_usd = propagated * max(asset_revenue, 0.0) * absorption
 
     # Top-5 upstream sources by contribution L[i,j] * s[i]
     contribs = [(sectors[i], float(L[i, j] * s[i])) for i in range(n) if i != j and s[i] > 0]
@@ -202,7 +209,7 @@ def propagate_carbon_shock(
         direct_carbon_shock=round(own_shock, 6),
         propagated_input_shock=round(propagated, 6),
         total_indirect_cost_usd=round(indirect_usd, 2),
-        top_upstream_sources=[(sec, round(c * max(asset_revenue, 0.0), 2)) for sec, c in top5],
+        top_upstream_sources=[(sec, round(c * max(asset_revenue, 0.0) * absorption, 2)) for sec, c in top5],
         notes="Screening-grade Leontief cascade (Cobb-Douglas σ=1). For production use replace with EXIOBASE-3 MRIO and CES σ from Papageorgiou et al. 2017.",
     )
 

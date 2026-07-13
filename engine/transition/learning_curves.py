@@ -76,7 +76,38 @@ class StrandingResult:
     stranded_fraction_2050: float    # fraction of replacement value impaired by 2050
     annual_impairment_usd: Dict[int, float]  # {year: impairment in USD}
     revenue_index: Dict[int, float]  # {year: revenue multiplier (sector_pathways)}
+    crossover_year_early: Optional[int] = None   # R6 — Lafond-band earliest crossover
+    crossover_year_late: Optional[int] = None    # R6 — Lafond-band latest crossover
+    stranding_slope: float = 0.20                # R7 — logistic slope actually used
     notes: str = ""
+
+
+def _sector_stranding_slope(sector: str) -> float:
+    """R7 — per-sector logistic stranding slope (default 0.20 if unset)."""
+    tax = load_sector_taxonomy()["sectors"]
+    meta = tax.get(sector, {})
+    try:
+        return float(meta.get("stranding_slope", 0.20))
+    except (TypeError, ValueError):
+        return 0.20
+
+
+def _tech_carbon_adder(tech: str, scenario_id: str, year: int, region_iso3: str,
+                       price_scale: float = 1.0) -> float:
+    """
+    P6 — carbon cost per functional unit for a technology, in the same unit as its
+    cost_2025 field: carbon_price(scenario, region, year) × carbon_ef_per_unit.
+    Returns 0.0 when the tech has no emission factor (non-fossil / no clean pairing).
+    """
+    lc = load_learning_curves()["technologies"]
+    ef = float(lc.get(tech, {}).get("carbon_ef_per_unit", 0.0) or 0.0)
+    if ef <= 0:
+        return 0.0
+    # Imported lazily to avoid a circular import at module load.
+    from engine.transition.carbon_pricing import get_carbon_price
+    from engine.transition.data_loader import get_ngfs_region
+    price = get_carbon_price(scenario_id, year, get_ngfs_region(region_iso3)) * max(0.0, price_scale)
+    return ef * price
 
 
 def _project_cost(tech: str, scenario_id: str, year: int) -> Optional[TechnologyProjection]:
@@ -144,11 +175,24 @@ def find_crossover_year(
     challenger: str,
     scenario_id: str,
     horizon: Tuple[int, int] = (2025, 2050),
+    carbon_inclusive: bool = False,
+    region_iso3: str = "USA",
+    price_scale: float = 1.0,
+    band: str = "median",
 ) -> Optional[int]:
     """
     Return the first year in [start, end] when challenger <= incumbent cost.
     None if no crossover within horizon. If challenger is already below at start,
     returns the start year.
+
+    carbon_inclusive : P6 — when True, add the incumbent's carbon cost
+        (carbon_price × emission factor, same functional unit) to its effective
+        cost, so a rising carbon price pulls the crossover earlier. Default False
+        keeps the pure-LCOE behaviour and the worked-example anchors.
+    band : R6 — "median" (default) compares central projections; "early"
+        compares challenger low-band vs incumbent high-band (earliest plausible
+        crossover); "late" compares challenger high-band vs incumbent low-band
+        (latest plausible crossover).
     """
     if not (incumbent and challenger):
         return None
@@ -158,10 +202,17 @@ def find_crossover_year(
         cc = _project_cost(challenger, scenario_id, y)
         if ci is None or cc is None:
             return None
-        # Normalise to same units only when units match — both should be cost
-        # per common output. We compare projected_cost directly assuming the
-        # taxonomy pairs technologies with comparable functional units.
-        if cc.projected_cost <= ci.projected_cost:
+        # Compare projected_cost directly assuming the taxonomy pairs
+        # technologies with comparable functional units.
+        if band == "early":
+            inc, chal = ci.cost_hi, cc.cost_lo
+        elif band == "late":
+            inc, chal = ci.cost_lo, cc.cost_hi
+        else:
+            inc, chal = ci.projected_cost, cc.projected_cost
+        if carbon_inclusive:
+            inc = inc + _tech_carbon_adder(incumbent, scenario_id, y, region_iso3, price_scale)
+        if chal <= inc:
             return y
     return None
 
@@ -173,6 +224,8 @@ def _logistic_impairment(year: int, crossover_year: int, slope: float = 0.20) ->
       - ~5% of cap impaired at crossover - 15 years
       - ~95% of cap impaired at crossover + 15 years
     Reflects ~25y typical fossil-asset response time once challenger reaches cost parity.
+    R7 — slope is per-sector (see _sector_stranding_slope); a steeper slope
+    strands the asset faster once crossover triggers.
     """
     if crossover_year is None:
         return 0.0
@@ -186,18 +239,39 @@ def compute_stranding(
     replacement_value: float,
     scenario_id: str,
     years: List[int],
+    non_fossil_base_fraction: float = 0.5,
+    slope: Optional[float] = None,
+    carbon_inclusive_crossover: bool = False,
+    region_iso3: str = "USA",
+    price_scale: float = 1.0,
 ) -> StrandingResult:
     """
     Compute stranded-asset impairment trajectory + revenue index for one asset × scenario.
+
+    non_fossil_base_fraction : R1 — share of replacement value exposed to stranding
+        for NON-fossil-dependent sectors (only the portion tied to the incumbent
+        technology can strand). Default 0.5 preserves the calibrated anchors.
+    slope : R7 — logistic stranding slope; None uses the per-sector value.
+    carbon_inclusive_crossover : P6 — include the incumbent's carbon cost when
+        finding the cost crossover year (opt-in; default off).
     """
     tax = load_sector_taxonomy()["sectors"]
     sec_meta = tax.get(sector, tax["services"])
     incumbent = sec_meta.get("primary_technology")
     challenger = sec_meta.get("challenger_technology")
     fossil_dependent = bool(sec_meta.get("fossil_dependent", False))
+    slope = _sector_stranding_slope(sector) if slope is None else float(slope)
 
     horizon = (min(years), max(years)) if years else (2025, 2050)
-    crossover = find_crossover_year(incumbent, challenger, scenario_id, horizon=horizon) if challenger else None
+    _xkw = dict(carbon_inclusive=carbon_inclusive_crossover,
+                region_iso3=region_iso3, price_scale=price_scale)
+    crossover = (find_crossover_year(incumbent, challenger, scenario_id, horizon=horizon, **_xkw)
+                 if challenger else None)
+    # R6 — Lafond-band crossover range (earliest / latest plausible cost parity).
+    crossover_early = (find_crossover_year(incumbent, challenger, scenario_id, horizon=horizon,
+                                           band="early", **_xkw) if challenger else None)
+    crossover_late = (find_crossover_year(incumbent, challenger, scenario_id, horizon=horizon,
+                                          band="late", **_xkw) if challenger else None)
 
     pathways = load_sector_pathways()["sectors"]
     pathway = pathways.get(sector, pathways.get("services", {}))
@@ -208,17 +282,26 @@ def compute_stranding(
     # sector pathway falls below 0.5 within horizon, set crossover at the year
     # the pathway crosses 0.5. Captures stranding from demand collapse alone
     # (e.g., refineries when oil demand falls, regardless of biorefining cost).
-    if crossover is None and fossil_dependent:
+    _demand_trigger = None
+    if fossil_dependent:
         for y in range(horizon[0], horizon[1] + 1):
             if _interp_pathway(pathway_curve, y) < 0.5:
-                crossover = y
+                _demand_trigger = y
                 break
+    if crossover is None:
+        crossover = _demand_trigger
+    # R6 — a demand-collapse trigger has no Lafond cost band; fall back to the
+    # central trigger for the early/late bounds so the range is never emptier
+    # than the point estimate.
+    crossover_early = crossover_early or crossover
+    crossover_late = crossover_late or crossover
 
     # Cap on impairment scales with scenario-specific sector demand collapse.
     # Maximum stranding share = max(0, 1 - pathway_at_2050).
     # Asset-side base: full replacement value for fossil-dependent sectors;
     # half for non-fossil (only the share tied to incumbent tech can strand).
-    base = replacement_value if fossil_dependent else replacement_value * 0.5
+    nf_frac = min(1.0, max(0.0, non_fossil_base_fraction))
+    base = replacement_value if fossil_dependent else replacement_value * nf_frac
     horizon_end = max(years) if years else 2050
     pathway_end = _interp_pathway(pathway_curve, horizon_end)
     cap = max(0.0, 1.0 - pathway_end) * base
@@ -230,8 +313,8 @@ def compute_stranding(
             # Year-over-year incremental impairment. Always use the prior year's
             # logistic value (not zero) at the start of the horizon, so we don't
             # dump pre-horizon stranding into year 1.
-            frac = _logistic_impairment(y, crossover)
-            prev_frac = _logistic_impairment(y - 1, crossover)
+            frac = _logistic_impairment(y, crossover, slope)
+            prev_frac = _logistic_impairment(y - 1, crossover, slope)
             incremental = max(0.0, frac - prev_frac)
             annual_impairment[y] = round(incremental * cap, 2)
         else:
@@ -239,7 +322,7 @@ def compute_stranding(
         # Sector pathway revenue index
         rev_index[y] = _interp_pathway(pathway_curve, y)
 
-    stranded_2050 = _logistic_impairment(2050, crossover) * cap if crossover else 0.0
+    stranded_2050 = _logistic_impairment(2050, crossover, slope) * cap if crossover else 0.0
 
     return StrandingResult(
         asset_id=asset_id,
@@ -251,8 +334,12 @@ def compute_stranding(
         stranded_fraction_2050=round(stranded_2050 / max(replacement_value, 1.0), 4),
         annual_impairment_usd=annual_impairment,
         revenue_index=rev_index,
+        crossover_year_early=crossover_early,
+        crossover_year_late=crossover_late,
+        stranding_slope=slope,
         notes=(
             "Wright's Law projection (Way et al. 2022); Lafond bands; "
+            f"slope={slope:g}; carbon_inclusive={carbon_inclusive_crossover}; "
             "fossil_dependent=" + str(fossil_dependent)
         ),
     )

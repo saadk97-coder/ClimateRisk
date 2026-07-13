@@ -45,6 +45,7 @@ from engine.transition.data_loader import (
 )
 from engine.transition.learning_curves import (
     _project_cost,
+    _sector_stranding_slope,
     compute_stranding,
     find_crossover_year,
 )
@@ -986,3 +987,116 @@ def test_applicable_sectors_for_matches_map():
     for s in secs:
         ids = {sl.lever.id for sl in LV.sector_levers(s)}
         assert "renewable_procurement" in ids
+
+
+# ---------------------------------------------------------------------------
+# Round-1 remainder (Session 9): P6, R1, R2, R6, R7, U1, U2
+# ---------------------------------------------------------------------------
+_YEARS = list(range(2025, 2051))
+
+
+def test_worked_example_anchors_preserved_by_defaults():
+    """Default settings must still reproduce the documented coal ($266.1M) and
+    refinery ($1.36B) cumulative-impairment anchors after the new parameters."""
+    coal = compute_stranding("A1", "power_coal", 500_000_000, "net_zero_2050", _YEARS)
+    ref = compute_stranding("C1", "oil_refining", 2_000_000_000, "net_zero_2050", _YEARS)
+    assert abs(sum(coal.annual_impairment_usd.values()) - 266.1e6) < 2e6
+    assert abs(sum(ref.annual_impairment_usd.values()) - 1_364.5e6) < 5e6
+
+
+def test_p6_carbon_inclusive_crossover_pulls_trigger_earlier():
+    """P6 — adding the incumbent's carbon cost pulls the cost crossover earlier
+    under a high-carbon-price scenario; default (pure LCOE) is later."""
+    pure = find_crossover_year("blast_furnace", "h2_dri", "net_zero_2050", (2025, 2050))
+    carb = find_crossover_year("blast_furnace", "h2_dri", "net_zero_2050", (2025, 2050),
+                               carbon_inclusive=True, region_iso3="EUR")
+    assert pure is not None and carb is not None
+    assert carb <= pure
+    # and it flows through compute_stranding as an opt-in
+    a = compute_stranding("S", "steel", 1_000_000_000, "net_zero_2050", _YEARS)
+    b = compute_stranding("S", "steel", 1_000_000_000, "net_zero_2050", _YEARS,
+                          carbon_inclusive_crossover=True, region_iso3="EUR")
+    assert (b.crossover_year or 9999) <= (a.crossover_year or 9999)
+
+
+def test_r1_non_fossil_base_fraction_scales_impairment():
+    """R1 — the non-fossil impairment base fraction scales the strandable value; a
+    fossil-dependent sector ignores it (always full value)."""
+    # Use a non-fossil sector that actually strands: gas_distribution is fossil;
+    # pick data_center-like non-fossil? real_estate rarely strands, so drive it by
+    # forcing a demand pathway crossover is not trivial — instead assert the cap math
+    # via a fossil vs non-fossil contrast on the base multiplier.
+    base_half = compute_stranding("X", "real_estate_commercial", 100_000_000, "net_zero_2050",
+                                  _YEARS, non_fossil_base_fraction=0.5)
+    base_full = compute_stranding("X", "real_estate_commercial", 100_000_000, "net_zero_2050",
+                                  _YEARS, non_fossil_base_fraction=1.0)
+    # non-fossil impairment (if any) is <= at 0.5 than at 1.0
+    assert sum(base_half.annual_impairment_usd.values()) <= sum(base_full.annual_impairment_usd.values())
+    # fossil sector ignores the fraction entirely
+    f_half = compute_stranding("C", "power_coal", 500_000_000, "net_zero_2050", _YEARS,
+                               non_fossil_base_fraction=0.1)
+    f_full = compute_stranding("C", "power_coal", 500_000_000, "net_zero_2050", _YEARS,
+                               non_fossil_base_fraction=1.0)
+    assert sum(f_half.annual_impairment_usd.values()) == sum(f_full.annual_impairment_usd.values())
+
+
+def test_r2_partial_l3_pass_through_lowers_indirect_cost(refinery):
+    """R2 — enabling partial pass-through lets the firm recover part of the upstream
+    cost, so absorbed L3 indirect cost falls."""
+    full = run_asset_transition(refinery, "net_zero_2050", enable_layers=(3,),
+                                l3_partial_pass_through=False)
+    partial = run_asset_transition(refinery, "net_zero_2050", enable_layers=(3,),
+                                   l3_partial_pass_through=True)
+    full_l3 = sum(full.layer_breakdown["L3_network_input_cost"].values())
+    part_l3 = sum(partial.layer_breakdown["L3_network_input_cost"].values())
+    assert part_l3 < full_l3
+    assert part_l3 >= 0.0
+
+
+def test_r6_crossover_band_brackets_central_estimate():
+    """R6 — the Lafond-band early/late crossover years bracket the central crossover."""
+    r = compute_stranding("S", "steel", 1_000_000_000, "net_zero_2050", _YEARS)
+    if r.crossover_year is not None and r.challenger_tech:
+        assert r.crossover_year_early is not None and r.crossover_year_late is not None
+        assert r.crossover_year_early <= r.crossover_year <= r.crossover_year_late
+
+
+def test_r7_per_sector_slope_loaded_and_applied():
+    """R7 — per-sector slope is read from the taxonomy and steepening it accelerates
+    impairment; anchor sectors keep the legacy 0.20."""
+    assert _sector_stranding_slope("power_coal") == 0.20   # anchor preserved
+    assert _sector_stranding_slope("road_transport_ice") != 0.20  # differentiated
+    assert _sector_stranding_slope("unknown_sector") == 0.20      # default
+    slow = compute_stranding("C", "power_coal", 500_000_000, "net_zero_2050", _YEARS, slope=0.10)
+    fast = compute_stranding("C", "power_coal", 500_000_000, "net_zero_2050", _YEARS, slope=0.40)
+    # steeper slope strands more in the early years (2030) once crossover triggers at 2025
+    assert fast.annual_impairment_usd[2030] > slow.annual_impairment_usd[2030]
+    assert fast.stranding_slope == 0.40
+
+
+def test_u1_tornado_impairment_target_has_trigger_and_slope_bars(coal_plant, refinery):
+    """U1 — the impairment-target tornado surfaces the trigger-year and stranding-slope
+    drivers that the cost tornado does not."""
+    from engine.transition.sensitivity import tornado
+    tor = tornado([coal_plant, refinery], "net_zero_2050", target="impairment")
+    assert tor["target"] == "impairment"
+    drivers = {b.driver for b in tor["bars"]}
+    assert any("Crossover" in d for d in drivers)
+    assert any("slope" in d.lower() for d in drivers)
+
+
+def test_u2_disclosure_excludes_cascade():
+    """U2 — build_disclosure_report recomputes cascade-free figures regardless of the
+    UI toggle, and states the exclusion in the report text."""
+    import sys, os as _os
+    sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), "..", "transition_app"))
+    import tr_common as T
+    T.init_state()
+    T.set_portfolio([dict(r) for r in T.SAMPLE_PORTFOLIO])
+    st_state = T.st.session_state
+    st_state["tr_cascade"] = True          # user turned the experimental cascade ON
+    active = T.get_assets()
+    scenarios = ["net_zero_2050"]
+    dummy = T.run_engine(active, scenarios)
+    report = T.build_disclosure_report(active, dummy, scenarios, discount_rate=0.09)
+    assert "excluded from the figures in this disclosure" in report

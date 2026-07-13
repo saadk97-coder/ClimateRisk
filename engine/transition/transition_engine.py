@@ -114,6 +114,10 @@ def run_asset_transition(
     cascade_theta: float = 0.02,
     cascade_contagion: float = 0.5,
     firm_cce_override: Optional[Dict[str, float]] = None,
+    carbon_inclusive_crossover: bool = False,
+    non_fossil_base_fraction: float = 0.5,
+    stranding_slope: Optional[float] = None,
+    l3_partial_pass_through: bool = False,
 ) -> TransitionAssetResult:
     """
     Compute a full transition risk timeline for one asset under one scenario.
@@ -176,6 +180,11 @@ def run_asset_transition(
             replacement_value=asset.replacement_value,
             scenario_id=scenario_id,
             years=horizon,
+            non_fossil_base_fraction=non_fossil_base_fraction,
+            slope=stranding_slope,
+            carbon_inclusive_crossover=carbon_inclusive_crossover,
+            region_iso3=region,
+            price_scale=price_scale,
         )
         if asset.annual_revenue > 0:
             l2_revenue_by_year = revenue_erosion_usd(asset.annual_revenue, layer2.revenue_index)
@@ -191,6 +200,14 @@ def run_asset_transition(
     l3_by_year: Dict[int, float] = {y: 0.0 for y in horizon}
     if 3 in enable_layers:
         ngfs_region = get_ngfs_region(region)
+        # R2 — partial pass-through: the firm recovers its own sector's
+        # pass-through share of the upstream cost downstream, absorbing only
+        # (1 − PT_focal). Default off → full absorption (legacy anchors).
+        if l3_partial_pass_through:
+            from engine.transition.carbon_pricing import get_pass_through
+            l3_absorption = max(0.0, 1.0 - float(get_pass_through(sector)["pass_through"]))
+        else:
+            l3_absorption = 1.0
         if l3_mode == "mrio":
             # High-resolution 20×49 EXIOBASE MRIO (+ optional Reisch cascade).
             from engine.transition.network_mrio import propagate_mrio
@@ -201,6 +218,7 @@ def run_asset_transition(
                     asset_revenue=asset.annual_revenue, elasticity=elasticity,
                     cascade=cascade, cascade_theta=cascade_theta,
                     cascade_contagion=cascade_contagion,
+                    absorption=l3_absorption,
                 )
                 layer3.append(shock)
                 l3_by_year[y] = shock.total_indirect_cost_usd
@@ -217,6 +235,7 @@ def run_asset_transition(
                     sector_carbon_costs=sector_shock,
                     sector_outputs=None,   # shocks already normalised
                     elasticity=elasticity,
+                    absorption=l3_absorption,
                 )
                 layer3.append(shock)
                 l3_by_year[y] = shock.total_indirect_cost_usd
@@ -289,6 +308,10 @@ def run_portfolio_transition(
     cascade_theta: float = 0.02,
     cascade_contagion: float = 0.5,
     firm_cce_overrides: Optional[Dict[str, Dict[str, float]]] = None,
+    carbon_inclusive_crossover: bool = False,
+    non_fossil_base_fraction: float = 0.5,
+    stranding_slope: Optional[float] = None,
+    l3_partial_pass_through: bool = False,
 ) -> Dict[str, List[TransitionAssetResult]]:
     """
     Run all assets × scenarios. Returns {scenario_id: [TransitionAssetResult, ...]}.
@@ -318,6 +341,10 @@ def run_portfolio_transition(
                 l3_mode=l3_mode, cascade=cascade,
                 cascade_theta=cascade_theta, cascade_contagion=cascade_contagion,
                 firm_cce_override=(firm_cce_overrides or {}).get(a.id),
+                carbon_inclusive_crossover=carbon_inclusive_crossover,
+                non_fossil_base_fraction=non_fossil_base_fraction,
+                stranding_slope=stranding_slope,
+                l3_partial_pass_through=l3_partial_pass_through,
             )
             out[sc].append(r)
     return out

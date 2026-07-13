@@ -9,7 +9,8 @@
     "version": "v1 — Session 8",
     "field_notes": {
       "emission_intensity_t_per_revenue": "Sector-typical emission intensity, tCO2 per MILLION USD of revenue (so 7.5 = 7.5 tCO2/M$). Used by Layer 3 (network_propagation.build_sectorwide_shock) to construct a sectoral price shock; converted internally with a 1e-6 factor.",
-      "io_index": "Position in the io_matrix.json A matrix (0-indexed, must match _meta.sector_order)."
+      "io_index": "Position in the io_matrix.json A matrix (0-indexed, must match _meta.sector_order).",
+      "stranding_slope": "R7 — per-sector logistic stranding slope (default 0.20 if absent). Higher = faster impairment diffusion once the L2 crossover triggers, calibrated to asset turnover speed."
     }
   },
   "sectors": {
@@ -22,6 +23,7 @@
       "primary_technology": "coal_steam",
       "challenger_technology": "solar_pv",
       "fossil_dependent": true,
+      "stranding_slope": 0.2,
       "emission_intensity_t_per_revenue": 7.5,
       "notes": "Highest stranding risk under fast-transition scenarios; near-zero learning rate."
     },
@@ -34,6 +36,7 @@
       "primary_technology": "gas_ccgt",
       "challenger_technology": "battery_storage",
       "fossil_dependent": true,
+      "stranding_slope": 0.2,
       "emission_intensity_t_per_revenue": 3.0,
       "notes": "Stranding risk highest for new-build peakers as battery costs decline."
     },
@@ -58,6 +61,7 @@
       "primary_technology": "oil_extraction",
       "challenger_technology": null,
       "fossil_dependent": true,
+      "stranding_slope": 0.15,
       "emission_intensity_t_per_revenue": 1.2,
       "notes": "Demand collapse in NZ2050; reserves stranding from Carbon Tracker (2022)."
     },
@@ -70,6 +74,7 @@
       "primary_technology": "oil_refining",
       "challenger_technology": "biorefining",
       "fossil_dependent": true,
+      "stranding_slope": 0.2,
       "emission_intensity_t_per_revenue": 0.55,
       "notes": "High pass-through (~75%) per Sijm 2012; Cludius 2020."
     },
@@ -82,6 +87,7 @@
       "primary_technology": "gas_distribution",
       "challenger_technology": "heat_pump",
       "fossil_dependent": true,
+      "stranding_slope": 0.12,
       "emission_intensity_t_per_revenue": 0.4,
       "notes": "Network-asset stranding under building electrification."
     },
@@ -94,6 +100,7 @@
       "primary_technology": "blast_furnace",
       "challenger_technology": "h2_dri",
       "fossil_dependent": true,
+      "stranding_slope": 0.12,
       "emission_intensity_t_per_revenue": 1.85,
       "notes": "Trade-exposed; low pass-through (~30%) per Fabra & Reguant 2014."
     },
@@ -106,6 +113,7 @@
       "primary_technology": "cement_clinker",
       "challenger_technology": "low_clinker_ccus",
       "fossil_dependent": true,
+      "stranding_slope": 0.12,
       "emission_intensity_t_per_revenue": 1.6,
       "notes": "Process emissions ~60% of total; CCUS dependency for net-zero alignment."
     },
@@ -118,6 +126,7 @@
       "primary_technology": "petrochemical",
       "challenger_technology": "green_h2",
       "fossil_dependent": true,
+      "stranding_slope": 0.14,
       "emission_intensity_t_per_revenue": 0.95,
       "notes": "Feedstock + heat emissions; partial pass-through (~40%)."
     },
@@ -130,6 +139,7 @@
       "primary_technology": "smelter",
       "challenger_technology": "renewable_smelter",
       "fossil_dependent": true,
+      "stranding_slope": 0.15,
       "emission_intensity_t_per_revenue": 1.4,
       "notes": "Highly Scope 2 dependent; benefits from grid decarbonisation."
     },
@@ -142,6 +152,7 @@
       "primary_technology": "ice_vehicle",
       "challenger_technology": "ev",
       "fossil_dependent": true,
+      "stranding_slope": 0.22,
       "emission_intensity_t_per_revenue": 0.15,
       "notes": "Demand collapse 2030-2040 in NZ scenarios; capex pivot required."
     },
@@ -166,6 +177,7 @@
       "primary_technology": "jet_fuel",
       "challenger_technology": "saf",
       "fossil_dependent": true,
+      "stranding_slope": 0.15,
       "emission_intensity_t_per_revenue": 0.7,
       "notes": "Limited substitutes; high transition cost without SAF scale."
     },
@@ -178,6 +190,7 @@
       "primary_technology": "bunker_fuel",
       "challenger_technology": "ammonia",
       "fossil_dependent": true,
+      "stranding_slope": 0.12,
       "emission_intensity_t_per_revenue": 0.8,
       "notes": "IMO 2050 net-zero target; Scope 1 dominant."
     },
