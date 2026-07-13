@@ -47,7 +47,8 @@ st.caption(
 # the text/selectbox column config).
 _STR_COLS = ["id", "name", "region", "sector"]
 _NUM_COLS = ["replacement_value", "annual_revenue", "scope1", "scope2", "scope3",
-             "target_year", "priced_pct", "attribution_pct"]
+             "target_year", "priced_pct", "attribution_pct",
+             "transition_capex", "positioning_pct"]
 
 rows = T.get_portfolio()
 if rows:
@@ -89,6 +90,15 @@ edited = st.data_editor(
             "Attribution %", min_value=0, max_value=100, step=5, format="%d",
             help="Share of the asset attributed to you (PCAF). 100 = fully owned; a lender/investor "
                  "enters their stake. Blank = 100%."),
+        "transition_capex": st.column_config.NumberColumn(
+            f"Transition capex ({T.sym()})", min_value=0.0, format="%.0f",
+            help="Planned investment to pivot toward the low-carbon business (adaptive capacity). "
+                 "Blank / 0 = let the model estimate it from pivot scale, sector and geography."),
+        "positioning_pct": st.column_config.NumberColumn(
+            "Positioning (0–100)", min_value=0, max_value=100, step=5, format="%d",
+            help="Manual 'art' override of how well-placed the company is today to transition "
+                 "(0 = laggard, 100 = leader). Blank = derive from emissions, sector lever readiness "
+                 "and transition-plan strength ('science')."),
     },
 )
 

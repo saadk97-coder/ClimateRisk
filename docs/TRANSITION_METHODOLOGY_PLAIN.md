@@ -89,6 +89,19 @@ Two ideas:
    batteries, or green hydrogen) it has built, the cost drops by a fixed percentage. So we
    can project when the *challenger* technology's cost falls below the *incumbent's*. That
    year is the **crossover** — the tipping point.
+**Adaptability (this matters a lot).** A company isn't frozen — under a transition scenario it
+*migrates* toward the low-carbon business. So instead of assuming an ICE carmaker simply loses all
+its revenue, the model lets it **pivot**: it captures part of the green upside (offsetting the loss),
+spends **transition capex** to get there, and — if it's already partly transitioned — has less to
+strand. How much it offsets depends on two things: its **ambition** (defaulted from the scenario — a
+Net-Zero world pulls companies into an aggressive pivot; a Current-Policies world doesn't), and its
+**present positioning** (how well-placed it is today, from its emissions, the maturity of its sector's
+decarbonization options, and the strength of its transition plan — with a manual override for the
+judgement calls). A well-positioned, ambitious carmaker's exposure roughly halves; a poorly-positioned
+laggard keeps most of the loss *and* pays more to catch up. This is "here's how the company looks if it
+follows this pathway, from where it starts today" — not "here's the damage if it does nothing." The
+capex is the honest price of that pivot, so a transition plan is never free.
+
 2. **Stranding.** Once crossover hits (or demand for the old product simply collapses), the
    asset loses value along an **S-curve** — slow at first, then fast, then leveling off —
    because plants don't shut overnight. How fast depends on the sector (power flips quickly;

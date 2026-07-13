@@ -46,6 +46,7 @@ engine/transition/
   data_loader.py        cached JSON loaders; ISO3→NGFS region; scenario→NGFS mapping
   carbon_pricing.py     L1 — carbon cost, pass-through, abatement pathway, priced fraction
   learning_curves.py    L2 — Wright's law, Lafond bands, crossover, logistic impairment
+  adaptive_capacity.py  L2 modifier — ambition / positioning / capture / transition capex (residual risk)
   network_propagation.py L3 — world 20×20 Leontief propagation
   network_mrio.py       L3 — 20×49 EXIOBASE MRIO + Reisch endogenous-default cascade
   cc_exposure.py        L4 — z-standardised CCExposure × per-SD elasticities + routing
@@ -69,6 +70,7 @@ data/transition/
   sector_taxonomy.json         20 sectors: tech pairs, fossil flag, emission intensity
   macc.json                    per-sector abatement measures (AR6 WG3 / IEA-informed)
   lever_library.json           29 decarbonization levers × 5 domains + sector→lever value-chain map
+  adaptive_capacity.json       scenario→ambition, lever→readiness, sector pivot-capex ratios, region buffers
 ```
 
 ### Execution flow
@@ -207,6 +209,39 @@ revenue_erosion(y) = max(0, revenue × (1 − index(y)))     ← cash-flow cost
 **Data (P0 refresh):** power-sector base costs are **LCOE (USD/MWh)** from **IRENA Renewable Power
 Generation Costs in 2024** and **Lazard LCOE+ 2025 v18** (coal 118, gas 76, solar 43, onshore wind 34,
 storage 170). Learning rates: Way et al. 2022 / IRENA. Industrial base costs remain sector estimates.
+
+### 4.6 Adaptive capacity — gross exposure → residual risk
+**Module:** `adaptive_capacity.py` + `adaptive_capacity.json`. §4.5 as written erodes ~100% of the
+incumbent product's revenue — a *frozen* company that captures nothing from the low-carbon business
+(an ICE automaker losing all revenue with $0 from EVs). That is **gross vulnerability**, not residual
+risk. This layer (**ON by default**) converts it into "how the company looks if it follows the scenario
+pathway, given where it starts." Approach follows BSR's *Decarbonization Lever Library: Mapped Sectoral
+Transition Pathways* (Nov 2025) — business-transformation / systemic-adaptability framing.
+
+Three levers:
+```
+ambition A ∈ [0,1]     default from the SCENARIO NARRATIVE (NZ-2050 ≈ 0.90, Current Policies ≈ 0.20);
+                        overridable. Also implies an emissions pathway (residual = 1−A) that lowers L1
+                        when no explicit decarbonisation target is set — so the pivot is never free.
+positioning P ∈ [0,1]  "science": 0.35·plan_strength(target+in-plan lever coverage) + 0.30·sector
+                        lever readiness (Lever-Library maturities) + 0.20·emissions-vs-sector
+                        + 0.15·plan coverage. "art": a manual override on Data Entry.
+capture  = min(A · P^1.15, opportunity_ceiling)     share of gross erosion offset by pivoting
+```
+Effects (each routes once):
+```
+net_revenue_erosion(y) = gross_erosion(y) × (1 − capture)          ← CASH FLOW (reduced)
+transition_capex(y)    = phased[ A · replacement_value · sector_pivot_ratio                ← CASH FLOW (new)
+                                 · region_multiplier · positioning_capex_factor ]           (company-provided, else estimated)
+strandable_base       ×= (1 − already_transitioned),  already = 0.5·P                       ← BALANCE SHEET (less to strand)
+```
+Transition capex is company-provided (they know their plan), else estimated from pivot scale × sector
+ratio × a **geographic/context buffer** (advanced 1.0, emerging 1.1, RoW 1.2) × a positioning factor
+(laggards pay up to 1.6×, movers 0.8×). Worked example — automaker ($100B rev) under NZ-2050:
+gross $791B PV → **$318B** if strongly positioned & ambitious (80% capture, $14B capex, less stranding),
+vs **$740B** if a poorly-positioned laggard (10% capture, $24B capex). Present positioning drives the
+outcome. Positioning derivation is a screening heuristic — the "art" override exists for exactly the
+cases it cannot cleanly quantify.
 
 ---
 

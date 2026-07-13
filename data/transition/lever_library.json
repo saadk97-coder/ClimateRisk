@@ -1,7 +1,7 @@
 {
   "_meta": {
     "description": "Decarbonization Lever Library. A structured REFERENCE that maps a business's exposure to the specific decarbonization levers available in its sector, positioned by value-chain stage (upstream / own operations / downstream), so the levers can be overlaid against the entity's own transition plan for gap analysis. Adapted approach from BSR's 'Decarbonization Lever Library' — the mapping and value-chain logic are carried over; the underlying cost / maturity / potential figures are REFRESHED from recent public sources and are indicative screening ranges, NOT a scoring engine.",
-    "approach_credit": "BSR Decarbonization Lever Library (https://www.bsr.org/reports/BSR_Decarbonization_Lever_Library.pdf) — taxonomy structure, value-chain positioning, and nature/people impact lens.",
+    "approach_credit": "BSR, 'Decarbonization Lever Library: Mapped Sectoral Transition Pathways' (November 2025; authors Saad Khan, Nina Hatch, Ameer Azim). Per-lever attribute set (cost range, mitigation potential, key dependencies / external factors, impacts on nature and people, Net-Zero-2050 pathway) and value-chain (upstream / own operations / downstream) positioning follow that report; the underlying figures here are a refreshed screening adaptation.",
     "sources_refresh": [
       "IEA Net Zero Roadmap 2023 update; IEA World Energy Outlook 2024",
       "IPCC AR6 WG3 (2022) Ch.6–12 sectoral mitigation potentials and cost ranges",

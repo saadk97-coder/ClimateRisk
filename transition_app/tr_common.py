@@ -125,6 +125,11 @@ def make_asset(row: dict) -> Asset:
         decarb_residual_pct=0.0,
         # blank / NaN priced_pct means "fully priced" (100), not 0
         priced_emissions_fraction=_float_or(row.get("priced_pct"), 100.0) / 100.0,
+        # Adaptive capacity: planned transition capex (reporting ccy → USD) and a manual
+        # positioning override (0..100 → 0..1; blank/NaN → -1 = derive from data).
+        transition_capex_usd=_float_or(row.get("transition_capex"), 0.0) * fx_to_usd(),
+        positioning_override=(lambda v: v / 100.0 if v == v and v >= 0 else -1.0)(
+            _float_or(row.get("positioning_pct"), -1.0)),
     )
 
 
@@ -153,6 +158,8 @@ PORTFOLIO_COLUMNS = [
     "id", "name", "region", "sector",
     "replacement_value", "annual_revenue", "scope1", "scope2", "scope3",
     "target_year", "priced_pct", "attribution_pct",
+    # adaptive capacity (optional): planned pivot capex; manual positioning 0–100 (blank = derive)
+    "transition_capex", "positioning_pct",
 ]
 
 SAMPLE_PORTFOLIO = [
@@ -194,6 +201,7 @@ def _defaults() -> dict:
         "tr_carbon_inclusive_crossover": False,  # P6 — add incumbent carbon cost to L2 crossover
         "tr_non_fossil_base_frac": 0.5,        # R1 — non-fossil impairment base share
         "tr_l3_partial_pt": False,             # R2 — firm recovers its PT share of upstream cost
+        "tr_adaptive": True,                   # adaptive capacity ON by default (scenario-narrative pivot)
     }
 
 
@@ -285,7 +293,30 @@ def run_engine(assets: list[Asset], scenarios: list[str]):
         carbon_inclusive_crossover=bool(st.session_state.get("tr_carbon_inclusive_crossover", False)),
         non_fossil_base_fraction=float(st.session_state.get("tr_non_fossil_base_frac", 0.5)),
         l3_partial_pass_through=bool(st.session_state.get("tr_l3_partial_pt", False)),
+        adaptive=bool(st.session_state.get("tr_adaptive", True)),
+        plan_coverage_by_asset=_plan_coverage_by_asset(active),
     )
+
+
+def _plan_coverage_by_asset(active: list[Asset]) -> dict:
+    """Share of each entity's sector PRIMARY decarb levers that are marked in-plan on the
+    Levers page — feeds the 'transition-plan strength' part of the positioning score."""
+    plans = st.session_state.get("tr_plan_levers", {}) or {}
+    if not plans:
+        return {}
+    try:
+        from engine.transition import levers as LV
+    except Exception:
+        return {}
+    out = {}
+    for a in active:
+        in_plan = plans.get(a.id)
+        if not in_plan:
+            continue
+        gap = LV.overlay_plan(a.sector, in_plan)
+        if gap.primary_total:
+            out[a.id] = gap.primary_covered / gap.primary_total
+    return out
 
 
 # ---------------------------------------------------------------------------

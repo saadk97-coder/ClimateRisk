@@ -28,7 +28,14 @@ if not scenarios:
     st.info("Pick scenarios in the sidebar.")
     st.stop()
 
-with st.expander("⚙ Layer-2 model options (stranding)"):
+with st.expander("⚙ Layer-2 model options (stranding & adaptive capacity)"):
+    st.checkbox(
+        "Adaptive capacity (residual, not gross)", key="tr_adaptive",
+        help="ON by default. Instead of eroding 100% of the incumbent product's revenue (a frozen "
+             "company), model the company migrating toward the low-carbon business: it captures part "
+             "of the green upside, spends transition capex, and — if already partly transitioned — "
+             "strands less. Ambition defaults from the scenario narrative; positioning is derived from "
+             "emissions, sector lever readiness and transition-plan strength (override on Data Entry).")
     st.checkbox(
         "Carbon-inclusive crossover (P6)", key="tr_carbon_inclusive_crossover",
         help="Add the incumbent technology's carbon cost (carbon price × emission factor) to its "
@@ -59,6 +66,36 @@ m2.metric("Entities flagged for stranding", f"{n_stranded}/{len(res)}")
 earliest = min([r.layer2_result.crossover_year for r in res
                 if r.layer2_result and r.layer2_result.crossover_year], default=None)
 m3.metric("Earliest crossover / trigger", str(earliest) if earliest else "none")
+
+# --- Adaptive capacity: gross vs residual ----------------------------------
+if st.session_state.get("tr_adaptive", True) and any(getattr(r, "strategy", None) for r in res):
+    st.subheader("Adaptive capacity — gross exposure vs residual after transition")
+    st.caption("Gross = the company frozen (loses its incumbent product demand, captures nothing). "
+               "Residual = after it pivots toward the low-carbon business, given where it starts. "
+               "Ambition is the scenario-narrative default; positioning is derived (or overridden).")
+    rows = []
+    for r in res:
+        s = getattr(r, "strategy", None)
+        if not s:
+            continue
+        gross_ero = sum(v / (1 - s.capture_fraction) if s.capture_fraction < 1 else 0.0
+                        for v in r.layer_breakdown["L2_revenue_erosion"].values())
+        resid_ero = sum(r.layer_breakdown["L2_revenue_erosion"].values())
+        capex = sum(r.layer_breakdown["L2_transition_capex"].values())
+        rows.append({
+            "Entity": r.asset_id, "Sector": T.sector_label(r.sector),
+            "Ambition": f"{s.ambition:.2f}", "Positioning": f"{s.positioning:.2f}",
+            "": s.positioning_source.split()[0],
+            "Capture of loss": f"{s.capture_fraction*100:.0f}%",
+            f"Gross erosion ({sym})": T.fmt_money(gross_ero),
+            f"Residual erosion ({sym})": T.fmt_money(resid_ero),
+            f"Transition capex ({sym})": T.fmt_money(capex),
+        })
+    if rows:
+        st.dataframe(pd.DataFrame(rows).astype(str), use_container_width=True, hide_index=True)
+        st.caption("Positioning source: *derived* = computed from emissions + sector lever readiness + "
+                   "plan strength (Lever Library overlay); *override* = manual analyst score on Data Entry. "
+                   "Transition capex is the investment that earns the capture (so a pivot is never free).")
 
 # --- Stranding diagnostics -------------------------------------------------
 st.subheader("Stranding diagnostics")

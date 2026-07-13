@@ -51,6 +51,12 @@ class Asset:
     # Fraction of Scope 1+2 emissions actually exposed to the carbon price, net of
     # free allocation / partial ETS coverage. 1.0 = fully priced (legacy behaviour).
     priced_emissions_fraction: float = 1.0
+    # ---- Adaptive capacity / transition strategy (Session 11) ----
+    # Planned transition capex (USD) to pivot toward the low-carbon business; 0 = let
+    # the model estimate it. positioning_override in [0,1] is the manual "art" score
+    # for how well-placed the company is today (blank = derive from data — "science").
+    transition_capex_usd: float = 0.0
+    positioning_override: float = -1.0   # -1 = unset (derive); 0..1 = manual override
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -120,6 +126,8 @@ class Asset:
             decarb_target_year=int(d.get("decarb_target_year", 0) or 0),
             decarb_residual_pct=float(d.get("decarb_residual_pct", 0.0) or 0.0),
             priced_emissions_fraction=float(d.get("priced_emissions_fraction", 1.0)),
+            transition_capex_usd=float(d.get("transition_capex_usd", 0.0) or 0.0),
+            positioning_override=float(d.get("positioning_override", -1.0)),
         )
 
 

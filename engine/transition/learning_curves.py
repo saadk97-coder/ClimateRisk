@@ -245,6 +245,7 @@ def compute_stranding(
     carbon_inclusive_crossover: bool = False,
     region_iso3: str = "USA",
     price_scale: float = 1.0,
+    incumbent_share: float = 1.0,
 ) -> StrandingResult:
     """
     Compute stranded-asset impairment trajectory + revenue index for one asset × scenario.
@@ -303,6 +304,9 @@ def compute_stranding(
     # half for non-fossil (only the share tied to incumbent tech can strand).
     nf_frac = min(1.0, max(0.0, non_fossil_base_fraction))
     base = replacement_value if fossil_dependent else replacement_value * nf_frac
+    # Adaptive capacity: a firm already partly transitioned has less incumbent base to
+    # strand. incumbent_share = 1 − already_transitioned (1.0 = frozen, no adaptation).
+    base = base * max(0.0, min(1.0, incumbent_share))
     horizon_end = max(years) if years else 2050
     pathway_end = _interp_pathway(pathway_curve, horizon_end)
     cap = max(0.0, 1.0 - pathway_end) * base

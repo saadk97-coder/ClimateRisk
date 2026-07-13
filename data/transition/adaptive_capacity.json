@@ -1,0 +1,108 @@
+{
+  "_meta": {
+    "description": "Adaptive-capacity / transition-strategy layer. Converts Layer-2 GROSS revenue erosion (a frozen company losing its incumbent product demand) into RESIDUAL risk after a stated transition pathway, given where the company starts. Three levers: ambition (how much it pivots, defaulted from the scenario narrative), positioning (how well-placed it is today — 'science' derived from emissions + lever readiness + plan strength, with an 'art' override), and transition capex (the cost of the pivot, company-provided or estimated with a geographic buffer).",
+    "non_duplication_note": "Capture reduces the REVENUE-erosion lens (cash flow); positioning reduces the STRANDING lens (balance sheet, separate); transition capex is a NEW cash-flow cost representing the investment that earns the capture. Each routes once.",
+    "version": "v1 — Session 11",
+    "sources": [
+      "BSR, 'Decarbonization Lever Library: Mapped Sectoral Transition Pathways' (Nov 2025) — the 'business transformation / systemic adaptability over 10-20-30-year horizons' framing (pp. 9, 15, 18) and sector lever-maturity pathways inform positioning (lever readiness) and the scenario-narrative ambition mapping.",
+      "Scenario ambition mapped to NGFS Phase V narrative intent (orderly vs disorderly vs hot-house).",
+      "Pivot-capex ratios: order-of-magnitude sector transformation capex (IEA NZE sectoral investment, Mission Possible Partnership transition strategies).",
+      "Geographic buffer: relative execution/financing cost by NGFS region band."
+    ]
+  },
+
+  "scenario_ambition": {
+    "_note": "Default company pivot ambition [0,1] implied by each scenario's narrative. Orderly/ambitious scenarios pull companies into an aggressive pivot; hot-house scenarios imply little transition. Overridable per company.",
+    "net_zero_2050": 0.90,
+    "below_2c": 0.80,
+    "divergent_net_zero": 0.75,
+    "delayed_transition": 0.60,
+    "ndcs_only": 0.40,
+    "fragmented_world": 0.30,
+    "current_policies": 0.20,
+    "iea_nze": 0.90,
+    "iea_aps": 0.65,
+    "iea_steps": 0.35,
+    "_default": 0.50
+  },
+
+  "maturity_readiness": {
+    "_note": "Decarb-lever commercial maturity → adaptability score. A sector whose primary levers are mature/cheap is easier to pivot than one dependent on frontier tech.",
+    "mature": 1.0,
+    "commercial": 0.75,
+    "emerging": 0.40,
+    "frontier": 0.20
+  },
+
+  "positioning": {
+    "_note": "Weights for the derived 'science' positioning score P in [0,1] (higher = better placed). plan_coverage is the share of the sector's PRIMARY levers the company has in its transition plan (from the Lever Library overlay); passed in by the app, else falls back to plan_strength.",
+    "weights": {
+      "plan_strength": 0.35,
+      "lever_readiness": 0.30,
+      "emissions_positioning": 0.20,
+      "plan_coverage": 0.15
+    },
+    "target_year_to_plan_strength": {
+      "_note": "decarb_target_year → plan-strength component. No target = weak; earlier net-zero = stronger. Interpolated between anchors; residual % scales it down.",
+      "none": 0.15,
+      "2050": 0.45,
+      "2045": 0.55,
+      "2040": 0.68,
+      "2035": 0.80,
+      "2030": 0.90
+    },
+    "already_transitioned_max": 0.5,
+    "_already_note": "A perfectly-positioned firm (P=1) is assumed to have already transitioned up to this share of its incumbent base, so it strands that much less."
+  },
+
+  "capture": {
+    "_note": "Capture fraction of gross erosion that the company offsets by pivoting = ambition × positioning_effectiveness, capped by the opportunity ceiling (how much the challenger/green market is growing). positioning_effectiveness bends the raw P slightly so a mid score is a bit below linear.",
+    "positioning_effectiveness_exponent": 1.15,
+    "opportunity_ceiling_floor": 0.30,
+    "_ceiling_note": "opportunity ceiling = challenger-market growth headroom; never below opportunity_ceiling_floor so some pivot is always possible."
+  },
+
+  "transition_capex": {
+    "_note": "Model estimate when the company does not provide a planned capex. capex ≈ ambition × replacement_value × sector_pivot_capex_ratio × region_multiplier × positioning_capex_factor. Poorly-positioned firms pay more per unit pivoted.",
+    "sector_pivot_capex_ratio": {
+      "_note": "Capex to fully pivot (ambition=1), as a fraction of the incumbent asset's replacement value.",
+      "power_coal": 0.70,
+      "power_gas": 0.55,
+      "power_renewable": 0.20,
+      "oil_upstream": 0.60,
+      "oil_refining": 0.65,
+      "gas_distribution": 0.55,
+      "steel": 0.90,
+      "cement": 0.80,
+      "chemicals": 0.70,
+      "aluminium": 0.55,
+      "road_transport_ice": 0.45,
+      "road_transport_ev": 0.20,
+      "aviation": 0.60,
+      "shipping": 0.60,
+      "real_estate_commercial": 0.30,
+      "real_estate_residential": 0.30,
+      "agriculture": 0.35,
+      "data_center": 0.20,
+      "manufacturing_general": 0.35,
+      "services": 0.15,
+      "_default": 0.40
+    },
+    "region_multiplier": {
+      "_note": "Geographic/context buffer on pivot cost (execution + financing risk). Advanced economies cheapest to execute; rest-of-world carries an execution premium.",
+      "advanced": 1.0,
+      "emerging": 1.10,
+      "rest_of_world": 1.20
+    },
+    "positioning_capex_factor": {
+      "_note": "Multiplier by positioning: a laggard (P→0) pays up to `poor`× the base; a mover (P→1) pays `strong`×. Linear in P.",
+      "poor": 1.6,
+      "strong": 0.8
+    },
+    "phasing": {
+      "_note": "Capex is spread over the pivot window (base_year → target_year, else 2050), front-loaded with a triangular profile peaking early.",
+      "profile": "front_loaded_triangular",
+      "peak_fraction_of_window": 0.35
+    }
+  }
+}

@@ -485,6 +485,7 @@ def test_orchestrator_total_equals_sum_of_layers(coal_plant):
         layer_sum = (
             r.layer_breakdown["L1_carbon_opex"][y]
             + r.layer_breakdown["L2_revenue_erosion"][y]
+            + r.layer_breakdown["L2_transition_capex"][y]   # adaptive-capacity capex
             + r.layer_breakdown["L3_network_input_cost"][y]
             + r.layer_breakdown["L4_revenue_modifier"][y]
         )
@@ -1257,3 +1258,72 @@ def test_review_unknown_scenario_warns(caplog):
         out = map_scenario_to_ngfs("totally_made_up_scenario")
     assert out == "current_policies"
     assert any("Unknown scenario" in rec.message for rec in caplog.records)
+
+
+# ---------------------------------------------------------------------------
+# Adaptive capacity / transition strategy (Session 11)
+# ---------------------------------------------------------------------------
+def _automaker(pos=-1.0, capex=0.0, target=0):
+    return Asset(id="AUTO", name="Automaker", lat=0, lon=0, asset_type="x", replacement_value=40e9,
+                 construction_material="concrete", year_built=2010, stories=1, basement=False,
+                 roof_type="flat", first_floor_height_m=0, terrain_elevation_asl_m=0, floor_area_m2=0,
+                 region="DEU", sector="road_transport_ice", scope1_emissions_tco2=1e6,
+                 scope2_emissions_tco2=2e6, scope3_emissions_tco2=400e6, annual_revenue=100e9,
+                 decarb_target_year=target, positioning_override=pos, transition_capex_usd=capex)
+
+
+def test_adaptive_reduces_erosion_vs_frozen():
+    """Adaptive capacity cuts net revenue erosion below the frozen (gross) case."""
+    frozen = run_asset_transition(_automaker(), "net_zero_2050", adaptive=False)
+    resid = run_asset_transition(_automaker(), "net_zero_2050", adaptive=True)
+    ero_frozen = sum(frozen.layer_breakdown["L2_revenue_erosion"].values())
+    ero_resid = sum(resid.layer_breakdown["L2_revenue_erosion"].values())
+    assert ero_resid < ero_frozen
+    assert resid.strategy is not None and 0.0 <= resid.strategy.capture_fraction <= 1.0
+
+
+def test_positioning_orders_residual_risk():
+    """Strong positioning captures more of the loss and strands less than poor positioning."""
+    strong = run_asset_transition(_automaker(pos=0.9), "net_zero_2050")
+    poor = run_asset_transition(_automaker(pos=0.15), "net_zero_2050")
+    assert strong.strategy.capture_fraction > poor.strategy.capture_fraction
+    assert sum(strong.layer_breakdown["L2_revenue_erosion"].values()) < \
+           sum(poor.layer_breakdown["L2_revenue_erosion"].values())
+    # a better-positioned firm has less incumbent base to strand
+    assert sum(strong.annual_impairment_usd.values()) <= sum(poor.annual_impairment_usd.values())
+    # ...and pays LESS capex per the positioning factor (laggards pay more)
+    assert strong.strategy.transition_capex_usd < poor.strategy.transition_capex_usd
+
+
+def test_ambition_defaults_from_scenario_narrative():
+    """Ambition (hence capture) is higher under Net-Zero than Current Policies by default."""
+    from engine.transition.adaptive_capacity import scenario_ambition
+    assert scenario_ambition("net_zero_2050") > scenario_ambition("current_policies")
+    nz = run_asset_transition(_automaker(pos=0.6), "net_zero_2050")
+    cp = run_asset_transition(_automaker(pos=0.6), "current_policies")
+    assert nz.strategy.ambition > cp.strategy.ambition
+
+
+def test_transition_capex_company_override_and_phasing():
+    """A company-provided capex is used and phased across the horizon (sums to ~total)."""
+    r = run_asset_transition(_automaker(capex=30e9), "net_zero_2050")
+    assert r.strategy.capex_source == "company-provided"
+    assert abs(r.strategy.transition_capex_usd - 30e9) < 1.0
+    assert abs(sum(r.strategy.annual_capex_usd.values()) - 30e9) < 1e6   # phasing conserves total
+    assert sum(r.layer_breakdown["L2_transition_capex"].values()) > 0
+
+
+def test_capex_carries_geographic_buffer():
+    """The model capex estimate carries a geographic/context multiplier (RoW > advanced)."""
+    from engine.transition.adaptive_capacity import estimate_transition_capex
+    adv = estimate_transition_capex("steel", "advanced", 0.8, 0.5, 10e9)
+    row = estimate_transition_capex("steel", "rest_of_world", 0.8, 0.5, 10e9)
+    assert row > adv
+
+
+def test_scenario_implied_abatement_lowers_l1_without_explicit_target():
+    """Under an ambitious scenario, adaptive capacity implies an emissions pathway that
+    lowers L1 by 2050 even with no explicit decarbonisation target."""
+    off = run_asset_transition(_automaker(), "net_zero_2050", enable_layers=(1,), adaptive=False)
+    on = run_asset_transition(_automaker(), "net_zero_2050", enable_layers=(1,), adaptive=True)
+    assert on.layer_breakdown["L1_carbon_opex"][2050] < off.layer_breakdown["L1_carbon_opex"][2050]

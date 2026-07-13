@@ -67,6 +67,15 @@ _log = logging.getLogger(__name__)
 DEFAULT_HORIZON = list(range(2025, 2051))
 
 
+def _resolve_positioning(explicit, asset):
+    """Positioning override precedence: explicit arg → asset field → None (derive).
+    The asset field uses -1 as the 'unset' sentinel (dataclasses can't hold None here)."""
+    if explicit is not None:
+        return explicit
+    v = getattr(asset, "positioning_override", -1.0)
+    return v if (v is not None and v >= 0.0) else None
+
+
 @dataclass
 class TransitionAssetResult:
     asset_id: str
@@ -84,6 +93,7 @@ class TransitionAssetResult:
     layer4_result: Optional[CCExposureResult] = None
     data_quality: str = "sector-proxy"          # 'firm' | 'sector-proxy' | 'degraded'
     data_quality_flags: List[str] = field(default_factory=list)
+    strategy: object = None                      # AdaptiveStrategy (adaptive capacity)
 
     def to_dataframe(self) -> pd.DataFrame:
         rows = []
@@ -128,6 +138,11 @@ def run_asset_transition(
     equity_weight: float = 0.6,
     debt_weight: float = 0.4,
     tax_rate: float = 0.25,
+    adaptive: bool = True,
+    ambition_override: Optional[float] = None,
+    positioning_override: Optional[float] = None,
+    plan_coverage: Optional[float] = None,
+    transition_capex_override: Optional[float] = None,
 ) -> TransitionAssetResult:
     """
     Compute a full transition risk timeline for one asset under one scenario.
@@ -169,16 +184,45 @@ def run_asset_transition(
         _log.warning("Asset %s has no sector; using 'services' proxy.", asset.id)
     region = asset.region
 
+    # ── Adaptive capacity / transition strategy ─────────────────────────────
+    # Converts GROSS L2 erosion into RESIDUAL risk after a stated pathway. ON by
+    # default; ambition defaults from the scenario narrative, positioning is derived
+    # (science) or overridden (art), capex is company-provided or estimated.
+    strategy = None
+    if adaptive:
+        from engine.transition.adaptive_capacity import build_strategy
+        strategy = build_strategy(
+            asset_id=asset.id, sector=sector, scenario_id=scenario_id,
+            region_band=get_ngfs_region(region),
+            scope12_tco2=asset.scope1_emissions_tco2 + asset.scope2_emissions_tco2,
+            revenue_usd=asset.annual_revenue, replacement_value=asset.replacement_value,
+            horizon=list(horizon),
+            target_year=getattr(asset, "decarb_target_year", 0),
+            residual_pct=getattr(asset, "decarb_residual_pct", 0.0),
+            ambition_override=ambition_override,
+            positioning_override=_resolve_positioning(positioning_override, asset),
+            plan_coverage=plan_coverage,
+            transition_capex_override=(transition_capex_override
+                                       if transition_capex_override is not None
+                                       else getattr(asset, "transition_capex_usd", 0.0) or None),
+        )
+
     # ── Layer 1 ────────────────────────────────────────────────────────────
     layer1: List[CarbonCostResult] = []
     l1_by_year: Dict[int, float] = {y: 0.0 for y in horizon}
     if 1 in enable_layers:
-        # Abatement pathway on Scope 1+2, and free-allocation-adjusted priced share.
-        em_index = abatement_index(
-            getattr(asset, "decarb_target_year", 0),
-            getattr(asset, "decarb_residual_pct", 0.0),
-            list(horizon),
-        )
+        # Abatement pathway on Scope 1+2. An explicit decarb target wins; otherwise, if
+        # adaptive is on, the SCENARIO-IMPLIED ambition drives an emissions pathway
+        # (residual = 1 − ambition by the horizon end) — i.e. "if the company follows
+        # this scenario, its emissions look like this". The transition capex below is
+        # the cost of that abatement (so a target is never free).
+        _tgt = getattr(asset, "decarb_target_year", 0)
+        if _tgt and _tgt > min(horizon):
+            em_index = abatement_index(_tgt, getattr(asset, "decarb_residual_pct", 0.0), list(horizon))
+        elif strategy is not None and strategy.ambition > 0:
+            em_index = abatement_index(max(horizon), (1.0 - strategy.ambition) * 100.0, list(horizon))
+        else:
+            em_index = abatement_index(0, 0.0, list(horizon))
         priced_fraction = getattr(asset, "priced_emissions_fraction", 1.0)
         # Non-duplication (Scope 2 & 3 incidence): Scope 2 is the power supplier's
         # carbon cost reaching the firm through electricity prices, and upstream
@@ -212,6 +256,7 @@ def run_asset_transition(
     layer2: Optional[StrandingResult] = None
     l2_revenue_by_year: Dict[int, float] = {y: 0.0 for y in horizon}
     l2_impairment_by_year: Dict[int, float] = {y: 0.0 for y in horizon}
+    _incumbent_share = (1.0 - strategy.already_transitioned) if strategy is not None else 1.0
     if 2 in enable_layers:
         layer2 = compute_stranding(
             asset_id=asset.id,
@@ -224,9 +269,14 @@ def run_asset_transition(
             carbon_inclusive_crossover=carbon_inclusive_crossover,
             region_iso3=region,
             price_scale=price_scale,
+            incumbent_share=_incumbent_share,   # positioning → less to strand
         )
         if asset.annual_revenue > 0:
-            l2_revenue_by_year = revenue_erosion_usd(asset.annual_revenue, layer2.revenue_index)
+            gross_erosion = revenue_erosion_usd(asset.annual_revenue, layer2.revenue_index)
+            # Adaptive capacity: the pivot recaptures part of the lost incumbent
+            # revenue in the growing challenger market → net erosion = gross × (1−capture).
+            cap = strategy.capture_fraction if strategy is not None else 0.0
+            l2_revenue_by_year = {y: round(v * (1.0 - cap), 2) for y, v in gross_erosion.items()}
         l2_impairment_by_year = dict(layer2.annual_impairment_usd)
 
     # ── Layer 3 ────────────────────────────────────────────────────────────
@@ -309,15 +359,26 @@ def run_asset_transition(
                 + debt_weight * layer4.credit_spread_premium_bps * (1.0 - tax_rate)
             )
 
+    # ── Adaptive-capacity transition capex ──────────────────────────────────
+    # The investment that EARNS the capture and the L1 abatement (so a pivot / target
+    # is never free). A cash-flow cost, routed once. Applied only when Layer 2 is on
+    # (capex accompanies the technology transition).
+    l2_capex_by_year: Dict[int, float] = {y: 0.0 for y in horizon}
+    if strategy is not None and 2 in enable_layers:
+        for y in horizon:
+            l2_capex_by_year[y] = strategy.annual_capex_usd.get(y, 0.0)
+
     # ── Aggregate ──────────────────────────────────────────────────────────
     total_by_year = {
-        y: l1_by_year[y] + l2_revenue_by_year[y] + l3_by_year[y] + l4_by_year[y]
+        y: l1_by_year[y] + l2_revenue_by_year[y] + l2_capex_by_year[y]
+           + l3_by_year[y] + l4_by_year[y]
         for y in horizon
     }
 
     breakdown = {
         "L1_carbon_opex": l1_by_year,
         "L2_revenue_erosion": l2_revenue_by_year,
+        "L2_transition_capex": l2_capex_by_year,
         "L2_impairment": l2_impairment_by_year,
         "L3_network_input_cost": l3_by_year,
         "L4_revenue_modifier": l4_by_year,
@@ -364,6 +425,7 @@ def run_asset_transition(
         layer4_result=layer4,
         data_quality=data_quality,
         data_quality_flags=dq_flags,
+        strategy=strategy,
     )
 
 
@@ -391,6 +453,9 @@ def run_portfolio_transition(
     equity_weight: float = 0.6,
     debt_weight: float = 0.4,
     tax_rate: float = 0.25,
+    adaptive: bool = True,
+    ambition_override: Optional[float] = None,
+    plan_coverage_by_asset: Optional[Dict[str, float]] = None,
 ) -> Dict[str, List[TransitionAssetResult]]:
     """
     Run all assets × scenarios. Returns {scenario_id: [TransitionAssetResult, ...]}.
@@ -430,6 +495,9 @@ def run_portfolio_transition(
                 equity_weight=equity_weight,
                 debt_weight=debt_weight,
                 tax_rate=tax_rate,
+                adaptive=adaptive,
+                ambition_override=ambition_override,
+                plan_coverage=(plan_coverage_by_asset or {}).get(a.id),
             )
             out[sc].append(r)
     return out
