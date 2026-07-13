@@ -74,13 +74,31 @@ def get_ngfs_region(iso3: str) -> str:
     """Map ISO3 country code to NGFS region (advanced / emerging / rest_of_world)."""
     if not iso3:
         return "rest_of_world"
-    iso3 = iso3.strip().upper()
+    iso3 = country_iso3(iso3)   # strip any sub-national suffix (e.g. USA-TX → USA)
     classification = load_carbon_prices().get("region_classification", {})
     if iso3 in classification.get("advanced", []):
         return "advanced"
     if iso3 in classification.get("emerging", []):
         return "emerging"
     return "rest_of_world"
+
+
+def country_iso3(code: str) -> str:
+    """Country ISO3 from a possibly sub-national region code (USA-TX → USA)."""
+    if not code:
+        return ""
+    return code.strip().upper().split("-")[0]
+
+
+def resource_zone(code: str) -> str:
+    """Resolve a region code to a resource zone (region_factors.json). Precedence:
+    exact sub-national code (USA-TX) → country ISO3 (USA) → global default."""
+    rf = load_region_factors()
+    c = (code or "").strip().upper()
+    sub = rf.get("subnational_to_zone", {})
+    if c in sub:
+        return sub[c]
+    return rf.get("iso3_to_zone", {}).get(country_iso3(c), rf["_meta"]["default_zone"])
 
 
 def map_scenario_to_ngfs(scenario_id: str) -> str:

@@ -1377,3 +1377,25 @@ def test_region_factor_applies_only_to_mapped_techs():
     assert _regional_cost_factor("solar_pv", None) == 1.0        # global default
     assert _regional_cost_factor("solar_pv", "USA") == 1.0       # na_other reference
     assert _regional_cost_factor("heat_pump", "SAU") == 1.0      # untagged tech
+
+
+def test_subnational_us_and_europe_resolution():
+    """Sub-national codes resolve to finer zones: Texas green steel earlier than
+    California, earlier than the US Northeast; Spain earlier than Germany."""
+    tx = find_crossover_year("blast_furnace", "h2_dri", "net_zero_2050", (2025, 2050), region_iso3="USA-TX")
+    ca = find_crossover_year("blast_furnace", "h2_dri", "net_zero_2050", (2025, 2050), region_iso3="USA-CA")
+    ne = find_crossover_year("blast_furnace", "h2_dri", "net_zero_2050", (2025, 2050), region_iso3="USA-NEAST")
+    esp = find_crossover_year("blast_furnace", "h2_dri", "net_zero_2050", (2025, 2050), region_iso3="ESP")
+    deu = find_crossover_year("blast_furnace", "h2_dri", "net_zero_2050", (2025, 2050), region_iso3="DEU")
+    assert tx < ca < ne          # Texas cheapest green H2 → earliest; Northeast latest
+    assert esp < deu             # sunny Iberia before N. Europe
+
+
+def test_subnational_code_strips_to_country_for_carbon_band():
+    """A sub-national code still resolves to the correct country carbon-price band."""
+    from engine.transition.data_loader import get_ngfs_region, country_iso3, resource_zone
+    assert country_iso3("USA-TX") == "USA"
+    assert get_ngfs_region("USA-TX") == get_ngfs_region("USA")   # same band as the country
+    assert resource_zone("USA-TX") == "us_texas"                 # but finer resource zone
+    assert resource_zone("USA") == "na_other"                    # bare country → national average
+    assert resource_zone("ZZZ-XX") == "rest_of_world"            # unknown → global default

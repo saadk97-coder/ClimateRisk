@@ -91,8 +91,11 @@ Two ideas:
    year is the **crossover** — the tipping point. **And it's location-specific:** a watt in
    Texas or the Gulf is far cheaper than in Northern Europe or Japan, so those sunny/windy
    regions reach crossover — and produce green steel, ammonia and cement — *years earlier*.
-   The model applies a geographic resource/cost factor by region (e.g. green-steel parity in
-   Saudi Arabia ~2031 vs Japan ~2037 for the same plant).
+   The model applies a geographic resource/cost factor by region, with **sub-national resolution
+   for the US and Europe** — where a watt and a transition plan really do look different in Texas
+   vs California, or Spain vs Germany. Same steel plant, green-steel cost parity: US Southwest ~2026,
+   Texas ~2027, California ~2034, US Northeast ~2039; Spain ~2031, Germany ~2040, Japan ~2042.
+   (Enter a region as `USA-TX`, `USA-CA`, `ESP-S`, etc. for the finer view.)
 **Adaptability (this matters a lot).** A company isn't frozen — under a transition scenario it
 *migrates* toward the low-carbon business. So instead of assuming an ICE carmaker simply loses all
 its revenue, the model lets it **pivot**: it captures part of the green upside (offsetting the loss),

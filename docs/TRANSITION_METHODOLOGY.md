@@ -259,17 +259,26 @@ technology's LCOE before the crossover comparison:
 ```
 clean power   (renewable_lcoe_factor)  → solar, wind, storage, PPAs
 green H2 etc. (green_h2_factor)        → electrolyser, H2-DRI steel, green ammonia, SAF, biorefining
-fossil        (fossil_lcoe_factor)     → coal/gas generation, refining, blast furnace, cement, fuels
+fossil        (fossil_lcoe_factor)     → REGIONALLY-PRICED energy only: natural gas + grid electricity
 ```
 `_project_cost` multiplies by the zone factor, so `find_crossover_year` and stranding are **region-aware**.
-Factors follow IRENA regional LCOE dispersion (best solar ~$0.03/kWh in MENA/sunbelt/Chile/Australia vs
-~$0.06–0.09 in N. Europe/Japan) and regional gas/coal price levels; the NA-other / global-average zone
-is the 1.0 reference, so the world-average curves and the worked-example anchors are unchanged. Effect —
-**green-steel (H2-DRI) crossover: 2031 in Saudi Arabia/Australia → 2036 USA/Germany → 2037 Japan** (a
-6-year spread from the same plant). For demand-stranded sectors the regional factor also shifts the
-stranding-trigger year where cost-crossover is the binding trigger. *Limitation:* resolution is ~12
-resource zones (not sub-national — a "Texas" asset should be entered as `USA` today; a finer zone map
-is the extension).
+Only regionally-priced fossil energy (gas, grid power) carries a factor; globally-traded commodities
+(coking coal, crude oil, and the coal/oil-based incumbents — blast furnace, cement, refining, jet/bunker
+fuel) stay at 1.0, so the **green challenger's** regional cost drives the crossover — green steel is
+earliest where clean power / green H₂ is cheapest (the intuitive result). Factors follow IRENA regional
+LCOE dispersion (best solar ~$0.03/kWh in MENA/sunbelt/Chile/Australia/Iberia vs ~$0.06–0.09 in N.
+Europe/Japan) and regional gas prices; the USA-national / global-average zone is the 1.0 reference, so
+the world-average curves and worked-example anchors are unchanged.
+
+**Sub-national resolution (US & Europe — highest-importance markets).** Enter the region as an
+ISO3-prefixed code — `USA-TX`, `USA-CA`, `USA-SW`, `ESP-S`, `ITA-N` … — resolved sub-national → country
+→ global, and stripped to the country for the carbon-price band. US grid/resource zones: Texas (ERCOT),
+Southwest, Midwest wind belt, California, Southeast, Northeast, Pacific NW. Europe is country-resolved
+into UK & Ireland, N. Europe, Nordics, Iberia, S. Europe, C./E. Europe. Effect — **green-steel (H2-DRI)
+crossover: US Southwest 2026 · Texas 2027 · California 2034 · US-national 2036 · US Northeast 2039;
+Spain 2031 · UK 2038 · Germany 2040 · Japan 2042** (same plant). A watt in Texas ≠ one in California;
+green steel in Iberia ≠ in Germany. *Limitation:* US is resolved to ~7 grid regions and Europe to
+country/macro-region — not to individual states/provinces or specific balancing authorities yet.
 
 ---
 

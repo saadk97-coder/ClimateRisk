@@ -70,7 +70,11 @@ edited = st.data_editor(
     column_config={
         "id": st.column_config.TextColumn("ID", required=True, width="small"),
         "name": st.column_config.TextColumn("Name", required=True),
-        "region": st.column_config.TextColumn("ISO3", help="e.g. USA, DEU, CHN, IND", width="small"),
+        "region": st.column_config.TextColumn(
+            "Region", width="small",
+            help="ISO3 (USA, DEU, ESP, CHN, IND) OR a sub-national code for higher resolution in the "
+                 "US & Europe: USA-TX, USA-CA, USA-SW, ESP-S, ITA-N … Drives the carbon-price band and "
+                 "the region-aware technology-cost crossover (a watt in Texas ≠ one in California)."),
         "sector": st.column_config.SelectboxColumn(
             "Sector", options=T.sector_options(), required=True, width="medium"),
         "replacement_value": st.column_config.NumberColumn(

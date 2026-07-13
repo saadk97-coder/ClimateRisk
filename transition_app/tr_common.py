@@ -36,6 +36,7 @@ from engine.transition.data_loader import (  # noqa: E402
     load_sector_taxonomy,
     load_carbon_prices,
     get_ngfs_region,
+    country_iso3,
 )
 
 # ---------------------------------------------------------------------------
@@ -83,11 +84,11 @@ def sector_meta(key: str) -> dict:
 
 
 def region_zone_label(iso3: str) -> str:
-    """Resource-zone label for an ISO3 (region_factors.json) — for region-aware LCOE display."""
-    from engine.transition.data_loader import load_region_factors
+    """Resource-zone label for a region code (region_factors.json) — for region-aware LCOE
+    display. Accepts sub-national codes (e.g. USA-TX, ESP-S)."""
+    from engine.transition.data_loader import load_region_factors, resource_zone
     rf = load_region_factors()
-    zone = rf["iso3_to_zone"].get((iso3 or "").strip().upper(), rf["_meta"]["default_zone"])
-    return rf["zones"].get(zone, {}).get("label", zone)
+    return rf["zones"].get(resource_zone(iso3), {}).get("label", resource_zone(iso3))
 
 
 def scenario_options() -> list[str]:
@@ -357,8 +358,10 @@ def validate_portfolio(rows: list[dict]) -> tuple[list[str], list[str]]:
         rid = r.get("id", "?")
         region = str(r.get("region", ""))
         sector = str(r.get("sector", "")).lower()
-        if len(region) != 3:
-            errors.append(f"`{rid}`: region must be a 3-letter ISO3 code (got '{region}').")
+        # Accept ISO3 (USA) or an ISO3-prefixed sub-national code (USA-TX, ESP-S).
+        if len(country_iso3(region)) != 3:
+            errors.append(f"`{rid}`: region must be an ISO3 code (USA) or ISO3-prefixed "
+                          f"sub-national code (USA-TX); got '{region}'.")
         if not sector:
             errors.append(f"`{rid}`: no sector assigned.")
         elif sector not in valid_sectors:

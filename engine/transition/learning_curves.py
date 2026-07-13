@@ -121,9 +121,9 @@ def _regional_cost_factor(tech: str, region_iso3: Optional[str]) -> float:
     """
     if not region_iso3:
         return 1.0
-    from engine.transition.data_loader import load_region_factors
+    from engine.transition.data_loader import load_region_factors, resource_zone
     rf = load_region_factors()
-    zone = rf["iso3_to_zone"].get(region_iso3.strip().upper(), rf["_meta"]["default_zone"])
+    zone = resource_zone(region_iso3)   # sub-national (USA-TX) → country → global
     zdata = rf["zones"].get(zone, {})
     tmap = rf["tech_factor_map"]
     for key in ("renewable_lcoe_factor", "green_h2_factor", "fossil_lcoe_factor"):

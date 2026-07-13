@@ -8,10 +8,21 @@
   },
 
   "zones": {
-    "na_sunbelt":     {"label": "N. America Sunbelt (TX/SW, N. Mexico)", "renewable_lcoe_factor": 0.72, "green_h2_factor": 0.72, "fossil_lcoe_factor": 0.85, "resource": "excellent solar + wind, cheap land & gas"},
-    "na_other":       {"label": "N. America (other US, Canada)",         "renewable_lcoe_factor": 1.00, "green_h2_factor": 1.00, "fossil_lcoe_factor": 1.00, "resource": "good; national/global-average reference"},
-    "eu_north":       {"label": "Northern Europe",                       "renewable_lcoe_factor": 1.22, "green_h2_factor": 1.18, "fossil_lcoe_factor": 1.20, "resource": "moderate solar, good offshore wind, high cost & gas"},
-    "eu_south":       {"label": "Southern Europe",                       "renewable_lcoe_factor": 0.92, "green_h2_factor": 0.92, "fossil_lcoe_factor": 1.10, "resource": "good solar, expensive gas"},
+    "na_sunbelt":     {"label": "N. America Sunbelt (generic)",          "renewable_lcoe_factor": 0.72, "green_h2_factor": 0.72, "fossil_lcoe_factor": 0.85, "resource": "excellent solar + wind, cheap land & gas"},
+    "na_other":       {"label": "USA (national average) / Canada",       "renewable_lcoe_factor": 1.00, "green_h2_factor": 1.00, "fossil_lcoe_factor": 1.00, "resource": "national/global-average reference — use a sub-national code (e.g. USA-TX) for resolution"},
+    "us_texas":       {"label": "US — Texas (ERCOT)",                     "renewable_lcoe_factor": 0.66, "green_h2_factor": 0.66, "fossil_lcoe_factor": 0.80, "resource": "world-class wind + strong solar, cheap land, cheap gas, deregulated market"},
+    "us_southwest":   {"label": "US — Southwest (AZ/NM/NV)",             "renewable_lcoe_factor": 0.66, "green_h2_factor": 0.64, "fossil_lcoe_factor": 0.95, "resource": "world-class desert solar"},
+    "us_midwest":     {"label": "US — Midwest wind belt (IA/KS/OK/ND)",  "renewable_lcoe_factor": 0.70, "green_h2_factor": 0.74, "fossil_lcoe_factor": 0.88, "resource": "world-class onshore wind"},
+    "us_california":  {"label": "US — California (CAISO)",               "renewable_lcoe_factor": 0.92, "green_h2_factor": 0.90, "fossil_lcoe_factor": 1.18, "resource": "good solar but high land/soft costs & power prices; aggressive policy"},
+    "us_southeast":   {"label": "US — Southeast (FL/GA/…)",              "renewable_lcoe_factor": 0.95, "green_h2_factor": 0.95, "fossil_lcoe_factor": 0.88, "resource": "moderate solar, very cheap gas, regulated utilities"},
+    "us_northeast":   {"label": "US — Northeast (NY/New England)",       "renewable_lcoe_factor": 1.18, "green_h2_factor": 1.14, "fossil_lcoe_factor": 1.20, "resource": "poorer onshore resource, high cost, expensive gas; offshore-wind build-out"},
+    "us_northwest":   {"label": "US — Pacific NW (WA/OR)",               "renewable_lcoe_factor": 0.82, "green_h2_factor": 0.82, "fossil_lcoe_factor": 1.00, "resource": "abundant cheap hydro; good wind"},
+    "eu_north":       {"label": "N. Europe (DE / Benelux / France)",     "renewable_lcoe_factor": 1.20, "green_h2_factor": 1.16, "fossil_lcoe_factor": 1.20, "resource": "moderate solar, good offshore wind, high cost & gas"},
+    "eu_uk_ireland":  {"label": "UK & Ireland",                          "renewable_lcoe_factor": 1.12, "green_h2_factor": 1.10, "fossil_lcoe_factor": 1.22, "resource": "world-class offshore wind, weak solar, high gas import cost"},
+    "eu_nordic":      {"label": "Nordics",                               "renewable_lcoe_factor": 0.88, "green_h2_factor": 0.86, "fossil_lcoe_factor": 1.10, "resource": "abundant cheap hydro + wind; low-carbon grid already"},
+    "eu_iberia":      {"label": "Iberia (Spain / Portugal)",            "renewable_lcoe_factor": 0.82, "green_h2_factor": 0.80, "fossil_lcoe_factor": 1.10, "resource": "excellent solar + wind — Europe's cheapest green power & H2"},
+    "eu_south":       {"label": "S. Europe (Italy / Greece)",           "renewable_lcoe_factor": 0.92, "green_h2_factor": 0.92, "fossil_lcoe_factor": 1.12, "resource": "good solar, expensive gas"},
+    "eu_east":        {"label": "Central/Eastern Europe (PL/CZ/…)",     "renewable_lcoe_factor": 1.05, "green_h2_factor": 1.05, "fossil_lcoe_factor": 1.10, "resource": "moderate solar, coal-heavy grid, lower labour cost"},
     "mena":           {"label": "Middle East & N. Africa",               "renewable_lcoe_factor": 0.65, "green_h2_factor": 0.62, "fossil_lcoe_factor": 0.78, "resource": "world-class solar, very cheap gas"},
     "china":          {"label": "China",                                 "renewable_lcoe_factor": 0.80, "green_h2_factor": 0.80, "fossil_lcoe_factor": 0.95, "resource": "good resource, cheap manufacturing & deployment"},
     "india":          {"label": "India",                                 "renewable_lcoe_factor": 0.82, "green_h2_factor": 0.83, "fossil_lcoe_factor": 1.00, "resource": "strong solar, low cost, coal-heavy grid"},
@@ -27,16 +38,20 @@
     "_note": "Which zone factor scales each technology. Unlisted technologies get 1.0 (no geographic dispersion modelled).",
     "renewable_lcoe_factor": ["solar_pv", "onshore_wind", "offshore_wind", "renewable_ppa", "battery_storage"],
     "green_h2_factor": ["electrolyser", "h2_dri", "ammonia", "saf", "renewable_smelter", "biorefining"],
-    "fossil_lcoe_factor": ["coal_steam", "gas_ccgt", "oil_extraction", "oil_refining", "blast_furnace", "cement_clinker", "petrochemical", "jet_fuel", "bunker_fuel", "gas_boiler", "gas_distribution", "grid_electricity"]
+    "_fossil_note": "Only REGIONALLY-PRICED fossil energy carries a geographic factor — natural gas and grid electricity. Globally-traded commodities (coking coal, crude oil, and the coal/oil-based incumbents blast_furnace, cement_clinker, oil_refining, jet_fuel, bunker_fuel) are ~globally priced, so they stay at 1.0 and the green challenger's regional cost drives the crossover (green steel is earliest where clean power / green H2 is cheapest — the intuitive result).",
+    "fossil_lcoe_factor": ["gas_ccgt", "gas_boiler", "gas_distribution", "grid_electricity"]
   },
 
   "iso3_to_zone": {
     "USA": "na_other", "CAN": "na_other",
     "MEX": "latam",
-    "GBR": "eu_north", "DEU": "eu_north", "NLD": "eu_north", "BEL": "eu_north", "IRL": "eu_north",
-    "DNK": "eu_north", "SWE": "eu_north", "NOR": "eu_north", "FIN": "eu_north", "POL": "eu_north",
-    "FRA": "eu_north", "AUT": "eu_north", "CZE": "eu_north",
-    "ESP": "eu_south", "ITA": "eu_south", "PRT": "eu_south", "GRC": "eu_south",
+    "GBR": "eu_uk_ireland", "IRL": "eu_uk_ireland",
+    "DEU": "eu_north", "NLD": "eu_north", "BEL": "eu_north", "LUX": "eu_north",
+    "FRA": "eu_north", "AUT": "eu_north", "CHE": "eu_north",
+    "DNK": "eu_nordic", "SWE": "eu_nordic", "NOR": "eu_nordic", "FIN": "eu_nordic",
+    "POL": "eu_east", "CZE": "eu_east", "HUN": "eu_east", "ROU": "eu_east", "SVK": "eu_east", "BGR": "eu_east",
+    "ESP": "eu_iberia", "PRT": "eu_iberia",
+    "ITA": "eu_south", "GRC": "eu_south",
     "SAU": "mena", "ARE": "mena", "QAT": "mena", "KWT": "mena", "OMN": "mena", "BHR": "mena",
     "EGY": "mena", "MAR": "mena", "DZA": "mena", "ISR": "mena", "JOR": "mena",
     "CHN": "china",
@@ -46,5 +61,25 @@
     "ZAF": "ssa", "NGA": "ssa", "KEN": "ssa", "ETH": "ssa", "GHA": "ssa",
     "AUS": "oceania", "NZL": "oceania",
     "JPN": "northeast_asia", "KOR": "northeast_asia", "TWN": "northeast_asia"
+  },
+
+  "subnational_to_zone": {
+    "_note": "Sub-national resolution for the highest-importance markets (US, and finer Europe). Enter the entity's region as an ISO3-prefixed code, e.g. USA-TX, USA-CA, ESP-S. Falls back to the country zone (then global) if not listed. State codes map to their grid/resource region; USA-SW/MW/NE/SE/NW/W are shorthand for the regional zones.",
+    "USA-TX": "us_texas",
+    "USA-CA": "us_california",
+    "USA-AZ": "us_southwest", "USA-NM": "us_southwest", "USA-NV": "us_southwest", "USA-UT": "us_southwest",
+    "USA-IA": "us_midwest", "USA-KS": "us_midwest", "USA-OK": "us_midwest", "USA-ND": "us_midwest",
+    "USA-SD": "us_midwest", "USA-NE": "us_midwest", "USA-MN": "us_midwest", "USA-IL": "us_midwest",
+    "USA-FL": "us_southeast", "USA-GA": "us_southeast", "USA-NC": "us_southeast", "USA-SC": "us_southeast",
+    "USA-TN": "us_southeast", "USA-AL": "us_southeast",
+    "USA-NY": "us_northeast", "USA-MA": "us_northeast", "USA-NJ": "us_northeast", "USA-PA": "us_northeast",
+    "USA-CT": "us_northeast", "USA-ME": "us_northeast",
+    "USA-WA": "us_northwest", "USA-OR": "us_northwest", "USA-ID": "us_northwest",
+    "USA-SW": "us_southwest", "USA-MW": "us_midwest", "USA-NEAST": "us_northeast",
+    "USA-SE": "us_southeast", "USA-NW": "us_northwest", "USA-W": "us_california",
+    "ESP-S": "mena", "ESP-N": "eu_iberia",
+    "ITA-S": "eu_iberia", "ITA-N": "eu_north",
+    "DEU-N": "eu_north", "DEU-S": "eu_north",
+    "FRA-S": "eu_south", "FRA-N": "eu_north"
   }
 }
