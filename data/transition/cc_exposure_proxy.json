@@ -7,18 +7,22 @@
       "CCExposure dataset: https://osf.io/fd6jq/ (firm-level — not redistributed here; users with API access should override these defaults)"
     ],
     "elasticities": {
-      "_comment": "Per-SD pricing elasticities. Equity uses the z-score of OVERALL exposure (Sautner Pricing paper: carbon premium per 1 SD of CCExposure); credit and revenue use component z-scores. bps per standard deviation.",
-      "equity_premium_bps_per_sd_total": 50.0,
+      "_comment": "Per-SD pricing elasticities. Equity premium = e_reg*z_reg + e_phy*z_phy - e_opp*z_opp: downside (regulatory/physical) raises the cost of equity, opportunity lowers it (green-premium / 'greenium'). credit and revenue use component z-scores. bps per SD.",
+      "equity_premium_bps_per_sd_regulatory": 18.0,
+      "equity_premium_bps_per_sd_physical": 9.0,
+      "equity_opportunity_discount_bps_per_sd": 25.0,
       "credit_spread_bps_per_sd_regulatory": 12.0,
       "credit_spread_bps_per_sd_physical": 6.0,
       "revenue_growth_bps_per_sd_opportunity": 35.0,
       "regulatory_revenue_drag_bps_per_sd": 25.0,
-      "source_ref": "Sautner et al. Pricing Climate Change Exposure (Mgmt Sci 2023); distribution from Firm-Level Climate Change Exposure (JoF 2023) Table 1",
+      "source_ref": "Downside equity coefficients follow Sautner et al. 'Pricing Climate Change Exposure' (Mgmt Sci 2023) — a cost-of-capital premium concentrated in regulatory/physical exposure; the opportunity DISCOUNT is informed by the carbon-premium / greenium literature (Bolton & Kacperczyk JFE 2021; Zerbib RF 2019). Distribution: Sautner et al. JoF 2023 Table 1.",
       "_provenance": {
-        "equity_premium_bps_per_sd_total": "SOURCED — Sautner et al. Pricing Climate Change Exposure (Mgmt Sci 2023): an equity risk premium (cost of capital). Route to WACC.",
-        "credit_spread_bps_per_sd_regulatory": "UNSOURCED PLACEHOLDER — cannot derive from an equity paper; pending a bond/CDS climate-spread study.",
+        "equity_premium_bps_per_sd_regulatory": "SOURCED (sign/scale) — Sautner Pricing: cost-of-capital premium concentrated in downside exposure. Route to WACC.",
+        "equity_premium_bps_per_sd_physical": "SOURCED (sign/scale) — as above.",
+        "equity_opportunity_discount_bps_per_sd": "INFORMED — green-premium/greenium literature (Bolton & Kacperczyk 2021; Zerbib 2019): opportunity-tilted firms face LOWER cost of capital. Corrects the prior z_total mis-signing that penalised climate winners.",
+        "credit_spread_bps_per_sd_regulatory": "UNSOURCED PLACEHOLDER — pending a bond/CDS climate-spread study.",
         "credit_spread_bps_per_sd_physical": "UNSOURCED PLACEHOLDER — as above.",
-        "revenue_growth_bps_per_sd_opportunity": "UNSOURCED — market-opportunity / green-demand uplift is a competitive-position judgment, not a text-proxy elasticity. Belongs to the manual layer; off unless routing=cashflows is chosen deliberately.",
+        "revenue_growth_bps_per_sd_opportunity": "UNSOURCED — market-opportunity judgment; manual cash-flow layer only.",
         "regulatory_revenue_drag_bps_per_sd": "UNSOURCED — as above."
       }
     },

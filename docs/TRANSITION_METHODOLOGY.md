@@ -154,7 +154,14 @@ transition price variables and is unaffected.)*
 
 ## 4. Layer 2 — Technology (learning curves & stranding)
 
-**Module:** `learning_curves.py`.
+**Module:** `learning_curves.py`. The projection and its uncertainty band implement the
+**Farmer–Lafond** empirically-grounded experience-curve forecast (Farmer & Lafond 2016; Way, Ives,
+Mealy & Farmer 2022): a geometric random walk with drift on log-cost, whose forecast error grows as
+σ·√(horizon). Way et al. (2022)'s central finding — clean tech on persistent exponential decline while
+fossil stays flat, so a **fast transition is the low-cost path** — grounds both the crossover logic
+here and the scenario-narrative ambition defaults in §4.6. Learning rates and base costs are from
+primary datasets (IRENA 2024, Lazard 2025 v18, the Oxford/Way 2022 dataset, BNEF 2024, Ziegler &
+Trancik 2021) — **not** the BSR lever library.
 
 ### 4.1 Wright's Law
 ```
@@ -164,7 +171,7 @@ Q/Q₀ = (1 + g)^(y − 2025) ,     g = max(0, scenario deployment growth)
 Negative growth (demand decline) is clamped to 0 — cumulative capacity is monotonic; demand decline
 is handled by the sector pathway, not the cost curve.
 
-### 4.2 Lafond distributional band
+### 4.2 Farmer–Lafond distributional band
 ```
 σ_t = lafond_σ × √(y − 2025)
 cost_lo = pred × e^(−σ_t) ,  cost_hi = pred × e^(+σ_t)
@@ -310,16 +317,24 @@ zₓ   = (rawₓ − pooled_meanₓ) / pooled_sdₓ
 z_total = (Σ rawₓ − pooled_mean_total) / pooled_sd_total
 
 credit_spread_bps = 12·z_reg + 6·z_phy
-equity_premium_bps = 50·z_total                       (Pricing paper: premium per 1 SD of overall exposure)
+equity_premium_bps = 18·z_reg + 9·z_phy − 25·z_opp     (downside raises cost of equity; opportunity is a DISCOUNT)
 revenue_growth_bps = 35·z_opp − 25·z_reg
 ```
+**Sign fix (trial-run finding).** The equity premium previously used `50·z_total`, which lumps
+opportunity in with downside — so a renewables firm (high opportunity) got a *higher* cost of capital
+for being a climate winner, and the WACC and cash-flow routes disagreed in sign. It now prices the
+**downside** components (regulatory + physical) positively and the **opportunity** component as a
+**discount**, consistent with the carbon-premium / greenium literature (Bolton & Kacperczyk 2021;
+Zerbib 2019). Result: renewables ≈ **−33 bps** ΔWACC (cheaper capital), coal ≈ **+27 bps** (penalty),
+neutral sectors ≈ 0.
 The **pooled distribution** is Sautner et al. (JoF 2023) **Table 1** (firm-year, ×10³): opp 0.391/1.344,
 reg 0.049/0.264, phy 0.013/0.103, total 0.943/2.443. **Sector exposures** are anchored to Sautner
 **Table 4** by SIC industry where available (utilities → power, petroleum refining, transport
 equipment → autos, primary metal → steel …), estimated from adjacent industries otherwise.
 
-Effect: average-exposure sectors carry ≈0 premium (the inflation is gone); coal keeps ~29 bps credit
-/ −39 bps revenue drag; renewables +85 bps revenue uplift.
+Effect: average-exposure sectors carry ≈0 premium; coal keeps ~29 bps credit and a **+27 bps WACC
+penalty**; renewables now receive a **−33 bps WACC discount** (and, on the cash-flow route, a revenue
+uplift) — a climate winner is financed more cheaply, not penalised.
 
 **Routing (non-duplication):** `ROUTE_WACC` (**default, R5**) adds the equity premium to the discount
 rate and zeroes the revenue modifier; `ROUTE_CASHFLOWS` applies the revenue-growth modifier to cash
@@ -331,7 +346,7 @@ sourced, and the default routing reflects that:
 
 | Coefficient | Value | Provenance | Route |
 |-------------|-------|-----------|-------|
-| **equity → WACC** | 50·z_total bps | **SOURCED** — Sautner et al. (2023, JoF) *Pricing* paper: CCExposure priced into the cost of capital | **WACC (default)** |
+| **equity → WACC** | 18·z_reg + 9·z_phy − 25·z_opp bps | **SOURCED (downside)** — Sautner Pricing: cost-of-capital premium concentrated in regulatory/physical exposure; opportunity **discount** informed by the greenium literature | **WACC (default)** |
 | credit spread | 12·z_reg + 6·z_phy bps | **UNSOURCED placeholder** — plausible sign/magnitude, not fitted | diagnostic only |
 | revenue growth | 35·z_opp − 25·z_reg bps | **UNSOURCED** — market-opportunity judgement, not an estimated elasticity | manual cash-flow overlay |
 
@@ -553,15 +568,18 @@ See `data/transition/carbon_prices_ngfs.json`. Real REMIND-MAgPIE, three bands, 
 
 ## Appendix E — Layer-4 z-base & elasticities
 Pooled distribution (Sautner Table 1, ×10³): opp 0.391/1.344 · reg 0.049/0.264 · phy 0.013/0.103 ·
-total 0.943/2.443. Per-SD elasticities (bps): equity 50·z_total; credit 12·z_reg + 6·z_phy;
-revenue 35·z_opp − 25·z_reg.
+total 0.943/2.443. Per-SD elasticities (bps): equity 18·z_reg + 9·z_phy − 25·z_opp (downside premium +
+opportunity discount); credit 12·z_reg + 6·z_phy; revenue 35·z_opp − 25·z_reg.
 
 ## Appendix F — MACC measures
 See `data/transition/macc.json`. Per-sector measures with marginal cost (USD/tCO₂) and abatement
 potential (share of Scope 1+2); AR6 WG3 / IEA-informed.
 
 ## Appendix G — References
-NGFS Phase V (IIASA) · Sijm 2012 · Fabra & Reguant 2014 · Cludius 2020 · Way et al. Joule 2022 ·
-Lafond et al. TFSC 2018 · IRENA RPGC 2024 · Lazard LCOE+ 2025 · Stadler et al. (EXIOBASE) 2018 ·
+NGFS Phase V (IIASA) · Sijm 2012 · Fabra & Reguant 2014 · Cludius 2020 · **Farmer & Lafond, Research
+Policy 2016** · **Way, Ives, Mealy & Farmer, Joule 2022** · Lafond et al. TFSC 2018 · IRENA RPGC 2024 ·
+Lazard LCOE+ 2025 v18 · BloombergNEF 2024 · Ziegler & Trancik 2021 · Stadler et al. (EXIOBASE) 2018 ·
 Acemoglu et al. 2012 · Papageorgiou et al. 2017 · Reisch et al. 2025 (arXiv:2503.10644) ·
-Sautner, van Lent, Vilkov, Zhang (JoF 2023; Mgmt Sci 2023) · IPCC AR6 WG3 · PCAF 2022 · SBTi · PACTA.
+Sautner, van Lent, Vilkov, Zhang (JoF 2023; Mgmt Sci 2023) · Bolton & Kacperczyk (JFE 2021) ·
+Zerbib (Rev. Finance 2019) · BSR *Decarbonization Lever Library* (Nov 2025) · IPCC AR6 WG3 · PCAF 2022 ·
+SBTi · PACTA.

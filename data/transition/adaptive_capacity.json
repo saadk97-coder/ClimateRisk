@@ -12,7 +12,7 @@
   },
 
   "scenario_ambition": {
-    "_note": "Default company pivot ambition [0,1] implied by each scenario's narrative. Orderly/ambitious scenarios pull companies into an aggressive pivot; hot-house scenarios imply little transition. Overridable per company.",
+    "_note": "Default company pivot ambition [0,1] implied by each scenario's narrative. Orderly/ambitious scenarios pull companies into an aggressive pivot; hot-house scenarios imply little transition. Overridable per company. Rationale: Way, Ives, Mealy & Farmer (2022, Joule) show a fast clean-energy transition is the LOW-COST path (clean tech on exponential decline, fossil flat), so under ambitious scenarios the rational firm response is a strong pivot — the ambition defaults encode that.",
     "net_zero_2050": 0.90,
     "below_2c": 0.80,
     "divergent_net_zero": 0.75,

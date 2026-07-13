@@ -1327,3 +1327,21 @@ def test_scenario_implied_abatement_lowers_l1_without_explicit_target():
     off = run_asset_transition(_automaker(), "net_zero_2050", enable_layers=(1,), adaptive=False)
     on = run_asset_transition(_automaker(), "net_zero_2050", enable_layers=(1,), adaptive=True)
     assert on.layer_breakdown["L1_carbon_opex"][2050] < off.layer_breakdown["L1_carbon_opex"][2050]
+
+
+def test_l4_opportunity_gets_wacc_discount_not_penalty():
+    """L4 sign fix — an opportunity-tilted sector (renewables) receives a WACC DISCOUNT,
+    while a downside-heavy sector (coal) receives a penalty. Previously both were penalised
+    because the equity premium used z_total (opportunity lumped in)."""
+    def mk(sec):
+        return Asset(id="X", name="X", lat=0, lon=0, asset_type="x", replacement_value=1e9,
+                     construction_material="concrete", year_built=2010, stories=1, basement=False,
+                     roof_type="flat", first_floor_height_m=0, terrain_elevation_asl_m=0, floor_area_m2=0,
+                     region="USA", sector=sec, scope1_emissions_tco2=1e5, scope2_emissions_tco2=1e5,
+                     scope3_emissions_tco2=0, annual_revenue=1e9)
+    ren = run_asset_transition(mk("power_renewable"), "net_zero_2050", layer4_routing=ROUTE_WACC)
+    coal = run_asset_transition(mk("power_coal"), "net_zero_2050", layer4_routing=ROUTE_WACC)
+    assert ren.layer4_result.equity_premium_bps < 0      # green firm → cost-of-equity discount
+    assert ren.wacc_premium_bps < 0                       # → WACC discount
+    assert coal.layer4_result.equity_premium_bps > 0      # downside-heavy → premium
+    assert coal.wacc_premium_bps > 0

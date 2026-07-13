@@ -133,7 +133,16 @@ def compute_exposure_premium(
         z_reg * float(elasts["credit_spread_bps_per_sd_regulatory"]) +
         z_phy * float(elasts["credit_spread_bps_per_sd_physical"])
     )
-    equity_bps = z_total * float(elasts["equity_premium_bps_per_sd_total"])
+    # Sign fix: the equity/WACC premium prices DOWNSIDE exposure (regulatory + physical)
+    # positively and OPPORTUNITY as a DISCOUNT. Using z_total (opp + reg + phy) penalised
+    # opportunity-tilted firms — a renewables company got a HIGHER cost of capital for being
+    # a climate winner. Downside coefficients follow Sautner's pricing result; the
+    # opportunity discount is informed by the carbon-premium / greenium literature.
+    equity_bps = (
+        z_reg * float(elasts["equity_premium_bps_per_sd_regulatory"]) +
+        z_phy * float(elasts["equity_premium_bps_per_sd_physical"]) -
+        z_opp * float(elasts["equity_opportunity_discount_bps_per_sd"])
+    )
     rev_growth_bps = (
         z_opp * float(elasts["revenue_growth_bps_per_sd_opportunity"])
         - z_reg * float(elasts["regulatory_revenue_drag_bps_per_sd"])

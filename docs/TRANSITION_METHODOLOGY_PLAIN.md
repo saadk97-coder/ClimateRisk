@@ -128,11 +128,14 @@ counts.) A higher-resolution version splits this across 49 world regions using t
 exposure?*
 
 Academic research (**Sautner et al., 2023**) measured how a company's "climate change
-exposure" — how much climate comes up on its earnings calls — is priced into its cost of
-capital. We map each sector to that measure and translate it into a small premium on the
-discount rate (for a high-exposure sector) or, less firmly, a revenue effect. By default we
-route it to the **cost of capital**, because that's the part the research actually supports;
-the revenue route is offered as a clearly-labeled *manual* overlay.
+exposure" is priced into its cost of capital. We map each sector to that measure and translate
+it into an adjustment to the discount rate. Crucially, the sign cuts both ways: a company with
+high **downside** exposure (regulatory + physical risk, e.g. a coal utility) pays *more* for
+capital (≈ +27 bps), while a climate **winner** with high opportunity exposure (e.g. a renewables
+developer) is financed *more cheaply* (≈ −33 bps) — consistent with the "green premium" evidence
+that low-carbon firms enjoy a lower cost of capital. By default we route this to the cost of
+capital, because that's the part the research supports; the revenue route is a clearly-labeled
+*manual* overlay.
 
 ---
 
@@ -206,7 +209,7 @@ The tool doesn't stop at "here's the cost." It also helps answer *what to do*:
 | Piece | Source |
 |-------|--------|
 | Carbon prices by scenario/region/year | **NGFS Phase V** (the central-bank scenario set) |
-| Technology cost/learning rates | **IRENA 2024**, **Lazard 2025**, Way et al. (Oxford) 2022 |
+| Technology cost/learning rates | **IRENA 2024**, **Lazard 2025 v18**, **BNEF 2024**; forecast method from **Farmer & Lafond** (2016) and **Way, Ives, Mealy & Farmer** (2022, Oxford) |
 | Supply-chain structure | **EXIOBASE-3** global input-output database |
 | Reputation → cost of capital | **Sautner et al. 2023** (*Journal of Finance*) |
 | Sector abatement options & costs | **IPCC AR6**, **IEA**, Mission Possible Partnership |

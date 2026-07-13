@@ -92,7 +92,8 @@ else:
 st.caption(
     "CCExposure is z-standardised against the pooled Sautner firm-year distribution (JoF 2023 "
     "Table 1), then priced per standard deviation: credit = 12·z_reg + 6·z_phys; equity = "
-    "50·z_total; revenue = 35·z_opp − 25·z_reg. Sector exposures anchored to Sautner Table 4 by "
+    "18·z_reg + 9·z_phys − 25·z_opp (downside raises the cost of equity, opportunity is a discount — "
+    "so climate winners are financed more cheaply); revenue = 35·z_opp − 25·z_reg. Sector exposures anchored to Sautner Table 4 by "
     "SIC industry; the CCE columns above are z-scores (SDs from the average firm). "
     "**Provenance (R5):** only the *equity → WACC* elasticity is sourced (Sautner pricing result). "
     "The *credit-spread* coefficients are an unsourced placeholder; the *revenue* coefficients are "

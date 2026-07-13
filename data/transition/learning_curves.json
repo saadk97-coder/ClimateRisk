@@ -1,17 +1,18 @@
 {
   "_meta": {
-    "description": "Wright's Law learning rates per technology. Learning rate = fraction of cost reduction per doubling of cumulative installed capacity. Includes Lafond-style log-normal forecast σ for distributional projection. Used by Layer 2 to project crossover years and stranded-asset triggers.",
+    "description": "Wright's Law learning rates per technology. Learning rate = fraction of cost reduction per doubling of cumulative installed capacity. The L2 crossover engine and its uncertainty band implement the Farmer-Lafond empirically-grounded experience-curve forecast: a geometric random walk with drift on log-cost, whose forecast uncertainty grows as sigma*sqrt(horizon). Learning rates and base costs are from primary cost datasets (IRENA 2024, Lazard 2025, the Oxford/Way et al. 2022 dataset, BNEF, Ziegler & Trancik 2021) — NOT lifted from the BSR lever library.",
+    "key_insight": "Way, Ives, Mealy & Farmer (2022) show that clean-energy technologies (solar, wind, batteries, electrolysers) have followed persistent exponential cost declines while fossil technologies stayed roughly flat, so a FAST decarbonisation transition is expected to be CHEAPER than a slow or no transition. This grounds (a) the incumbent-vs-challenger crossover logic in L2 and (b) the scenario-narrative ambition defaults in the adaptive-capacity layer (ambitious scenarios are the low-cost path, so companies pivot).",
     "sources": [
-      "IRENA (2023). 'Renewable Power Generation Costs in 2022.' https://www.irena.org/publications/2023/Aug/Renewable-Power-Generation-Costs-in-2022",
+      "Farmer & Lafond (2016). 'How predictable is technological progress?' Research Policy 45(3): 647-665. https://doi.org/10.1016/j.respol.2015.11.001 — the stochastic experience-curve forecast model (drift + sigma*sqrt(t) uncertainty) used for the crossover band.",
+      "Way, Ives, Mealy & Farmer (2022). 'Empirically grounded technology forecasts and the energy transition.' Joule 6(9): 2057-2082. https://doi.org/10.1016/j.joule.2022.08.009 — learning rates + the fast-transition-is-cheaper result.",
+      "Lafond, Bailey, Bakker, Rebois, Zadourian, McSharry & Farmer (2018). 'How well do experience curves predict technological progress?' TFSC 128: 104-117. https://doi.org/10.1016/j.techfore.2017.11.001 — validation of the forecast sigma.",
       "IRENA (2025). Renewable Power Generation Costs in 2024.",
-      "Lafond, Bailey, Bakker, Rebois, Zadourian, McSharry, Farmer (2018). 'How well do experience curves predict technological progress?' Tech Forecasting & Social Change 128: 104-117. https://doi.org/10.1016/j.techfore.2017.11.001",
       "Lazard (2025). Levelized Cost of Energy+ v18 (June 2025).",
-      "Santa Fe Institute Performance Curve Database: https://pcdb.santafe.edu/",
-      "Way, Ives, Mealy, Farmer (2022). 'Empirically grounded technology forecasts and the energy transition.' Joule 6(9). https://doi.org/10.1016/j.joule.2022.08.009",
-      "Way, Ives, Mealy, Farmer (2022). Joule 6(9) — learning rates.",
-      "Ziegler & Trancik (2021). 'Re-examining rates of lithium-ion battery technology improvement and cost decline.' Energy & Environ Sci 14: 1635-1651."
+      "BloombergNEF (2024). Lithium-Ion Battery Price Survey — 2024 pack prices ~US$115/kWh (~20% YoY decline).",
+      "Ziegler & Trancik (2021). 'Re-examining rates of lithium-ion battery technology improvement and cost decline.' Energy & Environ Sci 14: 1635-1651 — battery learning rate ~24%.",
+      "Santa Fe Institute Performance Curve Database: https://pcdb.santafe.edu/"
     ],
-    "method": "Cost(Q) = Cost(Q0) * (Q/Q0)^(log2(1-LR)). LR = learning rate; Q = cumulative production. Lafond σ enables distributional forecasts: log(Cost_t) ~ Normal(log(Cost_pred_t), σ * sqrt(t)).",
+    "method": "Cost(Q) = Cost(Q0) * (Q/Q0)^(log2(1-LR)). LR = learning rate; Q = cumulative production. Farmer-Lafond distributional forecast: log(Cost_t) ~ Normal(log(Cost_pred_t), sigma * sqrt(t)); the +/-1 sigma band gives the R6 early/late crossover range.",
     "units_note": "Power-sector base costs are LCOE in USD/MWh (IRENA 2024 / Lazard 2025 v18); industrial base costs remain USD per unit product and are sector estimates pending sourced LCOE ratios.",
     "carbon_ef_note": "carbon_ef_per_unit: Scope-1 tCO2 per the tech's cost functional unit (P6). Used ONLY when carbon_inclusive=True to add carbon_price*EF to the incumbent's effective cost when finding the L2 crossover year. Fossil incumbents only; absent = no carbon adder."
   },
@@ -75,7 +76,7 @@
     },
     "battery_storage": {
       "label": "Lithium-ion Battery Storage",
-      "learning_rate": 0.22,
+      "learning_rate": 0.24,
       "lafond_sigma": 0.09,
       "category": "challenger",
       "annual_capacity_growth_2025_2050": {
@@ -89,7 +90,7 @@
         "iea_aps": 0.2,
         "iea_steps": 0.1
       },
-      "source_ref": "Lazard LCOE+ 2025 v18 standalone storage LCOS (~$170/MWh)",
+      "source_ref": "Lazard LCOE+ 2025 v18 standalone storage LCOS (~$170/MWh); LR 24% per Ziegler & Trancik 2021 / Way et al. 2022; BNEF 2024 pack ~$115/kWh (−20% YoY)",
       "cost_2025_usd_per_mwh": 170.0
     },
     "ev": {
