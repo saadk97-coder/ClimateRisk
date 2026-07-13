@@ -82,8 +82,11 @@ class Asset:
             raise ValueError(f"stories must be >= 1, got {self.stories}")
         if self.floor_area_m2 < 0:
             raise ValueError(f"floor_area_m2 must be >= 0, got {self.floor_area_m2}")
-        if len(self.region) != 3:
-            raise ValueError(f"region must be an ISO3 code, got {self.region}")
+        # Accept ISO3 (USA) or an ISO3-prefixed sub-national code (USA-TX, ESP-S) used by the
+        # transition layer's region-aware LCOE. The country part must be 3 letters.
+        if len(self.region.split("-")[0]) != 3:
+            raise ValueError(f"region must be an ISO3 code or ISO3-prefixed sub-national "
+                             f"code (e.g. USA, USA-TX), got {self.region}")
         # Negative freeboard would increase flood intensity — clamp to 0
         if self.first_floor_height_m < 0:
             self.first_floor_height_m = 0.0
