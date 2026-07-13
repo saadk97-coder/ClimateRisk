@@ -88,7 +88,11 @@ Two ideas:
 1. **Learning curves (Wright's Law).** Every time the world doubles how much solar (or
    batteries, or green hydrogen) it has built, the cost drops by a fixed percentage. So we
    can project when the *challenger* technology's cost falls below the *incumbent's*. That
-   year is the **crossover** — the tipping point.
+   year is the **crossover** — the tipping point. **And it's location-specific:** a watt in
+   Texas or the Gulf is far cheaper than in Northern Europe or Japan, so those sunny/windy
+   regions reach crossover — and produce green steel, ammonia and cement — *years earlier*.
+   The model applies a geographic resource/cost factor by region (e.g. green-steel parity in
+   Saudi Arabia ~2031 vs Japan ~2037 for the same plant).
 **Adaptability (this matters a lot).** A company isn't frozen — under a transition scenario it
 *migrates* toward the low-carbon business. So instead of assuming an ICE carmaker simply loses all
 its revenue, the model lets it **pivot**: it captures part of the green upside (offsetting the loss),

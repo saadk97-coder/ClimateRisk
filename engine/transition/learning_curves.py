@@ -111,8 +111,31 @@ def _tech_carbon_adder(tech: str, scenario_id: str, year: int, region_iso3: str,
     return ef * price
 
 
-def _project_cost(tech: str, scenario_id: str, year: int) -> Optional[TechnologyProjection]:
-    """Project a technology's unit cost to `year` using Wright's Law + Lafond bands."""
+def _regional_cost_factor(tech: str, region_iso3: Optional[str]) -> float:
+    """
+    Geographic resource/cost multiplier on a technology's LCOE (region_factors.json).
+    Clean power scales with the zone's renewable factor, green-H2-linked commodities with
+    the green-H2 factor, fossil generation/fuel with the fossil factor. A watt in Texas or
+    MENA is cheaper than in N. Europe or Japan, so crossover (and stranding) happen earlier
+    there. region_iso3 None → 1.0 (global average, preserves the world-average anchors).
+    """
+    if not region_iso3:
+        return 1.0
+    from engine.transition.data_loader import load_region_factors
+    rf = load_region_factors()
+    zone = rf["iso3_to_zone"].get(region_iso3.strip().upper(), rf["_meta"]["default_zone"])
+    zdata = rf["zones"].get(zone, {})
+    tmap = rf["tech_factor_map"]
+    for key in ("renewable_lcoe_factor", "green_h2_factor", "fossil_lcoe_factor"):
+        if tech in tmap.get(key, []):
+            return float(zdata.get(key, 1.0))
+    return 1.0
+
+
+def _project_cost(tech: str, scenario_id: str, year: int,
+                  region_iso3: Optional[str] = None) -> Optional[TechnologyProjection]:
+    """Project a technology's unit cost to `year` using Wright's Law + Lafond bands,
+    scaled by the geographic resource/cost factor for `region_iso3` (None = global)."""
     lc = load_learning_curves()
     techs = lc["technologies"]
     if tech not in techs:
@@ -136,14 +159,16 @@ def _project_cost(tech: str, scenario_id: str, year: int) -> Optional[Technology
     else:
         b = log2(max(1.0 - lr, 1e-6))   # Wright's Law exponent (negative for LR>0)
 
-    # Find base cost field — first key starting with "cost_2025"
+    # Find base cost field — first key starting with "cost_2025", scaled by the
+    # geographic resource/cost factor for this region (Texas/MENA cheaper than N. Europe).
     cost_2025 = next((float(v) for k, v in t.items() if k.startswith("cost_2025")), 0.0)
     if cost_2025 <= 0:
         return None
+    cost_2025 = cost_2025 * _regional_cost_factor(tech, region_iso3)
     pred = cost_2025 * (q_ratio ** b) if lr > 0 else cost_2025 * (1.0 + g * 0.0)
     # If LR=0, no cost change; if Q grows but LR=0, costs stay flat.
 
-    # Lafond log-normal band (1-σ): sigma_t = sigma * sqrt(years_ahead)
+    # Farmer–Lafond log-normal band (1-σ): sigma_t = sigma * sqrt(years_ahead)
     sigma_t = sigma * sqrt(max(years_ahead, 1))
     cost_lo = pred * exp(-sigma_t)
     cost_hi = pred * exp(+sigma_t)
@@ -161,11 +186,12 @@ def _project_cost(tech: str, scenario_id: str, year: int) -> Optional[Technology
     )
 
 
-def project_technology(tech: str, scenario_id: str, years: List[int]) -> List[TechnologyProjection]:
-    """Project a single technology's cost across years."""
+def project_technology(tech: str, scenario_id: str, years: List[int],
+                       region_iso3: Optional[str] = None) -> List[TechnologyProjection]:
+    """Project a single technology's cost across years (region-aware LCOE)."""
     out: List[TechnologyProjection] = []
     for y in years:
-        proj = _project_cost(tech, scenario_id, y)
+        proj = _project_cost(tech, scenario_id, y, region_iso3=region_iso3)
         if proj:
             out.append(proj)
     return out
@@ -199,8 +225,8 @@ def find_crossover_year(
         return None
     start, end = horizon
     for y in range(start, end + 1):
-        ci = _project_cost(incumbent, scenario_id, y)
-        cc = _project_cost(challenger, scenario_id, y)
+        ci = _project_cost(incumbent, scenario_id, y, region_iso3=region_iso3)
+        cc = _project_cost(challenger, scenario_id, y, region_iso3=region_iso3)
         if ci is None or cc is None:
             return None
         # Compare projected_cost directly assuming the taxonomy pairs

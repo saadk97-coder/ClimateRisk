@@ -71,6 +71,7 @@ data/transition/
   macc.json                    per-sector abatement measures (AR6 WG3 / IEA-informed)
   lever_library.json           29 decarbonization levers × 5 domains + sector→lever value-chain map
   adaptive_capacity.json       scenario→ambition, lever→readiness, sector pivot-capex ratios, region buffers
+  region_factors.json          geographic resource/cost zones → region-aware LCOE (renewable / green-H2 / fossil)
 ```
 
 ### Execution flow
@@ -249,6 +250,26 @@ gross $791B PV → **$318B** if strongly positioned & ambitious (80% capture, $1
 vs **$740B** if a poorly-positioned laggard (10% capture, $24B capex). Present positioning drives the
 outcome. Positioning derivation is a screening heuristic — the "art" override exists for exactly the
 cases it cannot cleanly quantify.
+
+### 4.7 Geography — region-aware technology costs
+**Data:** `region_factors.json`. The learning-curve LCOEs are world averages, but a watt in Texas or
+MENA is far cheaper than in Northern Europe or Japan, and green steel / ammonia / cement is cheapest
+where clean power is cheap. Each ISO3 maps to a **resource zone** carrying three multipliers on a
+technology's LCOE before the crossover comparison:
+```
+clean power   (renewable_lcoe_factor)  → solar, wind, storage, PPAs
+green H2 etc. (green_h2_factor)        → electrolyser, H2-DRI steel, green ammonia, SAF, biorefining
+fossil        (fossil_lcoe_factor)     → coal/gas generation, refining, blast furnace, cement, fuels
+```
+`_project_cost` multiplies by the zone factor, so `find_crossover_year` and stranding are **region-aware**.
+Factors follow IRENA regional LCOE dispersion (best solar ~$0.03/kWh in MENA/sunbelt/Chile/Australia vs
+~$0.06–0.09 in N. Europe/Japan) and regional gas/coal price levels; the NA-other / global-average zone
+is the 1.0 reference, so the world-average curves and the worked-example anchors are unchanged. Effect —
+**green-steel (H2-DRI) crossover: 2031 in Saudi Arabia/Australia → 2036 USA/Germany → 2037 Japan** (a
+6-year spread from the same plant). For demand-stranded sectors the regional factor also shifts the
+stranding-trigger year where cost-crossover is the binding trigger. *Limitation:* resolution is ~12
+resource zones (not sub-national — a "Texas" asset should be entered as `USA` today; a finer zone map
+is the extension).
 
 ---
 

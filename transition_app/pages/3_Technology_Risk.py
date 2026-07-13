@@ -138,14 +138,15 @@ if asset:
     meta = T.sector_meta(asset.sector)
     inc = meta.get("primary_technology")
     chal = meta.get("challenger_technology")
+    reg = asset.region                                  # region-aware LCOE
     years = list(DEFAULT_HORIZON)
     fig = go.Figure()
     if inc:
-        proj = project_technology(inc, sc, years)
+        proj = project_technology(inc, sc, years, region_iso3=reg)
         fig.add_trace(go.Scatter(x=[p.year for p in proj], y=[p.projected_cost for p in proj],
                                  name=f"Incumbent — {inc}", line=dict(color="#B33")))
     if chal:
-        projc = project_technology(chal, sc, years)
+        projc = project_technology(chal, sc, years, region_iso3=reg)
         fig.add_trace(go.Scatter(x=[p.year for p in projc], y=[p.projected_cost for p in projc],
                                  name=f"Challenger — {chal}", line=dict(color="#2A7")))
         fig.add_trace(go.Scatter(x=[p.year for p in projc], y=[p.cost_hi for p in projc],
@@ -154,16 +155,21 @@ if asset:
                                  fill="tonexty", fillcolor="rgba(42,170,119,0.15)",
                                  line=dict(width=0), name="Challenger Lafond ±1σ"))
         if inc:
-            cx = find_crossover_year(inc, chal, sc)
+            cx = find_crossover_year(inc, chal, sc, region_iso3=reg)
             if cx:
                 fig.add_vline(x=cx, line_dash="dash", line_color="#888",
                               annotation_text=f"crossover {cx}")
-    fig.update_layout(height=420, title=f"{T.sector_label(asset.sector)} — normalised unit cost",
-                      yaxis_title="Relative cost index", margin=dict(t=50, b=10),
+    _zlabel = T.region_zone_label(reg)
+    fig.update_layout(height=420,
+                      title=f"{T.sector_label(asset.sector)} — unit cost in {reg} ({_zlabel})",
+                      yaxis_title="Cost (tech's native unit)", margin=dict(t=50, b=10),
                       legend=dict(orientation="h", y=-0.25))
     st.plotly_chart(fig, use_container_width=True)
     st.caption("When the challenger's cost falls below the incumbent's, new-build economics flip "
-               "and the incumbent faces obsolescence — the sunk-cost/stranding trigger.")
+               "and the incumbent faces obsolescence — the sunk-cost/stranding trigger. Costs are "
+               f"**region-aware**: {reg} is in the *{_zlabel}* resource zone, so the crossover year "
+               "reflects local clean-power / green-H₂ / fossil economics (a watt in Texas ≠ one in "
+               "N. Europe; green steel is cheapest where clean power is cheap).")
 
 # --- Impairment timeline ---------------------------------------------------
 st.subheader("Cumulative stranded-asset impairment")

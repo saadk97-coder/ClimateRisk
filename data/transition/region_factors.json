@@ -1,0 +1,50 @@
+{
+  "_meta": {
+    "description": "Geographic resource & cost factors for the transition. The global learning-curve LCOEs (learning_curves.json) are world averages; these per-zone multipliers scale them so the L2 cost crossover happens at the RIGHT TIME for the location — a watt in Texas/MENA is far cheaper than in Northern Europe or Japan, so those regions strand fossil assets earlier and produce green steel/ammonia/cement more cheaply. Three multiplier channels: clean power (solar/wind/storage), green hydrogen & H2-linked green commodities (H2-DRI steel, green ammonia, SAF), and fossil generation/fuel (gas & coal price differ by region).",
+    "how_used": "learning_curves._project_cost multiplies a technology's projected cost by its zone factor before the incumbent-vs-challenger comparison, so find_crossover_year and compute_stranding are region-aware. A factor <1 = cheaper here = earlier crossover.",
+    "calibration": "Renewable/H2 factors follow IRENA regional LCOE dispersion (best resource ~US$0.03/kWh solar in MENA/sunbelt/Chile/Australia; ~US$0.06-0.09 in N.Europe/Japan/Korea). Fossil factors follow regional gas/coal price levels (cheap US/MENA/Australia gas; expensive imported LNG in NE Asia and post-2022 Europe). NA-other/global average is the 1.0 reference, so the world-average curves and the documented worked-example anchors are unchanged.",
+    "default_zone": "rest_of_world",
+    "version": "v1 — Session 12"
+  },
+
+  "zones": {
+    "na_sunbelt":     {"label": "N. America Sunbelt (TX/SW, N. Mexico)", "renewable_lcoe_factor": 0.72, "green_h2_factor": 0.72, "fossil_lcoe_factor": 0.85, "resource": "excellent solar + wind, cheap land & gas"},
+    "na_other":       {"label": "N. America (other US, Canada)",         "renewable_lcoe_factor": 1.00, "green_h2_factor": 1.00, "fossil_lcoe_factor": 1.00, "resource": "good; national/global-average reference"},
+    "eu_north":       {"label": "Northern Europe",                       "renewable_lcoe_factor": 1.22, "green_h2_factor": 1.18, "fossil_lcoe_factor": 1.20, "resource": "moderate solar, good offshore wind, high cost & gas"},
+    "eu_south":       {"label": "Southern Europe",                       "renewable_lcoe_factor": 0.92, "green_h2_factor": 0.92, "fossil_lcoe_factor": 1.10, "resource": "good solar, expensive gas"},
+    "mena":           {"label": "Middle East & N. Africa",               "renewable_lcoe_factor": 0.65, "green_h2_factor": 0.62, "fossil_lcoe_factor": 0.78, "resource": "world-class solar, very cheap gas"},
+    "china":          {"label": "China",                                 "renewable_lcoe_factor": 0.80, "green_h2_factor": 0.80, "fossil_lcoe_factor": 0.95, "resource": "good resource, cheap manufacturing & deployment"},
+    "india":          {"label": "India",                                 "renewable_lcoe_factor": 0.82, "green_h2_factor": 0.83, "fossil_lcoe_factor": 1.00, "resource": "strong solar, low cost, coal-heavy grid"},
+    "sea":            {"label": "Southeast Asia",                        "renewable_lcoe_factor": 1.00, "green_h2_factor": 1.02, "fossil_lcoe_factor": 1.05, "resource": "moderate resource, land/grid constraints"},
+    "latam":          {"label": "Latin America",                         "renewable_lcoe_factor": 0.80, "green_h2_factor": 0.80, "fossil_lcoe_factor": 0.95, "resource": "excellent (Chile solar, Brazil wind/hydro)"},
+    "ssa":            {"label": "Sub-Saharan Africa",                     "renewable_lcoe_factor": 0.98, "green_h2_factor": 1.05, "fossil_lcoe_factor": 1.05, "resource": "good resource offset by high cost of capital / execution risk"},
+    "oceania":        {"label": "Australia & NZ",                        "renewable_lcoe_factor": 0.74, "green_h2_factor": 0.70, "fossil_lcoe_factor": 0.90, "resource": "world-class solar + wind, cheap gas"},
+    "northeast_asia": {"label": "Japan / Korea / Taiwan",                "renewable_lcoe_factor": 1.35, "green_h2_factor": 1.30, "fossil_lcoe_factor": 1.28, "resource": "poor resource, land-constrained, expensive LNG imports"},
+    "rest_of_world":  {"label": "Rest of world (default)",               "renewable_lcoe_factor": 1.00, "green_h2_factor": 1.00, "fossil_lcoe_factor": 1.00, "resource": "global-average assumption"}
+  },
+
+  "tech_factor_map": {
+    "_note": "Which zone factor scales each technology. Unlisted technologies get 1.0 (no geographic dispersion modelled).",
+    "renewable_lcoe_factor": ["solar_pv", "onshore_wind", "offshore_wind", "renewable_ppa", "battery_storage"],
+    "green_h2_factor": ["electrolyser", "h2_dri", "ammonia", "saf", "renewable_smelter", "biorefining"],
+    "fossil_lcoe_factor": ["coal_steam", "gas_ccgt", "oil_extraction", "oil_refining", "blast_furnace", "cement_clinker", "petrochemical", "jet_fuel", "bunker_fuel", "gas_boiler", "gas_distribution", "grid_electricity"]
+  },
+
+  "iso3_to_zone": {
+    "USA": "na_other", "CAN": "na_other",
+    "MEX": "latam",
+    "GBR": "eu_north", "DEU": "eu_north", "NLD": "eu_north", "BEL": "eu_north", "IRL": "eu_north",
+    "DNK": "eu_north", "SWE": "eu_north", "NOR": "eu_north", "FIN": "eu_north", "POL": "eu_north",
+    "FRA": "eu_north", "AUT": "eu_north", "CZE": "eu_north",
+    "ESP": "eu_south", "ITA": "eu_south", "PRT": "eu_south", "GRC": "eu_south",
+    "SAU": "mena", "ARE": "mena", "QAT": "mena", "KWT": "mena", "OMN": "mena", "BHR": "mena",
+    "EGY": "mena", "MAR": "mena", "DZA": "mena", "ISR": "mena", "JOR": "mena",
+    "CHN": "china",
+    "IND": "india",
+    "IDN": "sea", "THA": "sea", "VNM": "sea", "PHL": "sea", "MYS": "sea", "SGP": "sea",
+    "BRA": "latam", "CHL": "latam", "ARG": "latam", "COL": "latam", "PER": "latam",
+    "ZAF": "ssa", "NGA": "ssa", "KEN": "ssa", "ETH": "ssa", "GHA": "ssa",
+    "AUS": "oceania", "NZL": "oceania",
+    "JPN": "northeast_asia", "KOR": "northeast_asia", "TWN": "northeast_asia"
+  }
+}

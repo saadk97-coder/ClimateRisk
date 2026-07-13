@@ -1345,3 +1345,35 @@ def test_l4_opportunity_gets_wacc_discount_not_penalty():
     assert ren.wacc_premium_bps < 0                       # → WACC discount
     assert coal.layer4_result.equity_premium_bps > 0      # downside-heavy → premium
     assert coal.wacc_premium_bps > 0
+
+
+# ---------------------------------------------------------------------------
+# Geographic resource/cost factors (Session 12)
+# ---------------------------------------------------------------------------
+def test_region_factors_preserve_global_anchor():
+    """USA maps to the na_other zone (factor 1.0), so the coal impairment anchor is
+    unchanged when region-aware LCOE is applied."""
+    r = compute_stranding("A1", "power_coal", 500_000_000, "net_zero_2050", _YEARS, region_iso3="USA")
+    assert abs(sum(r.annual_impairment_usd.values()) - 266.1e6) < 2e6
+
+
+def test_region_shifts_green_steel_crossover():
+    """Green steel (H2-DRI) reaches cost parity EARLIER in resource-rich regions
+    (cheap clean power → cheap green H2) than in resource-poor ones."""
+    sau = find_crossover_year("blast_furnace", "h2_dri", "net_zero_2050", (2025, 2050), region_iso3="SAU")
+    jpn = find_crossover_year("blast_furnace", "h2_dri", "net_zero_2050", (2025, 2050), region_iso3="JPN")
+    usa = find_crossover_year("blast_furnace", "h2_dri", "net_zero_2050", (2025, 2050), region_iso3="USA")
+    assert sau is not None and jpn is not None and usa is not None
+    assert sau < usa < jpn          # MENA earliest, Japan latest
+
+
+def test_region_factor_applies_only_to_mapped_techs():
+    """The renewable/H2/fossil factor scales the tagged technologies; an untagged tech
+    (e.g. heat_pump) is unaffected, and None region = global (factor 1.0)."""
+    from engine.transition.learning_curves import _regional_cost_factor
+    assert _regional_cost_factor("solar_pv", "SAU") < 1.0        # MENA cheap renewables
+    assert _regional_cost_factor("solar_pv", "JPN") > 1.0        # NE-Asia expensive
+    assert _regional_cost_factor("h2_dri", "AUS") < 1.0          # Australia cheap green H2
+    assert _regional_cost_factor("solar_pv", None) == 1.0        # global default
+    assert _regional_cost_factor("solar_pv", "USA") == 1.0       # na_other reference
+    assert _regional_cost_factor("heat_pump", "SAU") == 1.0      # untagged tech

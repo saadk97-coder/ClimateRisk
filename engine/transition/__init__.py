@@ -21,6 +21,7 @@ from engine.transition.data_loader import (
     load_sector_taxonomy,
     load_lever_library,
     load_adaptive_capacity,
+    load_region_factors,
     get_ngfs_region,
     map_scenario_to_ngfs,
 )

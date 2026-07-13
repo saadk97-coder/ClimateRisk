@@ -82,6 +82,14 @@ def sector_meta(key: str) -> dict:
     return load_sector_taxonomy()["sectors"].get(key, {})
 
 
+def region_zone_label(iso3: str) -> str:
+    """Resource-zone label for an ISO3 (region_factors.json) — for region-aware LCOE display."""
+    from engine.transition.data_loader import load_region_factors
+    rf = load_region_factors()
+    zone = rf["iso3_to_zone"].get((iso3 or "").strip().upper(), rf["_meta"]["default_zone"])
+    return rf["zones"].get(zone, {}).get("label", zone)
+
+
 def scenario_options() -> list[str]:
     return list(load_carbon_prices()["scenarios"].keys())
 
