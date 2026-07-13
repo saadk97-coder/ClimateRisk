@@ -1,0 +1,207 @@
+# Transition Risk, in Plain Terms
+### What the tool measures, what's in scope, and how the numbers are made
+
+*A non-technical companion to the full BSR Transition Risk Methodology. Written for a
+reader who is new to climate transition risk. Screening-grade tool — not investment
+advice or an assured regulatory disclosure.*
+
+---
+
+## 1. The one-paragraph version
+
+As the world moves away from fossil fuels, companies face costs that have nothing to do
+with storms or floods — they come from the *transition itself*: carbon prices, cheaper
+clean competitors, more expensive supply chains, and shifting reputations. This tool takes
+a company (or a portfolio of assets) and estimates, year by year from 2025 to 2050 and
+under different climate-policy scenarios, how much money that transition could cost — and
+how much of the company's asset value could be stranded (made worthless early). It breaks
+the answer into **four clearly separated channels** so you can see *where* the risk comes
+from, not just a single black-box number.
+
+---
+
+## 2. What you put in
+
+For each entity or asset you provide a short profile:
+
+| Input | Plain meaning |
+|-------|---------------|
+| **Sector** | What the business does (e.g. coal power, steel, real estate). Picks the right physics and cost curves. |
+| **Emissions** (Scope 1, 2, 3) | How much CO₂ it emits directly, from its electricity, and across its supply chain. |
+| **Annual revenue** | Used to scale supply-chain and reputation effects. |
+| **Replacement value** | What the physical assets are worth — the thing that can be "stranded." |
+| **Region** | Which carbon-price path and supply-chain structure applies. |
+| **Decarbonization target** (optional) | A net-zero year, if the company has a plan to cut its own emissions. |
+| **Attribution %** (optional) | For an investor/lender: what share of the asset is *yours*. |
+
+Then you pick one or more **scenarios** — coherent stories about how fast the world
+decarbonizes, from "Net Zero 2050" (fast, orderly) to "Current Policies" (slow). These are
+the standard **NGFS** scenarios central banks use.
+
+---
+
+## 3. What comes out
+
+- **A cost timeline** (2025–2050) for each scenario: the annual cash-flow hit from
+  transition, split into the four channels.
+- **A stranded-asset estimate**: how much replacement value is written off, and when.
+- **A climate-adjusted valuation** (optional DCF): the company's value with vs without
+  transition risk.
+- **Uncertainty and sensitivity**: a range around the central number, and a ranking of
+  *which assumption matters most*.
+- **Alignment metrics**: financed emissions (PCAF), an Implied Temperature Rise, and how
+  the portfolio tracks against a 1.5 °C pathway.
+- **A decarbonization lever map**: which specific abatement options exist for each sector,
+  and where the company's transition plan has gaps.
+
+---
+
+## 4. The four channels (this is the core idea)
+
+The tool follows the four transition-risk categories defined by the **TCFD** (the global
+climate-disclosure framework). Each is one "layer," each is computed separately, and — this
+is important — **each is counted exactly once** so nothing is double-charged.
+
+### Layer 1 — Policy & Legal risk (the carbon-price channel)
+**Question it answers:** *What does it cost to emit, once emissions carry a price?*
+
+Simple math:
+```
+carbon cost  =  emissions  ×  carbon price
+```
+But a firm rarely eats the whole bill. Two adjustments:
+- **Pass-through** — a company with pricing power passes some cost to customers. That
+  passed-on part isn't its loss (it becomes a supply-chain effect for others — see Layer 3).
+- **Free allowances** — some emitters get free permits. Combined with pass-through, a firm
+  can occasionally come out *ahead* (a "windfall") — the math allows this rather than
+  hiding it.
+
+The carbon price itself rises over time and differs by scenario and region; we read it from
+the published **NGFS** price tables and interpolate between years.
+
+### Layer 2 — Technology risk (the "cheaper competitor" channel)
+**Question it answers:** *When does the clean alternative get cheap enough to make my asset
+obsolete — and how much value do I lose when it does?*
+
+Two ideas:
+1. **Learning curves (Wright's Law).** Every time the world doubles how much solar (or
+   batteries, or green hydrogen) it has built, the cost drops by a fixed percentage. So we
+   can project when the *challenger* technology's cost falls below the *incumbent's*. That
+   year is the **crossover** — the tipping point.
+2. **Stranding.** Once crossover hits (or demand for the old product simply collapses), the
+   asset loses value along an **S-curve** — slow at first, then fast, then leveling off —
+   because plants don't shut overnight. How fast depends on the sector (power flips quickly;
+   heavy industry and buildings turn over slowly).
+
+We also carry an *uncertainty band* on the crossover year (costs are forecasts, not
+certainties) and can optionally make the crossover happen sooner when the carbon price makes
+the dirty option more expensive.
+
+### Layer 3 — Market risk (the supply-chain channel)
+**Question it answers:** *Even if I'm clean, how much do my inputs cost more because my
+suppliers are paying for carbon?*
+
+We use a standard tool from economics — an **input-output table** (who buys from whom across
+20 sectors) — and the **Leontief inverse**, which traces a cost increase in one sector
+through *all* the ripples it causes upstream. If steel gets more expensive, carmakers feel
+it; if power gets more expensive, everyone feels it. We add up the ripples that land on your
+sector. (Optionally the firm passes part of this cost on again, so only its net share
+counts.) A higher-resolution version splits this across 49 world regions using the
+**EXIOBASE** global trade database.
+
+### Layer 4 — Reputation risk (the cost-of-capital channel)
+**Question it answers:** *Do investors and lenders charge me more because of my climate
+exposure?*
+
+Academic research (**Sautner et al., 2023**) measured how a company's "climate change
+exposure" — how much climate comes up on its earnings calls — is priced into its cost of
+capital. We map each sector to that measure and translate it into a small premium on the
+discount rate (for a high-exposure sector) or, less firmly, a revenue effect. By default we
+route it to the **cost of capital**, because that's the part the research actually supports;
+the revenue route is offered as a clearly-labeled *manual* overlay.
+
+---
+
+## 5. The golden rule: count each risk once
+
+The biggest way climate models mislead is by **double-counting** — charging the same dollar
+twice. The whole architecture is built to prevent that:
+
+| Channel | Where it lands (once) |
+|---------|-----------------------|
+| Layer 1 — carbon | Operating cost |
+| Layer 2 — technology | Revenue erosion **+** a *separate* asset write-down |
+| Layer 3 — supply chain | Input cost |
+| Layer 4 — reputation | Cost of capital **or** revenue — never both |
+
+For example, the carbon a firm passes on to customers is removed from *its* cost (Layer 1)
+and only enters the supply chain (Layer 3) — never both. Stranded value (a balance-sheet
+write-down) is kept in its own column and never added into the cash-flow cost total.
+
+---
+
+## 6. Turning it into a value, and putting a range on it
+
+- **Discounting.** A cost in 2045 hurts less than the same cost today, so future costs are
+  discounted back to present value — using a *real* (inflation-adjusted) rate so we don't
+  mix nominal cash flows with real ones.
+- **Uncertainty (Monte-Carlo).** We re-run the model hundreds of times, each time nudging
+  the carbon price, pass-through, and supply-chain elasticity, to get a P5–P95 range. This
+  range is deliberately labeled a **conditional floor**: it's the spread *within* a chosen
+  scenario, not the full uncertainty (which also includes *which* scenario comes true).
+- **Sensitivity (tornado).** We swing each assumption one at a time to see which one moves
+  the answer most — so you know which input is worth improving. There are two views: one for
+  the cash-flow cost, one for the stranding (which is driven by different assumptions:
+  trigger year, S-curve speed).
+
+---
+
+## 7. Beyond the number: the decision layer
+
+The tool doesn't stop at "here's the cost." It also helps answer *what to do*:
+
+- **Financed emissions & Implied Temperature Rise** — standard portfolio-alignment metrics
+  (PCAF, a 1.5 °C benchmark) for investors and disclosure.
+- **Marginal Abatement Cost Curves + optimizer** — given a budget, which emission cuts buy
+  the most reduction per dollar (cheapest-first).
+- **Decarbonization Lever Library** — for each sector, the concrete options to cut emissions
+  (renewables, heat pumps, green hydrogen, CCUS, regenerative agriculture…), positioned by
+  where they sit in the value chain (your suppliers / your operations / your customers), with
+  a "just transition" note on nature-and-people impacts. Overlay a company's actual plan to
+  see which core levers are missing. This is a **structured reference**, not a score.
+- **Disclosure export** — a report structured against **IFRS S2** and **ESRS E1**, the two
+  main climate-disclosure standards. (The experimental supply-chain "contagion" amplifier is
+  deliberately excluded from this export.)
+
+---
+
+## 8. Where the data comes from
+
+| Piece | Source |
+|-------|--------|
+| Carbon prices by scenario/region/year | **NGFS Phase V** (the central-bank scenario set) |
+| Technology cost/learning rates | **IRENA 2024**, **Lazard 2025**, Way et al. (Oxford) 2022 |
+| Supply-chain structure | **EXIOBASE-3** global input-output database |
+| Reputation → cost of capital | **Sautner et al. 2023** (*Journal of Finance*) |
+| Sector abatement options & costs | **IPCC AR6**, **IEA**, Mission Possible Partnership |
+
+---
+
+## 9. What this is — and honestly isn't
+
+**It is:** a transparent, scenario-based *screening* tool that separates the four transition
+channels, avoids double-counting, shows its working, and ranges its answers.
+
+**It isn't:**
+- A precise firm-level forecast. Many inputs are sector medians (pass-through, reputation
+  exposure), not company-specific — the tool flags where firm data would sharpen the answer.
+- A physical-climate model. Floods and heat are a *separate* tool; this one is transition
+  only.
+- A tail-risk / Value-at-Risk engine. The uncertainty range is a conditional floor, and we
+  label it as such rather than dressing it up as full VaR.
+- A finished regulatory disclosure. It structures the output against IFRS S2 / ESRS E1, but
+  a real filing needs specialist review and assured data.
+
+The guiding principle throughout: **be useful and be honest about the limits.** Every place
+where a figure is a proxy, an assumption, or an opt-in refinement is labeled as such — in the
+tool, the audit trail, and the full methodology document.
