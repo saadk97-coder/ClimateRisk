@@ -112,7 +112,7 @@ def _tech_carbon_adder(tech: str, scenario_id: str, year: int, region_iso3: str,
     # Imported lazily to avoid a circular import at module load.
     from engine.transition.carbon_pricing import get_carbon_price
     from engine.transition.data_loader import get_ngfs_region
-    price = get_carbon_price(scenario_id, year, get_ngfs_region(region_iso3)) * max(0.0, price_scale)
+    price = get_carbon_price(scenario_id, year, get_ngfs_region(region_iso3), region_iso3=region_iso3) * max(0.0, price_scale)
     return ef * price
 
 

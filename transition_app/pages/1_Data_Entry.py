@@ -48,7 +48,7 @@ st.caption(
 _STR_COLS = ["id", "name", "region", "sector", "firm_id"]
 _NUM_COLS = ["replacement_value", "annual_revenue", "scope1", "scope2", "scope3",
              "scope3_use_phase",
-             "target_year", "priced_pct", "attribution_pct",
+             "target_year", "residual_pct", "priced_pct", "attribution_pct",
              "transition_capex", "positioning_pct"]
 
 rows = T.get_portfolio()
@@ -74,8 +74,10 @@ edited = st.data_editor(
         "region": st.column_config.TextColumn(
             "Region", width="small",
             help="ISO3 (USA, DEU, ESP, CHN, IND) OR a sub-national code for higher resolution in the "
-                 "US & Europe: USA-TX, USA-CA, USA-SW, ESP-S, ITA-N … Drives the carbon-price band and "
-                 "the region-aware technology-cost crossover (a watt in Texas ≠ one in California)."),
+                 "US & Europe: USA-TX, USA-CA, USA-SW, ESP-S, ITA-N … Drives (1) the NGFS carbon-price "
+                 "band, (2) a jurisdiction carbon-stringency factor — EU/UK above the band, US/Canada "
+                 "below, converging by ~2040 — and (3) the region-aware technology-cost crossover "
+                 "(a watt in Texas ≠ one in California)."),
         "sector": st.column_config.SelectboxColumn(
             "Sector", options=T.sector_options(), required=True, width="medium"),
         "replacement_value": st.column_config.NumberColumn(
@@ -94,6 +96,10 @@ edited = st.data_editor(
         "target_year": st.column_config.NumberColumn(
             "Net-zero target yr", min_value=0, max_value=2060, step=1, format="%d",
             help="Scope 1+2 net-zero target year. Blank / 0 = no abatement (emissions held flat)."),
+        "residual_pct": st.column_config.NumberColumn(
+            "Residual % at target", min_value=0, max_value=100, step=5, format="%d",
+            help="% of today's Scope 1+2 still emitted at the target year. 0 = full net-zero (default); "
+                 "20 = an 80% reduction target. Only used when a target year is set."),
         "priced_pct": st.column_config.NumberColumn(
             "Priced %", min_value=0, max_value=100, step=5, format="%d",
             help="% of Scope 1+2 exposed to the carbon price, net of free allocation. Blank = 100%."),

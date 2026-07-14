@@ -1622,3 +1622,71 @@ def test_mercer_firm_rollup_two_business_lines():
     assert set(rolls["Mercer"].sectors) == {"pulp_paper", "wood_products_timber"}
     line_sum = sum(sum(r.annual_total_cost_usd.values()) for r in res)
     assert abs(sum(rolls["Mercer"].annual_total_cost_usd.values()) - line_sum) < 1.0
+
+
+# ---------------------------------------------------------------------------
+# Jurisdiction carbon-price overlay (geographic granularity)
+# ---------------------------------------------------------------------------
+def test_jurisdiction_factor_orders_eu_above_us_near_term():
+    """Near-term, EU/UK price above the advanced band and the US/Canada below it."""
+    from engine.transition.carbon_pricing import jurisdiction_carbon_factor as f
+    assert f("DEU", "net_zero_2050", 2030) > 1.0          # EU ETS above band
+    assert f("USA", "net_zero_2050", 2030) < 1.0          # US below band
+    assert f("DEU", "net_zero_2050", 2030) > f("CAN", "net_zero_2050", 2030) > \
+        f("USA", "net_zero_2050", 2030)
+
+
+def test_jurisdiction_factor_converges_in_ambitious_scenarios():
+    """Ambitious scenarios assume policy harmonisation → factor converges to 1.0 by 2040;
+    fragmented scenarios keep the divergence to 2050."""
+    from engine.transition.carbon_pricing import jurisdiction_carbon_factor as f
+    assert abs(f("DEU", "net_zero_2050", 2045) - 1.0) < 1e-9   # converged
+    assert abs(f("USA", "net_zero_2050", 2045) - 1.0) < 1e-9
+    assert f("DEU", "current_policies", 2050) > 1.0            # no convergence
+    assert f("USA", "current_policies", 2050) < 1.0
+
+
+def test_jurisdiction_factor_strips_subnational_and_defaults_to_one():
+    """Sub-national codes resolve to their country jurisdiction; unmapped regions → 1.0."""
+    from engine.transition.carbon_pricing import jurisdiction_carbon_factor as f
+    assert f("USA-CA", "net_zero_2050", 2030) == f("USA", "net_zero_2050", 2030)
+    assert f("CAN-AB", "net_zero_2050", 2030) == f("CAN", "net_zero_2050", 2030)
+    assert f("BRA", "net_zero_2050", 2030) == 1.0          # unmapped → neutral
+    assert f("", "net_zero_2050", 2030) == 1.0             # empty → neutral
+
+
+def test_get_carbon_price_backward_compatible_without_region():
+    """Omitting region_iso3 returns the plain band price (no jurisdiction factor)."""
+    from engine.transition.carbon_pricing import get_carbon_price
+    from engine.transition.data_loader import get_ngfs_region
+    band = get_ngfs_region("DEU")
+    plain = get_carbon_price("net_zero_2050", 2030, band)
+    with_de = get_carbon_price("net_zero_2050", 2030, band, region_iso3="DEU")
+    assert with_de > plain                                  # EU factor lifts it
+    # a US firm on the same advanced band prices below the plain band
+    assert get_carbon_price("net_zero_2050", 2030, band, region_iso3="USA") < plain
+
+
+def test_eu_mill_pays_more_carbon_than_canadian_mill():
+    """End-to-end: a German pulp mill books a higher L1 carbon cost than an otherwise-identical
+    Canadian one, because EU ETS is more stringent near-term."""
+    de = run_asset_transition(_co("pulp_paper", region="DEU", rev=300e6, s1=0.15e6, s2=0.02e6, s3=0),
+                              "net_zero_2050", enable_layers=(1,))
+    ca = run_asset_transition(_co("pulp_paper", region="CAN", rev=300e6, s1=0.15e6, s2=0.02e6, s3=0),
+                              "net_zero_2050", enable_layers=(1,))
+    l1_de = sum(de.layer_breakdown["L1_carbon_opex"].values())
+    l1_ca = sum(ca.layer_breakdown["L1_carbon_opex"].values())
+    assert l1_de > l1_ca > 0
+
+
+def test_decarb_residual_pct_raises_l1_versus_net_zero():
+    """A firm targeting an 80% cut (20% residual) pays more carbon than one going to full net
+    zero, because carbon still applies to the residual emissions after the target year."""
+    from dataclasses import replace
+    base = _co("chemicals", region="DEU", rev=10e9, s1=5e6, s2=1e6, s3=0)
+    nz = replace(base, decarb_target_year=2040, decarb_residual_pct=0.0)
+    partial = replace(base, decarb_target_year=2040, decarb_residual_pct=20.0)
+    r_nz = run_asset_transition(nz, "net_zero_2050", enable_layers=(1,))
+    r_pt = run_asset_transition(partial, "net_zero_2050", enable_layers=(1,))
+    assert sum(r_pt.layer_breakdown["L1_carbon_opex"].values()) > \
+        sum(r_nz.layer_breakdown["L1_carbon_opex"].values())

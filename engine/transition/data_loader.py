@@ -61,6 +61,11 @@ def load_lever_library() -> dict:
 
 
 @lru_cache(maxsize=1)
+def load_jurisdiction_carbon() -> dict:
+    return _load("jurisdiction_carbon.json")
+
+
+@lru_cache(maxsize=1)
 def load_adaptive_capacity() -> dict:
     return _load("adaptive_capacity.json")
 

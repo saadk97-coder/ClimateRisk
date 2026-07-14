@@ -31,11 +31,42 @@ import logging
 from engine.transition.data_loader import (
     load_carbon_prices,
     load_sector_pass_through,
+    load_jurisdiction_carbon,
     get_ngfs_region,
     map_scenario_to_ngfs,
 )
 
 _log = logging.getLogger(__name__)
+
+
+def jurisdiction_carbon_factor(region_iso3: str, scenario_id: str, year: int) -> float:
+    """Relative-stringency factor on the NGFS band price for a jurisdiction (1.0 = band average).
+
+    Real carbon-policy stringency differs by jurisdiction near-term (EU ETS well above the
+    advanced-band shadow price; the US well below). This refines the NGFS band price WITHIN the
+    band, converging to 1.0 by a scenario-dependent year (ambitious scenarios assume policy
+    harmonisation; weak scenarios keep prices fragmented — no convergence). Returns 1.0 for any
+    unmapped region so callers that don't opt in are unaffected.
+    """
+    if not region_iso3:
+        return 1.0
+    jc = load_jurisdiction_carbon()
+    iso3 = str(region_iso3).split("-")[0].strip().upper()   # strip sub-national (USA-CA -> USA)
+    jkey = jc.get("iso3_to_jurisdiction", {}).get(iso3)
+    if not jkey:
+        return 1.0
+    f0 = float(jc["jurisdictions"].get(jkey, {}).get("factor_2025", 1.0))
+    if f0 == 1.0:
+        return 1.0
+    conv = jc.get("convergence_year", {}).get(map_scenario_to_ngfs(scenario_id))
+    if conv is None:
+        return f0                                           # fragmented — no convergence
+    base = 2025
+    if year <= base:
+        return f0
+    if year >= conv:
+        return 1.0
+    return f0 + (year - base) / (conv - base) * (1.0 - f0)  # linear f0 -> 1.0
 
 
 @dataclass
@@ -59,10 +90,16 @@ class CarbonCostResult:
     notes: str = ""
 
 
-def get_carbon_price(scenario_id: str, year: int, ngfs_region: str) -> float:
+def get_carbon_price(scenario_id: str, year: int, ngfs_region: str,
+                     region_iso3: Optional[str] = None) -> float:
     """
     Linearly interpolate the carbon price (USD/tCO2) for a given scenario × region × year.
     Held flat outside the published horizon.
+
+    `ngfs_region` selects the base band curve (advanced / emerging / rest_of_world).
+    If `region_iso3` is supplied, a jurisdiction-stringency factor refines the price WITHIN
+    the band (EU ETS above, US below, converging to the band by a scenario-dependent year).
+    Omit `region_iso3` (default) for the plain band price — backward compatible.
     """
     cp = load_carbon_prices()
     scen_id = map_scenario_to_ngfs(scenario_id)
@@ -74,23 +111,26 @@ def get_carbon_price(scenario_id: str, year: int, ngfs_region: str) -> float:
     if not region_curve:
         return 0.0
 
-    # Find bracket years in published trajectory
+    # Find bracket years in published trajectory → base band price
     years = sorted(int(y) for y in region_curve.keys())
     if not years:
         return 0.0
     if year <= years[0]:
-        return float(region_curve[str(years[0])])
-    if year >= years[-1]:
-        return float(region_curve[str(years[-1])])
+        base = float(region_curve[str(years[0])])
+    elif year >= years[-1]:
+        base = float(region_curve[str(years[-1])])
+    else:
+        base = 0.0
+        for i in range(len(years) - 1):
+            y0, y1 = years[i], years[i + 1]
+            if y0 <= year <= y1:
+                p0 = float(region_curve[str(y0)])
+                p1 = float(region_curve[str(y1)])
+                base = p0 + (year - y0) / (y1 - y0) * (p1 - p0)
+                break
 
-    for i in range(len(years) - 1):
-        y0, y1 = years[i], years[i + 1]
-        if y0 <= year <= y1:
-            p0 = float(region_curve[str(y0)])
-            p1 = float(region_curve[str(y1)])
-            frac = (year - y0) / (y1 - y0)
-            return p0 + frac * (p1 - p0)
-    return 0.0
+    # Jurisdiction-stringency refinement within the band (1.0 when region_iso3 omitted/unmapped)
+    return base * jurisdiction_carbon_factor(region_iso3, scenario_id, year)
 
 
 def get_pass_through(sector: str) -> dict:
@@ -149,7 +189,7 @@ def compute_carbon_cost(
     price_scale, pass_through_scale : Monte-Carlo perturbation multipliers (1.0 = base).
     """
     ngfs_region = get_ngfs_region(region_iso3)
-    price = get_carbon_price(scenario_id, year, ngfs_region) * max(0.0, price_scale)
+    price = get_carbon_price(scenario_id, year, ngfs_region, region_iso3=region_iso3) * max(0.0, price_scale)
     pt_data = get_pass_through(sector)
     pass_through = pass_through_override if pass_through_override is not None else float(pt_data["pass_through"])
     pass_through = max(0.0, min(1.0, pass_through * max(0.0, pass_through_scale)))

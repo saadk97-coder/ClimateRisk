@@ -31,8 +31,8 @@ For each entity or asset you provide a short profile:
 | **Annual revenue** | Used to scale supply-chain and reputation effects. |
 | **Transition plan** (optional) | Planned pivot capex and a "how well-placed today" positioning score — how the company adapts, not just how exposed it is (see Layer 2). |
 | **Replacement value** | What the physical assets are worth — the thing that can be "stranded." |
-| **Region** | Which carbon-price path and supply-chain structure applies. |
-| **Decarbonization target** (optional) | A net-zero year, if the company has a plan to cut its own emissions. |
+| **Region** | Which carbon-price band **and jurisdiction stringency** (EU ETS vs US vs Canada …) and supply-chain structure apply. Country or sub-national code. |
+| **Decarbonization target** (optional) | A net-zero year, plus an optional **residual %** — how far short of full net-zero the target lands (e.g. 20% = an 80% cut), so a partial target still carries carbon on what's left. |
 | **Attribution %** (optional) | For an investor/lender: what share of the asset is *yours*. |
 
 Then you pick one or more **scenarios** — coherent stories about how fast the world
@@ -80,6 +80,14 @@ But a firm rarely eats the whole bill. Two adjustments:
 
 The carbon price itself rises over time and differs by scenario and region; we read it from
 the published **NGFS** price tables and interpolate between years.
+
+**Geography matters, and now it bites.** The NGFS tables set price by broad band (advanced /
+emerging economies), which alone would charge a German mill, a US mill and a Japanese plant the
+*same* price. On top of the band we apply a **jurisdiction stringency factor** reflecting how real
+carbon policy differs today — the **EU ETS** and UK sit *above* the band, the **US and Canada**
+*below* — converging back to the band by ~2040 in ambitious scenarios (which assume policy
+harmonization) but staying divergent in the weak ones. So a German site now correctly carries a
+heavier near-term carbon cost than a Canadian one. (Enter a country, e.g. `DEU`, `CAN`, `USA`.)
 
 ### Layer 2 — Technology risk (the "cheaper competitor" channel)
 **Question it answers:** *When does the clean alternative get cheap enough to make my asset

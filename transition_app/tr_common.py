@@ -132,7 +132,8 @@ def make_asset(row: dict) -> Asset:
         scope3_use_phase_tco2=float(row.get("scope3_use_phase", 0.0) or 0.0),
         annual_revenue=float(row.get("annual_revenue", 0.0) or 0.0) * fx_to_usd(),
         decarb_target_year=_int_or(row.get("target_year"), 0),
-        decarb_residual_pct=0.0,
+        # residual % of today's Scope 1+2 still emitted at the target year (0 = net zero)
+        decarb_residual_pct=_float_or(row.get("residual_pct"), 0.0),
         # blank / NaN priced_pct means "fully priced" (100), not 0
         priced_emissions_fraction=_float_or(row.get("priced_pct"), 100.0) / 100.0,
         # Adaptive capacity: planned transition capex (reporting ccy → USD) and a manual
@@ -170,7 +171,7 @@ PORTFOLIO_COLUMNS = [
     "replacement_value", "annual_revenue", "scope1", "scope2", "scope3",
     # scope3_use_phase: downstream use-of-sold-products (cat 11) — product-demand risk for equipment/engine makers
     "scope3_use_phase",
-    "target_year", "priced_pct", "attribution_pct",
+    "target_year", "residual_pct", "priced_pct", "attribution_pct",
     # adaptive capacity (optional): planned pivot capex; manual positioning 0–100 (blank = derive)
     "transition_capex", "positioning_pct",
     # firm_id (optional): group business lines of one firm for a consolidated roll-up

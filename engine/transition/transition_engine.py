@@ -329,7 +329,7 @@ def run_asset_transition(
                    else max(0.0, min(1.0, scope3_incidence)))
             priced_scope3 = asset.scope3_emissions_tco2 * (1.0 - biogenic_frac)
             for y in horizon:
-                price = get_carbon_price(scenario_id, y, ngfs_region) * max(0.0, price_scale)
+                price = get_carbon_price(scenario_id, y, ngfs_region, region_iso3=region) * max(0.0, price_scale)
                 l3_by_year[y] = round(priced_scope3 * price * inc * l3_absorption, 2)
         elif l3_mode == "mrio":
             # High-resolution 20×49 EXIOBASE MRIO (+ optional Reisch cascade).
@@ -349,7 +349,7 @@ def run_asset_transition(
                 l3_by_year[y] = shock.total_indirect_cost_usd
         else:
             for y in horizon:
-                price = get_carbon_price(scenario_id, y, ngfs_region) * max(0.0, price_scale)
+                price = get_carbon_price(scenario_id, y, ngfs_region, region_iso3=region) * max(0.0, price_scale)
                 sector_shock = build_sectorwide_shock(price, pass_through_scale=pass_through_scale)
                 shock = propagate_carbon_shock(
                     asset_id=asset.id,
@@ -417,7 +417,7 @@ def run_asset_transition(
         _cap = strategy.capture_fraction if strategy is not None else 0.0
         _ngfs = get_ngfs_region(region)
         for y in horizon:
-            price = get_carbon_price(scenario_id, y, _ngfs) * max(0.0, price_scale)
+            price = get_carbon_price(scenario_id, y, _ngfs, region_iso3=region) * max(0.0, price_scale)
             l2_use_phase_by_year[y] = round(_use_phase * price * USE_PHASE_INCIDENCE * (1.0 - _cap), 2)
 
     # ── Aggregate ──────────────────────────────────────────────────────────

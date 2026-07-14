@@ -1,0 +1,39 @@
+{
+  "_meta": {
+    "description": "Jurisdiction carbon-price overlay. The NGFS band price (advanced / emerging / rest_of_world) sets the scenario trajectory; this factor refines it WITHIN the band to reflect that real carbon-policy stringency differs by jurisdiction near-term. Factor is a relative-stringency index vs the band trajectory (1.0 = band average). It converges to 1.0 by a scenario-dependent year, because ambitious NGFS scenarios assume policy harmonisation while weak scenarios keep prices fragmented. Applied multiplicatively to get_carbon_price(region_iso3=...). Screening-grade; calibrated to 2024-25 effective carbon prices (World Bank Carbon Pricing Dashboard, ICAP).",
+    "how": "effective_price(region, scenario, year) = NGFS_band_price(scenario, year) x factor(region, scenario, year); factor linearly interpolates factor_2025 -> 1.0 at convergence_year[scenario]; if convergence_year is null the factor is held (no convergence).",
+    "sources": ["World Bank State & Trends of Carbon Pricing 2024", "ICAP ETS Map 2024", "NGFS Phase V region aggregation"]
+  },
+  "jurisdictions": {
+    "eu":            {"factor_2025": 1.30, "label": "EU (ETS)",            "note": "EU ETS ~EUR 70-90/t 2024-25 — the most stringent large-economy price."},
+    "uk":            {"factor_2025": 1.20, "label": "United Kingdom (UK ETS)", "note": "UK ETS, tracks near EU."},
+    "canada":        {"factor_2025": 0.85, "label": "Canada (federal backstop)", "note": "Rising federal benchmark (CAD 80/t 2024 -> 170 by 2030), below the NGFS advanced shadow price."},
+    "usa":           {"factor_2025": 0.55, "label": "United States",       "note": "No federal carbon price; IRA is subsidy not a price. Patchy state coverage."},
+    "japan":         {"factor_2025": 0.70, "label": "Japan",               "note": "Low carbon tax; GX-ETS phasing in."},
+    "korea":         {"factor_2025": 0.75, "label": "South Korea (K-ETS)",  "note": "K-ETS operational but low price."},
+    "australia":     {"factor_2025": 0.65, "label": "Australia",           "note": "Safeguard Mechanism baseline-and-credit, not an explicit broad price."},
+    "china":         {"factor_2025": 0.80, "label": "China (national ETS)", "note": "National ETS (power) low price; refines WITHIN the emerging band."},
+    "india":         {"factor_2025": 0.60, "label": "India",               "note": "No explicit broad carbon price; CCTS emerging. Refines within emerging band."},
+    "rest_of_world": {"factor_2025": 1.00, "label": "Rest of world",       "note": "Default — no adjustment; sits on the NGFS band."}
+  },
+  "iso3_to_jurisdiction": {
+    "DEU": "eu", "FRA": "eu", "ITA": "eu", "ESP": "eu", "NLD": "eu", "BEL": "eu",
+    "SWE": "eu", "NOR": "eu", "DNK": "eu", "FIN": "eu", "AUT": "eu", "IRL": "eu",
+    "LUX": "eu", "POL": "eu", "CZE": "eu", "PRT": "eu", "GRC": "eu", "HUN": "eu",
+    "SVK": "eu", "SVN": "eu", "ROU": "eu", "BGR": "eu", "HRV": "eu", "EST": "eu",
+    "LVA": "eu", "LTU": "eu", "CHE": "eu",
+    "GBR": "uk",
+    "CAN": "canada",
+    "USA": "usa",
+    "JPN": "japan",
+    "KOR": "korea",
+    "AUS": "australia", "NZL": "australia",
+    "CHN": "china",
+    "IND": "india"
+  },
+  "convergence_year": {
+    "net_zero_2050": 2040, "iea_nze": 2040, "below_2c": 2040, "divergent_net_zero": 2040,
+    "delayed_transition": 2045, "iea_aps": 2045,
+    "current_policies": null, "ndcs_only": null, "iea_steps": null, "fragmented_world": null
+  }
+}
