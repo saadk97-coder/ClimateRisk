@@ -28,9 +28,20 @@ from engine.transition.data_loader import load_sector_pathways, map_scenario_to_
 # A firm won't grow more than ~this multiple off the back of the transition even if the
 # GLOBAL sector market grows 5-14× (it captures a share). Clamp the growth signal.
 GROWTH_CAP = 1.5
-# $ of growth capex per $ of asset base, per unit of transition growth. Clean-growth build
-# (renewables, grid, EV plants, mines) is capital-heavy → ~0.6.
+# $ of growth capex per $ of asset base, per unit of transition growth. Default; overridden
+# per sector below because capital intensity of the build varies a lot.
 OPP_CAPEX_INTENSITY = 0.6
+# Per-sector capital intensity of the low-carbon build. Renewables/grid are extremely
+# capital-heavy (assets ARE the capex); EV assembly and mineral processing are lighter per $
+# of expansion; engineered-wood mills lighter still.
+_SECTOR_OPP_INTENSITY = {
+    "power_renewable": 1.0,     # generation + grid assets are the capital
+    "power_gas": 0.9,
+    "metals_mining": 0.7,       # new mines/processing are capital-heavy
+    "road_transport_ev": 0.5,   # gigafactories + lines, but lighter per $ than power
+    "data_center": 0.8,         # facilities + compute
+    "wood_products_timber": 0.35,
+}
 # Minimum transition-attributable growth to count a sector as a beneficiary.
 _BENEFICIARY_THRESHOLD = 0.15
 _BASELINE_SCENARIO = "current_policies"
@@ -68,7 +79,8 @@ def estimate_opportunity_capex(
     transition_growth = max(0.0, nz - base)
     is_beneficiary = transition_growth >= _BENEFICIARY_THRESHOLD
     capped = min(GROWTH_CAP, transition_growth)
-    capex = round(capped * max(0.0, replacement_value) * OPP_CAPEX_INTENSITY, 2) if is_beneficiary else 0.0
+    intensity = _SECTOR_OPP_INTENSITY.get(sector, OPP_CAPEX_INTENSITY)
+    capex = round(capped * max(0.0, replacement_value) * intensity, 2) if is_beneficiary else 0.0
     return OpportunityResult(
         sector=sector, is_beneficiary=is_beneficiary, transition_growth=round(capped, 3),
         opportunity_capex_usd=capex, nz_growth=round(nz, 3), baseline_growth=round(base, 3),

@@ -144,6 +144,15 @@ into demand-and-margin pressure on the maker. For Caterpillar this is the single
 effect — correctly flagging that its diesel machinery line is what's exposed, even though its
 own plants are relatively clean.
 
+**Banks and investors — the emissions they *finance*.** For a lender or asset manager the story
+is the same shape but one step further out: its own offices are almost carbon-free, but the
+loans and investments on its book (a bank's "financed emissions", Scope 3 category 15) carry the
+real transition risk — as its borrowers face carbon costs, the book takes credit losses and
+stranded collateral. The tool prices a small, clearly-labeled slice of that financed carbon as a
+**separate channel**, so a bank like HSBC no longer reads as a low-risk services firm. For HSBC
+this financed exposure dwarfs its office-decarbonization cost by ~30×. It is a **screening
+scale** only — a real figure needs full PCAF portfolio data.
+
 ### Layer 3 — Market risk (the supply-chain channel)
 **Question it answers:** *Even if I'm clean, how much do my inputs cost more because my
 suppliers are paying for carbon?*

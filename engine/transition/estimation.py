@@ -50,17 +50,39 @@ def estimate_scope12_from_revenue(sector: str, revenue_usd: float) -> float:
     return round(intensity * (revenue_usd / 1e6), 1)
 
 
+def estimate_financed_emissions_from_revenue(sector: str, revenue_usd: float) -> float:
+    """Screening FINANCED emissions (tCO2/yr) for a lender/investor from a per-revenue intensity.
+    Only sectors with a calibrated financed-emissions intensity (financial_services) return > 0.
+    Very rough — real financed emissions need PCAF portfolio data."""
+    if revenue_usd is None or revenue_usd <= 0 or not sector:
+        return 0.0
+    fi = load_estimation_intensity().get("financed_emissions_t_per_musd_revenue", {})
+    intensity = float(fi.get(sector, 0.0))
+    if intensity <= 0:
+        return 0.0
+    return round(intensity * (revenue_usd / 1e6), 1)
+
+
 def estimate_emissions_if_missing(asset) -> Tuple[object, bool]:
-    """Return (asset, estimated?). If the asset reports no Scope 1+2 but has a sector and
-    revenue, fill Scope 1+2 with a screening estimate (all attributed to Scope 1 for
-    simplicity) and return estimated=True. Otherwise return the asset unchanged."""
-    s12 = (getattr(asset, "scope1_emissions_tco2", 0.0) or 0.0) + \
-          (getattr(asset, "scope2_emissions_tco2", 0.0) or 0.0)
+    """Return (asset, estimated?). Fill screening estimates for anything material that is
+    missing: Scope 1+2 (from sector intensity × revenue) and, for a lender/investor,
+    FINANCED emissions (its book — the material exposure for financials). Reported figures
+    are never overwritten. estimated=True if anything was filled."""
     sector = getattr(asset, "sector", "") or ""
     revenue = getattr(asset, "annual_revenue", 0.0) or 0.0
-    if s12 > 0 or not sector or revenue <= 0:
+    if not sector or revenue <= 0:
         return asset, False
-    est = estimate_scope12_from_revenue(sector, revenue)
-    if est <= 0:
+    changes = {}
+    s12 = (getattr(asset, "scope1_emissions_tco2", 0.0) or 0.0) + \
+          (getattr(asset, "scope2_emissions_tco2", 0.0) or 0.0)
+    if s12 <= 0:
+        est = estimate_scope12_from_revenue(sector, revenue)
+        if est > 0:
+            changes.update(scope1_emissions_tco2=est, scope2_emissions_tco2=0.0)
+    if (getattr(asset, "financed_emissions_tco2", 0.0) or 0.0) <= 0:
+        fe = estimate_financed_emissions_from_revenue(sector, revenue)
+        if fe > 0:
+            changes["financed_emissions_tco2"] = fe
+    if not changes:
         return asset, False
-    return replace(asset, scope1_emissions_tco2=est, scope2_emissions_tco2=0.0), True
+    return replace(asset, **changes), True

@@ -19,7 +19,8 @@ Sources:
 from engine.asset_model import Asset
 from engine.transition.adaptive_capacity import build_strategy, scenario_ambition
 from engine.transition.data_loader import get_ngfs_region
-from engine.transition.estimation import estimate_scope12_from_revenue, estimate_emissions_if_missing
+from engine.transition.estimation import (estimate_scope12_from_revenue, estimate_emissions_if_missing,
+    estimate_financed_emissions_from_revenue)
 from engine.transition.opportunity import estimate_opportunity_capex
 from engine.transition.lever_planner import (
     default_lever_plan, build_capex_schedule, plan_total_capex, plan_total_abatement)
@@ -63,6 +64,16 @@ def company(name, sector, region, rev, s1, s2, s3_up, s3_use, repl, target, publ
         print(f"  OPPORTUNITY LENS — transition BENEFICIARY (NZ demand +{opp.nz_growth:.0%} vs "
               f"baseline +{opp.baseline_growth:.0%}): ~{m(opp.opportunity_capex_usd)} GROWTH capital "
               f"to expand the low-carbon business (separate from the decarb-risk capex above)")
+    fe = estimate_financed_emissions_from_revenue(sector, rev)
+    if fe > 0:
+        from engine.transition.carbon_pricing import get_carbon_price
+        from engine.transition.transition_engine import FINANCED_INCIDENCE
+        ng = get_ngfs_region(region)
+        fe_pv = sum(fe * get_carbon_price(SC, y, ng, region_iso3=region) * FINANCED_INCIDENCE
+                    / 1.065 ** (y - 2025 + 1) for y in range(2025, 2051))
+        print(f"  FINANCED-EMISSIONS EXPOSURE (the real story for a lender): ~{fe/1e6:.0f} Mt book "
+              f"→ ~{m(fe_pv)} PV transition exposure — DWARFS the ${plan_total_capex(rows)/1e9:.1f}bn "
+              f"office capex above. Screening only; needs PCAF portfolio data.")
     print(f"  REALITY CHECK — company says: {published}")
 
 # ---- Mercedes-Benz: use-phase dominates; EV pivot is the capital story ----
@@ -116,3 +127,26 @@ def opaque(name, sector, region, revenue, repl):
 
 # An unlisted regional cement producer in an emerging market with no ESG disclosure.
 opaque("Regional Cement Co (unlisted)", "cement", "IND", 2.5e9, repl=3.5e9)
+
+# ===========================================================================
+# Asset-light / services / financials — where OWN transition risk is small
+# ===========================================================================
+print(f"\n{'#'*78}\nASSET-LIGHT & SERVICES — own transition risk is small; the story is elsewhere\n{'#'*78}")
+
+# Inditex (Zara): apparel — Scope-1+2 cut 97%; the footprint is UPSTREAM Scope 3 (fibre, dyeing,
+# manufacturing, transport). ~18 Mt total, almost all Scope 3.
+company("Inditex (Zara)", "apparel_textiles", "ESP", 39e9, 0.10e6, 0.05e6,
+        17e6, 0.0, repl=15e9, target=2040,
+        published="Scope 1+2 −97% already; ~18 Mt total footprint is upstream Scope 3 "
+                  "(fibre/dyeing/manufacturing/transport); SBTi 2030 targets")
+
+# A software / SaaS startup — private, no emissions disclosure → estimate. Near-zero own
+# footprint (compute is upstream cloud Scope 3); a good 'negligible direct risk' check.
+opaque("SaaS startup (~Databricks-scale)", "services", "USA", 2.4e9, repl=1.0e9)
+
+# HSBC: financial services — tiny OWN operations; the real exposure is FINANCED emissions
+# (the loan/investment book, Scope 3 cat 15), which this direct-risk model does NOT price.
+company("HSBC", "financial_services", "GBR", 66e9, 0.25e6, 0.05e6,
+        1.5e6, 0.0, repl=30e9, target=2050,
+        published="Own Scope 1+2 −90% by 2030 (tiny); the material exposure is FINANCED "
+                  "emissions — e.g. oil&gas 35.8 Mt, power book — handled via PCAF, NOT here")

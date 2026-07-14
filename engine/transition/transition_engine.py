@@ -74,6 +74,11 @@ L3_SCOPE3_INCIDENCE = 0.5
 # Fix #2 — share of the customer's use-phase carbon burden that comes back to the product
 # MAKER as demand/margin pressure (customers bear most; the maker loses some pricing/volume).
 USE_PHASE_INCIDENCE = 0.15
+# Financed emissions (financials). A lender/investor doesn't PAY its book's carbon, but bears
+# transition risk transmitted through the portfolio (credit impairment, stranded collateral,
+# lost high-carbon lending). Screening share of the financed carbon cost that lands on the
+# institution. Deliberately small; a real figure needs PCAF portfolio + credit modelling.
+FINANCED_INCIDENCE = 0.03
 
 
 def _resolve_positioning(explicit, asset):
@@ -422,10 +427,24 @@ def run_asset_transition(
             price = get_carbon_price(scenario_id, y, _ngfs, region_iso3=region) * max(0.0, price_scale)
             l2_use_phase_by_year[y] = round(_use_phase * price * USE_PHASE_INCIDENCE * (1.0 - _cap), 2)
 
+    # ── Financed-emissions transition exposure (financials) ─────────────────
+    # For a lender/investor the material transition risk is its BOOK, not its offices. Screening
+    # proxy: financed_emissions × carbon_price × FINANCED_INCIDENCE — the portfolio transition
+    # risk transmitted to the institution (credit/stranding). Routed once; distinct from own-ops
+    # Scope 1+2 (L1) and supply chain (L3). Needs PCAF portfolio data for a real figure.
+    financed_by_year: Dict[int, float] = {y: 0.0 for y in horizon}
+    _financed = getattr(asset, "financed_emissions_tco2", 0.0) or 0.0
+    if _financed > 0 and 1 in enable_layers:
+        _ngfs = get_ngfs_region(region)
+        for y in horizon:
+            price = get_carbon_price(scenario_id, y, _ngfs, region_iso3=region) * max(0.0, price_scale)
+            financed_by_year[y] = round(_financed * price * FINANCED_INCIDENCE, 2)
+
     # ── Aggregate ──────────────────────────────────────────────────────────
     total_by_year = {
         y: l1_by_year[y] + l2_revenue_by_year[y] + l2_capex_by_year[y]
            + l2_use_phase_by_year[y] + l3_by_year[y] + l4_by_year[y]
+           + financed_by_year[y]
         for y in horizon
     }
 
@@ -437,6 +456,7 @@ def run_asset_transition(
         "L2_impairment": l2_impairment_by_year,
         "L3_network_input_cost": l3_by_year,
         "L4_revenue_modifier": l4_by_year,
+        "Financed_emissions_exposure": financed_by_year,
     }
 
     # ── Data-quality classification (audit trail) ───────────────────────────

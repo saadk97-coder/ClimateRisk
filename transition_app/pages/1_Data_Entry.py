@@ -47,7 +47,7 @@ st.caption(
 # the text/selectbox column config).
 _STR_COLS = ["id", "name", "region", "sector", "firm_id"]
 _NUM_COLS = ["replacement_value", "annual_revenue", "scope1", "scope2", "scope3",
-             "scope3_use_phase",
+             "scope3_use_phase", "financed_emissions",
              "target_year", "residual_pct", "priced_pct", "attribution_pct",
              "transition_capex", "positioning_pct"]
 
@@ -93,6 +93,11 @@ edited = st.data_editor(
             "Scope 3 use-phase (tCO₂)", min_value=0.0, format="%.0f",
             help="Downstream use-of-sold-products (cat 11) — customers' emissions from your products. "
                  "Drives product-demand risk for engine/machinery/fuel makers. Leave 0 if not a product maker."),
+        "financed_emissions": st.column_config.NumberColumn(
+            "Financed emissions (tCO₂)", min_value=0.0, format="%.0f",
+            help="Lender/investor book (Scope 3 cat 15) — THE material transition exposure for a bank or "
+                 "asset manager. Priced as a screening portfolio-transition risk. Leave 0 if not a financial. "
+                 "A real figure needs PCAF portfolio data."),
         "target_year": st.column_config.NumberColumn(
             "Net-zero target yr", min_value=0, max_value=2060, step=1, format="%d",
             help="Scope 1+2 net-zero target year. Blank / 0 = no abatement (emissions held flat)."),

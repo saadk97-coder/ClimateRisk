@@ -42,6 +42,8 @@ class Asset:
     scope2_emissions_tco2: float = 0.0   # Purchased electricity emissions, t CO2/yr
     scope3_emissions_tco2: float = 0.0   # UPSTREAM value-chain emissions (cat 1-9), t CO2/yr → L3 input cost
     scope3_use_phase_tco2: float = 0.0   # DOWNSTREAM use-of-sold-products (cat 11), t CO2/yr → product-demand risk
+    financed_emissions_tco2: float = 0.0 # FINANCED emissions (Scope 3 cat 15) — a lender/investor's
+                                         # loan/investment book. THE transition exposure for financials.
     annual_revenue: float = 0.0          # Asset-attributable revenue (for pass-through cap & financing premium)
     # ---- Abatement & carbon-price realism (P0) ----
     # Decarbonisation target: Scope 1+2 emissions decline linearly from 2025 to
@@ -94,7 +96,7 @@ class Asset:
             self.first_floor_height_m = 0.0
         # Emissions and revenue must be non-negative
         for fname in ("scope1_emissions_tco2", "scope2_emissions_tco2",
-                      "scope3_emissions_tco2", "annual_revenue"):
+                      "scope3_emissions_tco2", "financed_emissions_tco2", "annual_revenue"):
             v = getattr(self, fname)
             if v < 0:
                 setattr(self, fname, 0.0)
@@ -128,6 +130,7 @@ class Asset:
             scope2_emissions_tco2=float(d.get("scope2_emissions_tco2", 0.0)),
             scope3_emissions_tco2=float(d.get("scope3_emissions_tco2", 0.0)),
             scope3_use_phase_tco2=float(d.get("scope3_use_phase_tco2", 0.0) or 0.0),
+            financed_emissions_tco2=float(d.get("financed_emissions_tco2", 0.0) or 0.0),
             annual_revenue=float(d.get("annual_revenue", 0.0)),
             decarb_target_year=int(d.get("decarb_target_year", 0) or 0),
             decarb_residual_pct=float(d.get("decarb_residual_pct", 0.0) or 0.0),

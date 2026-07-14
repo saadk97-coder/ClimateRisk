@@ -489,6 +489,7 @@ def test_orchestrator_total_equals_sum_of_layers(coal_plant):
             + r.layer_breakdown["L2_product_use_phase"][y]  # use-phase product risk
             + r.layer_breakdown["L3_network_input_cost"][y]
             + r.layer_breakdown["L4_revenue_modifier"][y]
+            + r.layer_breakdown["Financed_emissions_exposure"][y]  # financials' book
         )
         assert abs(layer_sum - r.annual_total_cost_usd[y]) < 1.0
 
@@ -1799,6 +1800,31 @@ def test_opaque_entity_gets_nonzero_carbon_cost_after_estimation():
     assert sum(after.layer_breakdown["L1_carbon_opex"].values()) > 0.0
 
 
+def test_financed_emissions_estimated_for_financials_only():
+    from engine.transition.estimation import (estimate_financed_emissions_from_revenue,
+                                              estimate_emissions_if_missing)
+    assert estimate_financed_emissions_from_revenue("financial_services", 66e9) > 0
+    assert estimate_financed_emissions_from_revenue("cement", 5e9) == 0.0    # not a financial
+    bank = _co("financial_services", region="GBR", rev=66e9, s1=0.0, s2=0.0, s3=1.5e6)
+    filled, est = estimate_emissions_if_missing(bank)
+    assert est and filled.financed_emissions_tco2 > 0                        # book estimated too
+
+
+def test_financed_emissions_dominate_a_banks_transition_cost():
+    """For a lender the financed-emissions exposure is the dominant channel — far larger than its
+    tiny own-operations carbon cost — and it reconciles into the total."""
+    bank = _co("financial_services", region="GBR", rev=66e9, s1=0.25e6, s2=0.05e6, s3=1.5e6)
+    from dataclasses import replace
+    bank = replace(bank, financed_emissions_tco2=594e6)
+    r = run_asset_transition(bank, "net_zero_2050")
+    financed = sum(r.layer_breakdown["Financed_emissions_exposure"].values())
+    own = sum(r.layer_breakdown["L1_carbon_opex"].values())
+    assert financed > 0 and financed > 20 * own                             # book dwarfs own ops
+    # zero financed → zero financed channel (non-financials unaffected)
+    r0 = run_asset_transition(_co("cement", region="IND", rev=2.5e9, s1=5e6), "net_zero_2050")
+    assert all(v == 0 for v in r0.layer_breakdown["Financed_emissions_exposure"].values())
+
+
 def test_calibrated_intensity_exceeds_raw_taxonomy_for_heavy_sector():
     """The estimation intensity for a heavy producer (cement) is calibrated ABOVE the raw EEIO
     taxonomy value, so an opaque cement firm isn't under-estimated."""
@@ -1827,9 +1853,11 @@ def test_opportunity_capex_flags_scenario_driven_winners_only():
 
 
 def test_opportunity_capex_scales_with_asset_base_and_is_capped():
-    from engine.transition.opportunity import estimate_opportunity_capex, GROWTH_CAP, OPP_CAPEX_INTENSITY
+    from engine.transition.opportunity import (estimate_opportunity_capex, GROWTH_CAP,
+                                               _SECTOR_OPP_INTENSITY, OPP_CAPEX_INTENSITY)
     small = estimate_opportunity_capex("power_renewable", 10e9)
     big = estimate_opportunity_capex("power_renewable", 100e9)
     assert big.opportunity_capex_usd == 10 * small.opportunity_capex_usd   # linear in asset base
-    # growth signal is clamped, so capex never exceeds cap × asset base × intensity
-    assert big.opportunity_capex_usd <= GROWTH_CAP * 100e9 * OPP_CAPEX_INTENSITY + 1
+    # growth signal is clamped, so capex never exceeds cap × asset base × the sector's intensity
+    intensity = _SECTOR_OPP_INTENSITY.get("power_renewable", OPP_CAPEX_INTENSITY)
+    assert big.opportunity_capex_usd <= GROWTH_CAP * 100e9 * intensity + 1

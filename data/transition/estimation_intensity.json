@@ -22,6 +22,10 @@
     "manufacturing_general": 140,
     "industrial_equipment": 110
   },
+  "financed_emissions_t_per_musd_revenue": {
+    "_note": "FINANCED emissions (Scope 3 cat 15) per $M revenue, for lenders/investors whose material transition exposure is their book, not their offices. Very rough screening scale — real figures need PCAF portfolio data. Anchor: HSBC oil&gas book alone 35.8 Mt on ~$66bn revenue; total financed emissions across all sectors are far larger (O(100s) Mt).",
+    "financial_services": 9000
+  },
   "anchors": {
     "cement": "Holcim ~2.9k, Heidelberg ~2.5k; pure-play cement higher → 3.5k",
     "steel": "ArcelorMittal 114.3 Mt / $68.3bn ≈ 1.68k",

@@ -224,6 +224,7 @@ cat_map = [
     ("Technology (L2 product use-phase)", "L2_product_use_phase"),
     ("Market (L3 network)", "L3_network_input_cost"),
     ("Reputation (L4)", "L4_revenue_modifier"),
+    ("Financed emissions (financials)", "Financed_emissions_exposure"),
 ]
 arows = []
 for label, key in cat_map:
@@ -282,6 +283,7 @@ for sc, res in results.items():
                 "L2_product_use_phase": r.layer_breakdown.get("L2_product_use_phase", {}).get(y, 0.0),
                 "L3_network": r.layer_breakdown["L3_network_input_cost"].get(y, 0.0),
                 "L4_reputation": r.layer_breakdown["L4_revenue_modifier"].get(y, 0.0),
+                "financed_emissions": r.layer_breakdown.get("Financed_emissions_exposure", {}).get(y, 0.0),
                 "total_cf_cost": r.annual_total_cost_usd.get(y, 0.0),
                 "impairment": r.annual_impairment_usd.get(y, 0.0),
             })
