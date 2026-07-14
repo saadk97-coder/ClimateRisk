@@ -20,647 +20,1693 @@
     },
     "version": "v1 — Session 9"
   },
-
   "domains": {
-    "electricity_energy": {"label": "Electricity & Energy", "order": 1},
-    "transport": {"label": "Transport & Mobility", "order": 2},
-    "industry": {"label": "Industry & Manufacturing", "order": 3},
-    "buildings": {"label": "Buildings & Real Estate", "order": 4},
-    "flag_water": {"label": "FLAG (Forest, Land, Agriculture) & Water", "order": 5}
+    "electricity_energy": {
+      "label": "Electricity & Energy",
+      "order": 1
+    },
+    "transport": {
+      "label": "Transport & Mobility",
+      "order": 2
+    },
+    "industry": {
+      "label": "Industry & Manufacturing",
+      "order": 3
+    },
+    "buildings": {
+      "label": "Buildings & Real Estate",
+      "order": 4
+    },
+    "flag_water": {
+      "label": "FLAG (Forest, Land, Agriculture) & Water",
+      "order": 5
+    }
   },
-
   "levers": {
     "renewable_generation": {
       "name": "Renewable power generation (solar & wind)",
       "domain": "electricity_energy",
       "description": "Build out utility- and distributed-scale solar PV and wind to displace unabated fossil generation.",
-      "cost_range_usd_per_tco2": [-40, 20],
+      "cost_range_usd_per_tco2": [
+        -40,
+        20
+      ],
       "mitigation_potential": "high",
       "maturity": "mature",
       "net_zero_2050_role": "Backbone lever: IEA NZE needs ~90% of electricity from renewables by 2050; solar PV & wind LCOE now below new fossil in most markets (IRENA 2024).",
-      "dependencies": ["grid capacity & interconnection", "permitting/siting", "energy storage for firming"],
+      "dependencies": [
+        "grid capacity & interconnection",
+        "permitting/siting",
+        "energy storage for firming"
+      ],
       "nature_people": {
         "upstream": "Mining of critical minerals (silicon, rare earths, steel) — land, water, labour-rights exposure in supply chains.",
         "operations": "Land-use footprint; avian/habitat impacts for poorly sited wind/solar. Local jobs and energy access co-benefits.",
         "downstream": "Cleaner air; lower and more stable energy prices for customers."
       },
-      "applicable_sectors": ["power_coal", "power_gas", "power_renewable", "data_center", "aluminium", "manufacturing_general"],
-      "references": ["IRENA 2024", "Lazard LCOE+ 2025", "IEA NZE 2023"]
+      "applicable_sectors": [
+        "power_coal",
+        "power_gas",
+        "power_renewable",
+        "data_center",
+        "aluminium",
+        "manufacturing_general"
+      ],
+      "references": [
+        "IRENA 2024",
+        "Lazard LCOE+ 2025",
+        "IEA NZE 2023"
+      ]
     },
     "energy_storage": {
       "name": "Grid-scale energy storage",
       "domain": "electricity_energy",
       "description": "Battery and long-duration storage to firm variable renewables and shift supply to demand.",
-      "cost_range_usd_per_tco2": [10, 90],
+      "cost_range_usd_per_tco2": [
+        10,
+        90
+      ],
       "mitigation_potential": "high",
       "maturity": "commercial",
       "net_zero_2050_role": "Enables high-renewable grids; Li-ion pack costs fell ~90% 2010–2023 (BNEF). Long-duration storage still emerging.",
-      "dependencies": ["renewable generation buildout", "market design for flexibility"],
+      "dependencies": [
+        "renewable generation buildout",
+        "market design for flexibility"
+      ],
       "nature_people": {
         "upstream": "Lithium, cobalt, nickel extraction — water stress, biodiversity and labour-rights hotspots.",
         "operations": "Fire-safety and end-of-life recycling considerations.",
         "downstream": "Grid reliability and resilience benefits for communities."
       },
-      "applicable_sectors": ["power_gas", "power_renewable", "data_center"],
-      "references": ["BNEF 2023", "IEA NZE 2023"]
+      "applicable_sectors": [
+        "power_gas",
+        "power_renewable",
+        "data_center"
+      ],
+      "references": [
+        "BNEF 2023",
+        "IEA NZE 2023"
+      ]
     },
     "grid_flexibility": {
       "name": "Grid flexibility, interconnection & demand response",
       "domain": "electricity_energy",
       "description": "Transmission expansion, cross-border interconnection, smart demand response to integrate clean power.",
-      "cost_range_usd_per_tco2": [0, 40],
+      "cost_range_usd_per_tco2": [
+        0,
+        40
+      ],
       "mitigation_potential": "medium",
       "maturity": "commercial",
       "net_zero_2050_role": "IEA: grids must expand/refurbish ~80M km by 2040. Under-investment is a primary bottleneck to clean-power integration.",
-      "dependencies": ["regulatory reform", "capital availability", "permitting"],
+      "dependencies": [
+        "regulatory reform",
+        "capital availability",
+        "permitting"
+      ],
       "nature_people": {
         "upstream": "Copper/aluminium/steel demand for lines and transformers.",
         "operations": "Right-of-way land use; community consent for transmission corridors.",
         "downstream": "Energy access and reliability; lower curtailment of clean power."
       },
-      "applicable_sectors": ["power_coal", "power_gas", "power_renewable", "gas_distribution"],
-      "references": ["IEA Electricity Grids and Secure Energy Transitions 2023"]
+      "applicable_sectors": [
+        "power_coal",
+        "power_gas",
+        "power_renewable",
+        "gas_distribution"
+      ],
+      "references": [
+        "IEA Electricity Grids and Secure Energy Transitions 2023"
+      ]
     },
     "green_hydrogen_energy": {
       "name": "Green hydrogen production (electrolysis)",
       "domain": "electricity_energy",
       "description": "Renewable-powered electrolytic hydrogen as a clean energy carrier and feedstock.",
-      "cost_range_usd_per_tco2": [80, 300],
+      "cost_range_usd_per_tco2": [
+        80,
+        300
+      ],
       "mitigation_potential": "medium",
       "maturity": "emerging",
       "net_zero_2050_role": "Key for hard-to-abate heat/feedstock; green H2 cost ~$3–7/kg (2024), targeted <$2/kg by 2030 with electrolyser scale-up.",
-      "dependencies": ["abundant cheap renewables", "electrolyser manufacturing scale", "transport/storage infrastructure"],
+      "dependencies": [
+        "abundant cheap renewables",
+        "electrolyser manufacturing scale",
+        "transport/storage infrastructure"
+      ],
       "nature_people": {
         "upstream": "Large renewable and freshwater demand for electrolysis; iridium/platinum for some electrolysers.",
         "operations": "Water sourcing in arid regions is a community trade-off.",
         "downstream": "Enables clean fuels for industry and transport; new skilled jobs."
       },
-      "applicable_sectors": ["power_renewable", "chemicals", "steel", "oil_refining", "shipping"],
-      "references": ["IEA Global Hydrogen Review 2024", "Hydrogen Council 2023"]
+      "applicable_sectors": [
+        "power_renewable",
+        "chemicals",
+        "steel",
+        "oil_refining",
+        "shipping"
+      ],
+      "references": [
+        "IEA Global Hydrogen Review 2024",
+        "Hydrogen Council 2023"
+      ]
     },
     "renewable_procurement": {
       "name": "Renewable electricity procurement (PPAs & tariffs)",
       "domain": "electricity_energy",
       "description": "Corporate PPAs, green tariffs and on-site generation to cut Scope 2 emissions.",
-      "cost_range_usd_per_tco2": [-20, 30],
+      "cost_range_usd_per_tco2": [
+        -20,
+        30
+      ],
       "mitigation_potential": "medium",
       "maturity": "mature",
       "net_zero_2050_role": "Fastest Scope-2 lever for corporates; hourly/24-7 matching raises additionality bar (RE100, Google 24-7).",
-      "dependencies": ["liberalised power markets", "additionality integrity", "grid clean-power availability"],
+      "dependencies": [
+        "liberalised power markets",
+        "additionality integrity",
+        "grid clean-power availability"
+      ],
       "nature_people": {
         "upstream": "Same mineral-supply-chain exposure as renewable buildout.",
         "operations": "Minimal direct footprint (contractual lever).",
         "downstream": "Signals demand that accelerates grid decarbonisation for all users."
       },
-      "applicable_sectors": ["data_center", "manufacturing_general", "real_estate_commercial", "services", "aluminium", "road_transport_ev"],
-      "references": ["RE100 2024", "IEA NZE 2023"]
+      "applicable_sectors": [
+        "data_center",
+        "manufacturing_general",
+        "real_estate_commercial",
+        "services",
+        "aluminium",
+        "road_transport_ev"
+      ],
+      "references": [
+        "RE100 2024",
+        "IEA NZE 2023"
+      ]
     },
     "fossil_phaseout": {
       "name": "Unabated fossil generation phase-out / coal-to-clean",
       "domain": "electricity_energy",
       "description": "Retire or repurpose unabated coal and inefficient gas; managed just-transition of workers and communities.",
-      "cost_range_usd_per_tco2": [-10, 60],
+      "cost_range_usd_per_tco2": [
+        -10,
+        60
+      ],
       "mitigation_potential": "high",
       "maturity": "mature",
       "net_zero_2050_role": "Unabated coal power must fall ~99% by 2040 in IEA NZE. Highest-impact single power-sector lever.",
-      "dependencies": ["replacement clean capacity", "just-transition funding", "grid reliability planning"],
+      "dependencies": [
+        "replacement clean capacity",
+        "just-transition funding",
+        "grid reliability planning"
+      ],
       "nature_people": {
         "upstream": "Ends thermal-coal mining demand — major community & employment transition risk.",
         "operations": "Plant workforce reskilling and community revenue replacement are central just-transition issues.",
         "downstream": "Large air-quality and public-health co-benefits."
       },
-      "applicable_sectors": ["power_coal", "power_gas"],
-      "references": ["IEA NZE 2023", "ILO Just Transition Guidelines 2015"]
+      "applicable_sectors": [
+        "power_coal",
+        "power_gas"
+      ],
+      "references": [
+        "IEA NZE 2023",
+        "ILO Just Transition Guidelines 2015"
+      ]
     },
     "firm_clean_power": {
       "name": "Firm clean power (nuclear, geothermal, long-duration)",
       "domain": "electricity_energy",
       "description": "Dispatchable zero-carbon generation to complement variable renewables.",
-      "cost_range_usd_per_tco2": [20, 130],
+      "cost_range_usd_per_tco2": [
+        20,
+        130
+      ],
       "mitigation_potential": "medium",
       "maturity": "commercial",
       "net_zero_2050_role": "Provides system firmness; nuclear capacity ~doubles by 2050 in IEA NZE. SMRs still frontier.",
-      "dependencies": ["long lead times & capital", "regulatory/siting", "public acceptance"],
+      "dependencies": [
+        "long lead times & capital",
+        "regulatory/siting",
+        "public acceptance"
+      ],
       "nature_people": {
         "upstream": "Uranium mining; specialist supply chains.",
         "operations": "Waste management and safety governance; high-skill long-duration jobs.",
         "downstream": "Reliable clean baseload supporting electrification."
       },
-      "applicable_sectors": ["power_coal", "power_gas", "power_renewable"],
-      "references": ["IEA NZE 2023", "IAEA 2023"]
+      "applicable_sectors": [
+        "power_coal",
+        "power_gas",
+        "power_renewable"
+      ],
+      "references": [
+        "IEA NZE 2023",
+        "IAEA 2023"
+      ]
     },
-
     "fleet_electrification": {
       "name": "Fleet & vehicle electrification (EVs)",
       "domain": "transport",
       "description": "Shift light- and medium-duty fleets from ICE to battery-electric vehicles.",
-      "cost_range_usd_per_tco2": [-30, 80],
+      "cost_range_usd_per_tco2": [
+        -30,
+        80
+      ],
       "mitigation_potential": "high",
       "maturity": "commercial",
       "net_zero_2050_role": "IEA NZE: ~60% of car sales electric by 2030. TCO parity reached in many light-duty segments (2024).",
-      "dependencies": ["charging infrastructure", "grid clean power", "battery supply"],
+      "dependencies": [
+        "charging infrastructure",
+        "grid clean power",
+        "battery supply"
+      ],
       "nature_people": {
         "upstream": "Battery mineral supply chains (lithium, cobalt, nickel) — water and labour-rights risks.",
         "operations": "Depot charging and workforce transition from ICE maintenance skills.",
         "downstream": "Urban air-quality and health benefits; charging-access equity."
       },
-      "applicable_sectors": ["road_transport_ice", "road_transport_ev", "services", "manufacturing_general", "real_estate_commercial"],
-      "references": ["IEA Global EV Outlook 2024"]
+      "applicable_sectors": [
+        "road_transport_ice",
+        "road_transport_ev",
+        "services",
+        "manufacturing_general",
+        "real_estate_commercial"
+      ],
+      "references": [
+        "IEA Global EV Outlook 2024"
+      ]
     },
     "modal_shift": {
       "name": "Modal shift & avoided demand",
       "domain": "transport",
       "description": "Shift freight to rail/water and passengers to transit/active travel; reduce transport demand.",
-      "cost_range_usd_per_tco2": [-50, 40],
+      "cost_range_usd_per_tco2": [
+        -50,
+        40
+      ],
       "mitigation_potential": "medium",
       "maturity": "mature",
       "net_zero_2050_role": "'Avoid-shift' lever with strong co-benefits; often net-negative cost via congestion and health savings.",
-      "dependencies": ["infrastructure investment", "urban planning", "policy incentives"],
+      "dependencies": [
+        "infrastructure investment",
+        "urban planning",
+        "policy incentives"
+      ],
       "nature_people": {
         "upstream": "Lower vehicle-manufacturing throughput.",
         "operations": "Modal infrastructure land use.",
         "downstream": "Congestion, safety, air-quality and accessibility benefits for communities."
       },
-      "applicable_sectors": ["road_transport_ice", "aviation", "shipping", "services"],
-      "references": ["IPCC AR6 WG3 Ch.10", "Project Drawdown 2024"]
+      "applicable_sectors": [
+        "road_transport_ice",
+        "aviation",
+        "shipping",
+        "services"
+      ],
+      "references": [
+        "IPCC AR6 WG3 Ch.10",
+        "Project Drawdown 2024"
+      ]
     },
     "saf": {
       "name": "Sustainable aviation fuel (SAF)",
       "domain": "transport",
       "description": "Bio- and synthetic (e-)fuels to cut aviation lifecycle emissions where electrification is infeasible.",
-      "cost_range_usd_per_tco2": [200, 600],
+      "cost_range_usd_per_tco2": [
+        200,
+        600
+      ],
       "mitigation_potential": "medium",
       "maturity": "emerging",
       "net_zero_2050_role": "Primary aviation lever; SAF ~2–5x jet-fuel cost (2024). ReFuelEU/CORSIA mandates drive demand.",
-      "dependencies": ["feedstock availability", "e-fuel green H2 & CO2", "mandate certainty"],
+      "dependencies": [
+        "feedstock availability",
+        "e-fuel green H2 & CO2",
+        "mandate certainty"
+      ],
       "nature_people": {
         "upstream": "Feedstock land-use competition with food (crop-based SAF); waste/algae/e-fuels lower risk.",
         "operations": "Drop-in compatibility limits operational change.",
         "downstream": "Higher ticket/freight costs passed to customers."
       },
-      "applicable_sectors": ["aviation", "oil_refining"],
-      "references": ["Mission Possible Partnership Aviation 2022", "IEA 2024"]
+      "applicable_sectors": [
+        "aviation",
+        "oil_refining"
+      ],
+      "references": [
+        "Mission Possible Partnership Aviation 2022",
+        "IEA 2024"
+      ]
     },
     "clean_shipping_fuels": {
       "name": "Low-carbon shipping fuels & efficiency",
       "domain": "transport",
       "description": "Green ammonia/methanol, wind assistance and efficiency to decarbonise maritime freight.",
-      "cost_range_usd_per_tco2": [150, 500],
+      "cost_range_usd_per_tco2": [
+        150,
+        500
+      ],
       "mitigation_potential": "medium",
       "maturity": "emerging",
       "net_zero_2050_role": "IMO 2050 net-zero; ammonia/methanol pathways at first-of-a-kind stage. Efficiency (slow steaming, wind) available now.",
-      "dependencies": ["green fuel supply", "bunkering infrastructure", "engine retrofit"],
+      "dependencies": [
+        "green fuel supply",
+        "bunkering infrastructure",
+        "engine retrofit"
+      ],
       "nature_people": {
         "upstream": "Green fuel production draws on renewables and green H2.",
         "operations": "Ammonia toxicity/safety handling; crew training.",
         "downstream": "Cost pass-through to global supply chains."
       },
-      "applicable_sectors": ["shipping"],
-      "references": ["Mission Possible Partnership Shipping 2022", "IMO 2023 Strategy"]
+      "applicable_sectors": [
+        "shipping"
+      ],
+      "references": [
+        "Mission Possible Partnership Shipping 2022",
+        "IMO 2023 Strategy"
+      ]
     },
     "freight_efficiency": {
       "name": "Logistics & freight efficiency",
       "domain": "transport",
       "description": "Load optimisation, routing, aerodynamics and right-sizing to cut fuel per tonne-km.",
-      "cost_range_usd_per_tco2": [-60, 10],
+      "cost_range_usd_per_tco2": [
+        -60,
+        10
+      ],
       "mitigation_potential": "low",
       "maturity": "mature",
       "net_zero_2050_role": "Low-cost, immediately available efficiency lever; often net-negative cost.",
-      "dependencies": ["data/telematics", "network redesign"],
+      "dependencies": [
+        "data/telematics",
+        "network redesign"
+      ],
       "nature_people": {
         "upstream": "Fewer vehicle-miles reduces upstream fuel demand.",
         "operations": "Driver working-condition considerations in routing changes.",
         "downstream": "Lower delivered-goods cost."
       },
-      "applicable_sectors": ["road_transport_ice", "shipping", "manufacturing_general", "services"],
-      "references": ["IPCC AR6 WG3 Ch.10"]
+      "applicable_sectors": [
+        "road_transport_ice",
+        "shipping",
+        "manufacturing_general",
+        "services"
+      ],
+      "references": [
+        "IPCC AR6 WG3 Ch.10"
+      ]
     },
     "charging_infrastructure": {
       "name": "EV charging & clean-refuelling infrastructure",
       "domain": "transport",
       "description": "Deploy charging/hydrogen refuelling to enable transport electrification.",
-      "cost_range_usd_per_tco2": [20, 100],
+      "cost_range_usd_per_tco2": [
+        20,
+        100
+      ],
       "mitigation_potential": "medium",
       "maturity": "commercial",
       "net_zero_2050_role": "Enabling lever — removes the key adoption barrier for EV fleets; depot and public networks.",
-      "dependencies": ["grid connection", "capital", "standards interoperability"],
+      "dependencies": [
+        "grid connection",
+        "capital",
+        "standards interoperability"
+      ],
       "nature_people": {
         "upstream": "Grid and hardware supply chains.",
         "operations": "Land use for charging hubs.",
         "downstream": "Charging-access equity across income groups and regions."
       },
-      "applicable_sectors": ["road_transport_ev", "real_estate_commercial", "services", "gas_distribution"],
-      "references": ["IEA Global EV Outlook 2024"]
+      "applicable_sectors": [
+        "road_transport_ev",
+        "real_estate_commercial",
+        "services",
+        "gas_distribution"
+      ],
+      "references": [
+        "IEA Global EV Outlook 2024"
+      ]
     },
-
     "energy_efficiency_industry": {
       "name": "Industrial energy efficiency",
       "domain": "industry",
       "description": "Waste-heat recovery, motors/drives, process optimisation and management systems.",
-      "cost_range_usd_per_tco2": [-80, 20],
+      "cost_range_usd_per_tco2": [
+        -80,
+        20
+      ],
       "mitigation_potential": "medium",
       "maturity": "mature",
       "net_zero_2050_role": "First and cheapest industrial lever; typically net-negative cost. IEA: efficiency delivers ~25% of near-term industry abatement.",
-      "dependencies": ["capex cycles", "energy-management skills"],
+      "dependencies": [
+        "capex cycles",
+        "energy-management skills"
+      ],
       "nature_people": {
         "upstream": "Lower fuel/electricity demand upstream.",
         "operations": "Retrofit during maintenance windows; workforce upskilling.",
         "downstream": "Lower unit production cost."
       },
-      "applicable_sectors": ["steel", "cement", "chemicals", "aluminium", "manufacturing_general", "oil_refining", "data_center"],
-      "references": ["IEA Energy Efficiency 2023", "IPCC AR6 WG3 Ch.11"]
+      "applicable_sectors": [
+        "steel",
+        "cement",
+        "chemicals",
+        "aluminium",
+        "manufacturing_general",
+        "oil_refining",
+        "data_center"
+      ],
+      "references": [
+        "IEA Energy Efficiency 2023",
+        "IPCC AR6 WG3 Ch.11"
+      ]
     },
     "hydrogen_feedstock": {
       "name": "Green hydrogen for industrial heat & feedstock",
       "domain": "industry",
       "description": "Replace coking coal / natural gas feedstock & high-temperature heat with green hydrogen (e.g. H2-DRI steel, green ammonia).",
-      "cost_range_usd_per_tco2": [100, 350],
+      "cost_range_usd_per_tco2": [
+        100,
+        350
+      ],
       "mitigation_potential": "medium",
       "maturity": "emerging",
       "net_zero_2050_role": "Core deep-decarbonisation route for primary steel and ammonia; first commercial H2-DRI plants ~2025–2030.",
-      "dependencies": ["cheap green H2", "renewable power", "plant conversion capex"],
+      "dependencies": [
+        "cheap green H2",
+        "renewable power",
+        "plant conversion capex"
+      ],
       "nature_people": {
         "upstream": "Green H2 supply-chain and freshwater demand.",
         "operations": "Major capex and plant redesign; skilled-labour transition.",
         "downstream": "Green-premium products; cost pass-through."
       },
-      "applicable_sectors": ["steel", "chemicals", "cement"],
-      "references": ["Mission Possible Partnership Steel 2022", "IEA 2024"]
+      "applicable_sectors": [
+        "steel",
+        "chemicals",
+        "cement"
+      ],
+      "references": [
+        "Mission Possible Partnership Steel 2022",
+        "IEA 2024"
+      ]
     },
     "ccus": {
       "name": "Carbon capture, utilisation & storage (CCUS)",
       "domain": "industry",
       "description": "Capture process/combustion CO2 for storage or use — essential where emissions are unavoidable (e.g. cement process CO2).",
-      "cost_range_usd_per_tco2": [50, 200],
+      "cost_range_usd_per_tco2": [
+        50,
+        200
+      ],
       "mitigation_potential": "medium",
       "maturity": "emerging",
       "net_zero_2050_role": "Indispensable for process emissions (cement) and negative emissions; scale far below NZE need today.",
-      "dependencies": ["CO2 transport & storage infrastructure", "policy support / carbon price", "capex"],
+      "dependencies": [
+        "CO2 transport & storage infrastructure",
+        "policy support / carbon price",
+        "capex"
+      ],
       "nature_people": {
         "upstream": "Amine/solvent and energy penalty of capture.",
         "operations": "Storage-site monitoring; local acceptance of pipelines/injection.",
         "downstream": "Enables continued production of essential materials with lower emissions."
       },
-      "applicable_sectors": ["cement", "chemicals", "steel", "oil_refining", "power_gas"],
-      "references": ["IEA CCUS 2023", "IPCC AR6 WG3 Ch.11"]
+      "applicable_sectors": [
+        "cement",
+        "chemicals",
+        "steel",
+        "oil_refining",
+        "power_gas"
+      ],
+      "references": [
+        "IEA CCUS 2023",
+        "IPCC AR6 WG3 Ch.11"
+      ]
     },
     "material_efficiency": {
       "name": "Material efficiency & circularity",
       "domain": "industry",
       "description": "Recycling, reuse, remanufacturing, light-weighting and scrap-based production to cut primary-material demand.",
-      "cost_range_usd_per_tco2": [-100, 30],
+      "cost_range_usd_per_tco2": [
+        -100,
+        30
+      ],
       "mitigation_potential": "high",
       "maturity": "commercial",
       "net_zero_2050_role": "Scrap-based (EAF) steel and secondary aluminium are already low-carbon; circularity cuts demand for primary production. Often net-negative cost.",
-      "dependencies": ["scrap availability & quality", "collection systems", "product design for recycling"],
+      "dependencies": [
+        "scrap availability & quality",
+        "collection systems",
+        "product design for recycling"
+      ],
       "nature_people": {
         "upstream": "Reduces mining and virgin-material extraction pressure on ecosystems.",
         "operations": "Recycling-sector jobs; informal-waste-sector inclusion in emerging markets.",
         "downstream": "Circular product-service models for customers."
       },
-      "applicable_sectors": ["steel", "aluminium", "cement", "chemicals", "manufacturing_general"],
-      "references": ["IEA Material Efficiency 2019", "Ellen MacArthur Foundation 2021", "IPCC AR6 WG3 Ch.11"]
+      "applicable_sectors": [
+        "steel",
+        "aluminium",
+        "cement",
+        "chemicals",
+        "manufacturing_general"
+      ],
+      "references": [
+        "IEA Material Efficiency 2019",
+        "Ellen MacArthur Foundation 2021",
+        "IPCC AR6 WG3 Ch.11"
+      ]
     },
     "low_clinker_cement": {
       "name": "Low-clinker & alternative cement",
       "domain": "industry",
       "description": "Clinker substitution (SCMs, calcined clays), novel binders and lower clinker ratios to cut process CO2.",
-      "cost_range_usd_per_tco2": [-20, 80],
+      "cost_range_usd_per_tco2": [
+        -20,
+        80
+      ],
       "mitigation_potential": "medium",
       "maturity": "commercial",
       "net_zero_2050_role": "Near-term cement lever ahead of CCUS; LC3 and SCM blends deployable now with standards updates.",
-      "dependencies": ["SCM availability (fly ash/slag declining)", "product standards & codes", "customer acceptance"],
+      "dependencies": [
+        "SCM availability (fly ash/slag declining)",
+        "product standards & codes",
+        "customer acceptance"
+      ],
       "nature_people": {
         "upstream": "Calcined-clay sourcing; reduced limestone quarrying.",
         "operations": "Formulation change with limited capex.",
         "downstream": "Building-code and specifier acceptance needed."
       },
-      "applicable_sectors": ["cement"],
-      "references": ["Mission Possible Partnership Cement 2023", "GCCA Roadmap 2021"]
+      "applicable_sectors": [
+        "cement"
+      ],
+      "references": [
+        "Mission Possible Partnership Cement 2023",
+        "GCCA Roadmap 2021"
+      ]
     },
     "process_electrification": {
       "name": "Electrification of industrial heat & processes",
       "domain": "industry",
       "description": "Electric arc furnaces, industrial heat pumps, electric boilers and resistive heating to displace fossil combustion.",
-      "cost_range_usd_per_tco2": [0, 150],
+      "cost_range_usd_per_tco2": [
+        0,
+        150
+      ],
       "mitigation_potential": "medium",
       "maturity": "commercial",
       "net_zero_2050_role": "Low-to-mid temperature heat electrification is ready now; high-temperature electrification still developing.",
-      "dependencies": ["clean & affordable electricity", "grid capacity", "process redesign"],
+      "dependencies": [
+        "clean & affordable electricity",
+        "grid capacity",
+        "process redesign"
+      ],
       "nature_people": {
         "upstream": "Shifts load to power sector — benefit depends on grid cleanliness.",
         "operations": "Capex and downtime for conversion; workforce reskilling.",
         "downstream": "Lower Scope-1 intensity of products."
       },
-      "applicable_sectors": ["steel", "chemicals", "aluminium", "manufacturing_general", "oil_refining"],
-      "references": ["IEA NZE 2023", "IPCC AR6 WG3 Ch.11"]
+      "applicable_sectors": [
+        "steel",
+        "chemicals",
+        "aluminium",
+        "manufacturing_general",
+        "oil_refining"
+      ],
+      "references": [
+        "IEA NZE 2023",
+        "IPCC AR6 WG3 Ch.11"
+      ]
     },
     "bioenergy_switch": {
       "name": "Fuel switching to sustainable bioenergy/biogas",
       "domain": "industry",
       "description": "Replace fossil fuels with sustainably-sourced biomass, biogas or biomethane for heat and power.",
-      "cost_range_usd_per_tco2": [20, 120],
+      "cost_range_usd_per_tco2": [
+        20,
+        120
+      ],
       "mitigation_potential": "low",
       "maturity": "commercial",
       "net_zero_2050_role": "Useful for medium-temperature heat where electrification is hard; constrained by sustainable feedstock limits.",
-      "dependencies": ["sustainable feedstock supply", "land-use safeguards", "logistics"],
+      "dependencies": [
+        "sustainable feedstock supply",
+        "land-use safeguards",
+        "logistics"
+      ],
       "nature_people": {
         "upstream": "Feedstock land-use and biodiversity risk if not certified sustainable; food-vs-fuel tension.",
         "operations": "Combustion-system retrofit.",
         "downstream": "Lower fossil dependence."
       },
-      "applicable_sectors": ["cement", "chemicals", "manufacturing_general", "agriculture"],
-      "references": ["IEA Bioenergy 2023", "IPCC AR6 WG3 Ch.7"]
+      "applicable_sectors": [
+        "cement",
+        "chemicals",
+        "manufacturing_general",
+        "agriculture"
+      ],
+      "references": [
+        "IEA Bioenergy 2023",
+        "IPCC AR6 WG3 Ch.7"
+      ]
     },
-
     "building_retrofit": {
       "name": "Building energy-efficiency retrofit (envelope)",
       "domain": "buildings",
       "description": "Insulation, glazing, air-sealing and controls to cut heating/cooling demand.",
-      "cost_range_usd_per_tco2": [-70, 60],
+      "cost_range_usd_per_tco2": [
+        -70,
+        60
+      ],
       "mitigation_potential": "medium",
       "maturity": "mature",
       "net_zero_2050_role": "Deep-retrofit rate must roughly double (IEA). Envelope-first before heat electrification. Often net-negative over life.",
-      "dependencies": ["capital & split incentives (landlord/tenant)", "skilled retrofit workforce", "regulation (MEES/EPBD/LL97)"],
+      "dependencies": [
+        "capital & split incentives (landlord/tenant)",
+        "skilled retrofit workforce",
+        "regulation (MEES/EPBD/LL97)"
+      ],
       "nature_people": {
         "upstream": "Insulation-material embodied carbon and chemistry.",
         "operations": "Occupant disruption; retrofit-skills employment.",
         "downstream": "Lower bills and improved comfort/health; energy-poverty relief."
       },
-      "applicable_sectors": ["real_estate_commercial", "real_estate_residential", "services"],
-      "references": ["IEA Buildings 2023", "IPCC AR6 WG3 Ch.9"]
+      "applicable_sectors": [
+        "real_estate_commercial",
+        "real_estate_residential",
+        "services"
+      ],
+      "references": [
+        "IEA Buildings 2023",
+        "IPCC AR6 WG3 Ch.9"
+      ]
     },
     "heat_pumps": {
       "name": "Heat-pump / building heating electrification",
       "domain": "buildings",
       "description": "Replace fossil boilers with electric heat pumps for space and water heating.",
-      "cost_range_usd_per_tco2": [0, 120],
+      "cost_range_usd_per_tco2": [
+        0,
+        120
+      ],
       "mitigation_potential": "high",
       "maturity": "commercial",
       "net_zero_2050_role": "Core buildings lever; IEA NZE needs heat-pump sales to more than triple by 2030.",
-      "dependencies": ["clean grid", "envelope efficiency", "installer capacity", "upfront-cost support"],
+      "dependencies": [
+        "clean grid",
+        "envelope efficiency",
+        "installer capacity",
+        "upfront-cost support"
+      ],
       "nature_people": {
         "upstream": "Refrigerant (F-gas) leakage risk; grid-load shift.",
         "operations": "Installer workforce scale-up.",
         "downstream": "Lower running costs where power is clean; comfort benefits."
       },
-      "applicable_sectors": ["real_estate_commercial", "real_estate_residential", "gas_distribution", "services"],
-      "references": ["IEA The Future of Heat Pumps 2022"]
+      "applicable_sectors": [
+        "real_estate_commercial",
+        "real_estate_residential",
+        "gas_distribution",
+        "services"
+      ],
+      "references": [
+        "IEA The Future of Heat Pumps 2022"
+      ]
     },
     "smart_controls": {
       "name": "Smart building controls & demand management",
       "domain": "buildings",
       "description": "BMS, sub-metering, demand-response and occupancy-based controls to cut operational energy.",
-      "cost_range_usd_per_tco2": [-90, 10],
+      "cost_range_usd_per_tco2": [
+        -90,
+        10
+      ],
       "mitigation_potential": "low",
       "maturity": "mature",
       "net_zero_2050_role": "Low-cost, quick-payback operational lever; enables grid demand flexibility.",
-      "dependencies": ["metering/data", "commissioning discipline"],
+      "dependencies": [
+        "metering/data",
+        "commissioning discipline"
+      ],
       "nature_people": {
         "upstream": "Electronics supply chain.",
         "operations": "Facilities-workforce digital skills.",
         "downstream": "Lower tenant energy costs; grid-flexibility value."
       },
-      "applicable_sectors": ["real_estate_commercial", "data_center", "services", "manufacturing_general"],
-      "references": ["IEA Digitalisation & Energy 2023"]
+      "applicable_sectors": [
+        "real_estate_commercial",
+        "data_center",
+        "services",
+        "manufacturing_general"
+      ],
+      "references": [
+        "IEA Digitalisation & Energy 2023"
+      ]
     },
     "embodied_carbon": {
       "name": "Low-embodied-carbon construction",
       "domain": "buildings",
       "description": "Low-carbon materials (mass timber, green cement/steel), reuse and design efficiency to cut embodied emissions.",
-      "cost_range_usd_per_tco2": [10, 120],
+      "cost_range_usd_per_tco2": [
+        10,
+        120
+      ],
       "mitigation_potential": "medium",
       "maturity": "emerging",
       "net_zero_2050_role": "Embodied carbon is ~half of new-build lifecycle emissions; addressed via specification and reuse.",
-      "dependencies": ["material availability (green steel/cement)", "codes & procurement", "whole-life-carbon accounting"],
+      "dependencies": [
+        "material availability (green steel/cement)",
+        "codes & procurement",
+        "whole-life-carbon accounting"
+      ],
       "nature_people": {
         "upstream": "Drives demand for the industry levers (green steel, low-clinker cement); sustainable-timber sourcing.",
         "operations": "Design and procurement decisions.",
         "downstream": "Lower lifecycle footprint of built assets."
       },
-      "applicable_sectors": ["real_estate_commercial", "real_estate_residential", "cement", "steel"],
-      "references": ["WGBC Bringing Embodied Carbon Upfront 2019", "IEA Buildings 2023"]
+      "applicable_sectors": [
+        "real_estate_commercial",
+        "real_estate_residential",
+        "cement",
+        "steel"
+      ],
+      "references": [
+        "WGBC Bringing Embodied Carbon Upfront 2019",
+        "IEA Buildings 2023"
+      ]
     },
-
     "regenerative_agriculture": {
       "name": "Regenerative agriculture & soil carbon",
       "domain": "flag_water",
       "description": "Cover crops, reduced tillage, rotations and agroforestry to cut emissions and sequester soil carbon.",
-      "cost_range_usd_per_tco2": [-40, 60],
+      "cost_range_usd_per_tco2": [
+        -40,
+        60
+      ],
       "mitigation_potential": "medium",
       "maturity": "commercial",
       "net_zero_2050_role": "Central FLAG lever; delivers mitigation plus resilience and yield co-benefits. Soil-carbon permanence/MRV is a caveat.",
-      "dependencies": ["farmer incentives & finance", "MRV integrity", "extension/knowledge"],
+      "dependencies": [
+        "farmer incentives & finance",
+        "MRV integrity",
+        "extension/knowledge"
+      ],
       "nature_people": {
         "upstream": "Reduced synthetic-fertiliser and fuel inputs.",
         "operations": "Farmer-livelihood and smallholder-inclusion considerations; transition-period yield risk.",
         "downstream": "More resilient food supply; biodiversity and water-quality co-benefits."
       },
-      "applicable_sectors": ["agriculture"],
-      "references": ["SBTi FLAG 2023", "Project Drawdown 2024", "IPCC AR6 WG3 Ch.7"]
+      "applicable_sectors": [
+        "agriculture"
+      ],
+      "references": [
+        "SBTi FLAG 2023",
+        "Project Drawdown 2024",
+        "IPCC AR6 WG3 Ch.7"
+      ]
     },
     "methane_livestock": {
       "name": "Livestock & agricultural methane reduction",
       "domain": "flag_water",
       "description": "Feed additives, manure management, herd-efficiency and dietary shift to cut enteric and manure methane.",
-      "cost_range_usd_per_tco2": [-20, 100],
+      "cost_range_usd_per_tco2": [
+        -20,
+        100
+      ],
       "mitigation_potential": "medium",
       "maturity": "emerging",
       "net_zero_2050_role": "Methane is a high-leverage near-term lever (Global Methane Pledge); feed additives (e.g. 3-NOP) early-commercial.",
-      "dependencies": ["additive approval & cost", "manure-system capex", "demand-side dietary shift"],
+      "dependencies": [
+        "additive approval & cost",
+        "manure-system capex",
+        "demand-side dietary shift"
+      ],
       "nature_people": {
         "upstream": "Feed-supply-chain land use.",
         "operations": "Producer economics and smallholder access to additives.",
         "downstream": "Dietary-shift and food-security considerations."
       },
-      "applicable_sectors": ["agriculture"],
-      "references": ["Global Methane Pledge 2021", "IPCC AR6 WG3 Ch.7"]
+      "applicable_sectors": [
+        "agriculture"
+      ],
+      "references": [
+        "Global Methane Pledge 2021",
+        "IPCC AR6 WG3 Ch.7"
+      ]
     },
     "avoided_deforestation": {
       "name": "Avoided deforestation & land-use change (FLAG)",
       "domain": "flag_water",
       "description": "Eliminate commodity-driven deforestation and conversion in supply chains (soy, palm, cattle, timber).",
-      "cost_range_usd_per_tco2": [-10, 40],
+      "cost_range_usd_per_tco2": [
+        -10,
+        40
+      ],
       "mitigation_potential": "high",
       "maturity": "commercial",
       "net_zero_2050_role": "Halting deforestation is one of the largest and lowest-cost mitigation levers (IPCC). Central to FLAG-sector targets and EUDR compliance.",
-      "dependencies": ["supply-chain traceability", "landholder incentives", "policy enforcement (EUDR)"],
+      "dependencies": [
+        "supply-chain traceability",
+        "landholder incentives",
+        "policy enforcement (EUDR)"
+      ],
       "nature_people": {
         "upstream": "Directly protects primary forests and Indigenous lands/rights.",
         "operations": "Traceability and supplier engagement systems.",
         "downstream": "Deforestation-free product claims and market access."
       },
-      "applicable_sectors": ["agriculture"],
-      "references": ["IPCC AR6 WG3 Ch.7", "SBTi FLAG 2023", "EU Deforestation Regulation 2023"]
+      "applicable_sectors": [
+        "agriculture"
+      ],
+      "references": [
+        "IPCC AR6 WG3 Ch.7",
+        "SBTi FLAG 2023",
+        "EU Deforestation Regulation 2023"
+      ]
     },
     "nature_based_removals": {
       "name": "Nature-based solutions & carbon removals",
       "domain": "flag_water",
       "description": "Afforestation, reforestation, peatland/wetland and mangrove restoration for sequestration and resilience.",
-      "cost_range_usd_per_tco2": [5, 50],
+      "cost_range_usd_per_tco2": [
+        5,
+        50
+      ],
       "mitigation_potential": "medium",
       "maturity": "commercial",
       "net_zero_2050_role": "Provides removals for residual emissions; must be additional, permanent and high-integrity (used AFTER deep reductions, not as offset substitute).",
-      "dependencies": ["land availability", "MRV & permanence", "credit-market integrity"],
+      "dependencies": [
+        "land availability",
+        "MRV & permanence",
+        "credit-market integrity"
+      ],
       "nature_people": {
         "upstream": "Restores ecosystems and biodiversity.",
         "operations": "Land-rights and community-benefit-sharing; avoid monoculture harm.",
         "downstream": "High-integrity removal credits; resilience co-benefits."
       },
-      "applicable_sectors": ["agriculture", "oil_upstream", "aviation"],
-      "references": ["IPCC AR6 WG3 Ch.7", "Oxford Principles for Net Zero Aligned Offsetting 2020"]
+      "applicable_sectors": [
+        "agriculture",
+        "oil_upstream",
+        "aviation"
+      ],
+      "references": [
+        "IPCC AR6 WG3 Ch.7",
+        "Oxford Principles for Net Zero Aligned Offsetting 2020"
+      ]
     },
     "water_management": {
       "name": "Water efficiency & circular water management",
       "domain": "flag_water",
       "description": "Water reuse, efficiency and energy-water-nexus optimisation to cut water-related energy and emissions.",
-      "cost_range_usd_per_tco2": [-30, 50],
+      "cost_range_usd_per_tco2": [
+        -30,
+        50
+      ],
       "mitigation_potential": "low",
       "maturity": "mature",
       "net_zero_2050_role": "Cross-cutting resilience + efficiency lever; reduces energy for pumping/treatment and improves drought resilience.",
-      "dependencies": ["metering & tariff signals", "reuse infrastructure"],
+      "dependencies": [
+        "metering & tariff signals",
+        "reuse infrastructure"
+      ],
       "nature_people": {
         "upstream": "Eases watershed stress shared with communities and ecosystems.",
         "operations": "Process-water recycling capex.",
         "downstream": "Water-security co-benefits in stressed basins."
       },
-      "applicable_sectors": ["agriculture", "chemicals", "steel", "aluminium", "data_center", "power_coal", "power_gas"],
-      "references": ["WRI Aqueduct 2023", "CDP Water 2023"]
+      "applicable_sectors": [
+        "agriculture",
+        "chemicals",
+        "steel",
+        "aluminium",
+        "data_center",
+        "power_coal",
+        "power_gas"
+      ],
+      "references": [
+        "WRI Aqueduct 2023",
+        "CDP Water 2023"
+      ]
     }
   },
-
   "sector_lever_map": {
     "power_coal": [
-      {"lever": "fossil_phaseout", "position": "own_operations", "relevance": "primary", "rationale": "Retire/repurpose unabated coal capacity — the defining lever for this sector."},
-      {"lever": "renewable_generation", "position": "own_operations", "relevance": "primary", "rationale": "Replacement clean capacity to substitute retired coal MWh."},
-      {"lever": "ccus", "position": "own_operations", "relevance": "secondary", "rationale": "Only viable to retain any thermal capacity; costly retrofit."},
-      {"lever": "firm_clean_power", "position": "own_operations", "relevance": "secondary", "rationale": "Firm zero-carbon replacement for baseload role."},
-      {"lever": "grid_flexibility", "position": "downstream", "relevance": "secondary", "rationale": "Grid integration of the replacement clean fleet."}
+      {
+        "lever": "fossil_phaseout",
+        "position": "own_operations",
+        "relevance": "primary",
+        "rationale": "Retire/repurpose unabated coal capacity — the defining lever for this sector."
+      },
+      {
+        "lever": "renewable_generation",
+        "position": "own_operations",
+        "relevance": "primary",
+        "rationale": "Replacement clean capacity to substitute retired coal MWh."
+      },
+      {
+        "lever": "ccus",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Only viable to retain any thermal capacity; costly retrofit."
+      },
+      {
+        "lever": "firm_clean_power",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Firm zero-carbon replacement for baseload role."
+      },
+      {
+        "lever": "grid_flexibility",
+        "position": "downstream",
+        "relevance": "secondary",
+        "rationale": "Grid integration of the replacement clean fleet."
+      }
     ],
     "power_gas": [
-      {"lever": "renewable_generation", "position": "own_operations", "relevance": "primary", "rationale": "Displace gas generation with renewables."},
-      {"lever": "energy_storage", "position": "own_operations", "relevance": "primary", "rationale": "Batteries displace peaker gas and firm renewables."},
-      {"lever": "ccus", "position": "own_operations", "relevance": "secondary", "rationale": "Abate residual dispatchable gas."},
-      {"lever": "green_hydrogen_energy", "position": "upstream", "relevance": "secondary", "rationale": "H2/clean-fuel co-firing pathway."},
-      {"lever": "grid_flexibility", "position": "downstream", "relevance": "secondary", "rationale": "Flexibility reduces need for unabated gas peaking."}
+      {
+        "lever": "renewable_generation",
+        "position": "own_operations",
+        "relevance": "primary",
+        "rationale": "Displace gas generation with renewables."
+      },
+      {
+        "lever": "energy_storage",
+        "position": "own_operations",
+        "relevance": "primary",
+        "rationale": "Batteries displace peaker gas and firm renewables."
+      },
+      {
+        "lever": "ccus",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Abate residual dispatchable gas."
+      },
+      {
+        "lever": "green_hydrogen_energy",
+        "position": "upstream",
+        "relevance": "secondary",
+        "rationale": "H2/clean-fuel co-firing pathway."
+      },
+      {
+        "lever": "grid_flexibility",
+        "position": "downstream",
+        "relevance": "secondary",
+        "rationale": "Flexibility reduces need for unabated gas peaking."
+      }
     ],
     "power_renewable": [
-      {"lever": "renewable_generation", "position": "own_operations", "relevance": "primary", "rationale": "Core business — scale up capacity."},
-      {"lever": "energy_storage", "position": "own_operations", "relevance": "primary", "rationale": "Firming to raise capture price and dispatchability."},
-      {"lever": "grid_flexibility", "position": "downstream", "relevance": "primary", "rationale": "Reduce curtailment and enable integration."},
-      {"lever": "green_hydrogen_energy", "position": "downstream", "relevance": "secondary", "rationale": "Off-take for surplus generation via electrolysis."}
+      {
+        "lever": "renewable_generation",
+        "position": "own_operations",
+        "relevance": "primary",
+        "rationale": "Core business — scale up capacity."
+      },
+      {
+        "lever": "energy_storage",
+        "position": "own_operations",
+        "relevance": "primary",
+        "rationale": "Firming to raise capture price and dispatchability."
+      },
+      {
+        "lever": "grid_flexibility",
+        "position": "downstream",
+        "relevance": "primary",
+        "rationale": "Reduce curtailment and enable integration."
+      },
+      {
+        "lever": "green_hydrogen_energy",
+        "position": "downstream",
+        "relevance": "secondary",
+        "rationale": "Off-take for surplus generation via electrolysis."
+      }
     ],
     "oil_upstream": [
-      {"lever": "fossil_phaseout", "position": "downstream", "relevance": "primary", "rationale": "Demand destruction for the core product under transition scenarios."},
-      {"lever": "nature_based_removals", "position": "own_operations", "relevance": "secondary", "rationale": "Removals for residual/hard-to-abate emissions."},
-      {"lever": "energy_efficiency_industry", "position": "own_operations", "relevance": "secondary", "rationale": "Cut operational (flaring/venting/methane) emissions."},
-      {"lever": "green_hydrogen_energy", "position": "downstream", "relevance": "secondary", "rationale": "Business-model pivot toward clean molecules."}
+      {
+        "lever": "fossil_phaseout",
+        "position": "downstream",
+        "relevance": "primary",
+        "rationale": "Demand destruction for the core product under transition scenarios."
+      },
+      {
+        "lever": "nature_based_removals",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Removals for residual/hard-to-abate emissions."
+      },
+      {
+        "lever": "energy_efficiency_industry",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Cut operational (flaring/venting/methane) emissions."
+      },
+      {
+        "lever": "green_hydrogen_energy",
+        "position": "downstream",
+        "relevance": "secondary",
+        "rationale": "Business-model pivot toward clean molecules."
+      }
     ],
     "oil_refining": [
-      {"lever": "energy_efficiency_industry", "position": "own_operations", "relevance": "primary", "rationale": "Refinery efficiency is the near-term Scope 1+2 lever."},
-      {"lever": "saf", "position": "downstream", "relevance": "primary", "rationale": "Repurpose to biorefining / SAF as fossil-fuel demand falls."},
-      {"lever": "green_hydrogen_energy", "position": "upstream", "relevance": "secondary", "rationale": "Green H2 replaces grey H2 used in refining."},
-      {"lever": "ccus", "position": "own_operations", "relevance": "secondary", "rationale": "Capture process emissions."},
-      {"lever": "process_electrification", "position": "own_operations", "relevance": "secondary", "rationale": "Electrify process heat."}
+      {
+        "lever": "energy_efficiency_industry",
+        "position": "own_operations",
+        "relevance": "primary",
+        "rationale": "Refinery efficiency is the near-term Scope 1+2 lever."
+      },
+      {
+        "lever": "saf",
+        "position": "downstream",
+        "relevance": "primary",
+        "rationale": "Repurpose to biorefining / SAF as fossil-fuel demand falls."
+      },
+      {
+        "lever": "green_hydrogen_energy",
+        "position": "upstream",
+        "relevance": "secondary",
+        "rationale": "Green H2 replaces grey H2 used in refining."
+      },
+      {
+        "lever": "ccus",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Capture process emissions."
+      },
+      {
+        "lever": "process_electrification",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Electrify process heat."
+      }
     ],
     "gas_distribution": [
-      {"lever": "heat_pumps", "position": "downstream", "relevance": "primary", "rationale": "Customer electrification erodes the gas-network business — the core stranding driver."},
-      {"lever": "renewable_procurement", "position": "own_operations", "relevance": "secondary", "rationale": "Cut network operational emissions."},
-      {"lever": "green_hydrogen_energy", "position": "own_operations", "relevance": "secondary", "rationale": "Potential repurposing of networks for hydrogen (contested)."},
-      {"lever": "charging_infrastructure", "position": "downstream", "relevance": "secondary", "rationale": "Diversify into energy-distribution adjacencies."}
+      {
+        "lever": "heat_pumps",
+        "position": "downstream",
+        "relevance": "primary",
+        "rationale": "Customer electrification erodes the gas-network business — the core stranding driver."
+      },
+      {
+        "lever": "renewable_procurement",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Cut network operational emissions."
+      },
+      {
+        "lever": "green_hydrogen_energy",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Potential repurposing of networks for hydrogen (contested)."
+      },
+      {
+        "lever": "charging_infrastructure",
+        "position": "downstream",
+        "relevance": "secondary",
+        "rationale": "Diversify into energy-distribution adjacencies."
+      }
     ],
     "steel": [
-      {"lever": "hydrogen_feedstock", "position": "own_operations", "relevance": "primary", "rationale": "H2-DRI is the primary deep-decarbonisation route for virgin steel."},
-      {"lever": "material_efficiency", "position": "own_operations", "relevance": "primary", "rationale": "Scrap-based EAF steel and light-weighting cut primary demand."},
-      {"lever": "process_electrification", "position": "own_operations", "relevance": "primary", "rationale": "Electric arc furnace route."},
-      {"lever": "ccus", "position": "own_operations", "relevance": "secondary", "rationale": "Abate blast-furnace emissions during transition."},
-      {"lever": "energy_efficiency_industry", "position": "own_operations", "relevance": "secondary", "rationale": "Near-term efficiency gains."},
-      {"lever": "renewable_procurement", "position": "upstream", "relevance": "secondary", "rationale": "Clean power for EAF/electrolysis Scope 2."}
+      {
+        "lever": "hydrogen_feedstock",
+        "position": "own_operations",
+        "relevance": "primary",
+        "rationale": "H2-DRI is the primary deep-decarbonisation route for virgin steel."
+      },
+      {
+        "lever": "material_efficiency",
+        "position": "own_operations",
+        "relevance": "primary",
+        "rationale": "Scrap-based EAF steel and light-weighting cut primary demand."
+      },
+      {
+        "lever": "process_electrification",
+        "position": "own_operations",
+        "relevance": "primary",
+        "rationale": "Electric arc furnace route."
+      },
+      {
+        "lever": "ccus",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Abate blast-furnace emissions during transition."
+      },
+      {
+        "lever": "energy_efficiency_industry",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Near-term efficiency gains."
+      },
+      {
+        "lever": "renewable_procurement",
+        "position": "upstream",
+        "relevance": "secondary",
+        "rationale": "Clean power for EAF/electrolysis Scope 2."
+      }
     ],
     "cement": [
-      {"lever": "low_clinker_cement", "position": "own_operations", "relevance": "primary", "rationale": "Clinker substitution is the ready near-term lever."},
-      {"lever": "ccus", "position": "own_operations", "relevance": "primary", "rationale": "Only route to abate ~60% process CO2 for net-zero."},
-      {"lever": "bioenergy_switch", "position": "own_operations", "relevance": "secondary", "rationale": "Alternative kiln fuels displace fossil heat."},
-      {"lever": "material_efficiency", "position": "downstream", "relevance": "secondary", "rationale": "Design efficiency and reuse cut cement demand."},
-      {"lever": "energy_efficiency_industry", "position": "own_operations", "relevance": "secondary", "rationale": "Kiln and grinding efficiency."}
+      {
+        "lever": "low_clinker_cement",
+        "position": "own_operations",
+        "relevance": "primary",
+        "rationale": "Clinker substitution is the ready near-term lever."
+      },
+      {
+        "lever": "ccus",
+        "position": "own_operations",
+        "relevance": "primary",
+        "rationale": "Only route to abate ~60% process CO2 for net-zero."
+      },
+      {
+        "lever": "bioenergy_switch",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Alternative kiln fuels displace fossil heat."
+      },
+      {
+        "lever": "material_efficiency",
+        "position": "downstream",
+        "relevance": "secondary",
+        "rationale": "Design efficiency and reuse cut cement demand."
+      },
+      {
+        "lever": "energy_efficiency_industry",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Kiln and grinding efficiency."
+      }
     ],
     "chemicals": [
-      {"lever": "green_hydrogen_energy", "position": "upstream", "relevance": "primary", "rationale": "Green H2/ammonia feedstock replaces fossil-based routes."},
-      {"lever": "process_electrification", "position": "own_operations", "relevance": "primary", "rationale": "Electrify steam-cracking and process heat."},
-      {"lever": "ccus", "position": "own_operations", "relevance": "secondary", "rationale": "Capture unavoidable process emissions."},
-      {"lever": "material_efficiency", "position": "downstream", "relevance": "secondary", "rationale": "Chemical recycling and circular feedstock."},
-      {"lever": "energy_efficiency_industry", "position": "own_operations", "relevance": "secondary", "rationale": "Heat integration and efficiency."}
+      {
+        "lever": "green_hydrogen_energy",
+        "position": "upstream",
+        "relevance": "primary",
+        "rationale": "Green H2/ammonia feedstock replaces fossil-based routes."
+      },
+      {
+        "lever": "process_electrification",
+        "position": "own_operations",
+        "relevance": "primary",
+        "rationale": "Electrify steam-cracking and process heat."
+      },
+      {
+        "lever": "ccus",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Capture unavoidable process emissions."
+      },
+      {
+        "lever": "material_efficiency",
+        "position": "downstream",
+        "relevance": "secondary",
+        "rationale": "Chemical recycling and circular feedstock."
+      },
+      {
+        "lever": "energy_efficiency_industry",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Heat integration and efficiency."
+      }
     ],
     "aluminium": [
-      {"lever": "renewable_procurement", "position": "upstream", "relevance": "primary", "rationale": "Smelting is Scope-2 dominant; clean power is the key lever."},
-      {"lever": "material_efficiency", "position": "own_operations", "relevance": "primary", "rationale": "Secondary (recycled) aluminium uses ~5% of primary energy."},
-      {"lever": "process_electrification", "position": "own_operations", "relevance": "secondary", "rationale": "Inert-anode and electrified processes cut direct emissions."},
-      {"lever": "energy_efficiency_industry", "position": "own_operations", "relevance": "secondary", "rationale": "Smelter efficiency."}
+      {
+        "lever": "renewable_procurement",
+        "position": "upstream",
+        "relevance": "primary",
+        "rationale": "Smelting is Scope-2 dominant; clean power is the key lever."
+      },
+      {
+        "lever": "material_efficiency",
+        "position": "own_operations",
+        "relevance": "primary",
+        "rationale": "Secondary (recycled) aluminium uses ~5% of primary energy."
+      },
+      {
+        "lever": "process_electrification",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Inert-anode and electrified processes cut direct emissions."
+      },
+      {
+        "lever": "energy_efficiency_industry",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Smelter efficiency."
+      }
     ],
     "road_transport_ice": [
-      {"lever": "fleet_electrification", "position": "downstream", "relevance": "primary", "rationale": "Product pivot from ICE to EV — the defining transition for automakers."},
-      {"lever": "material_efficiency", "position": "upstream", "relevance": "secondary", "rationale": "Light-weighting and green materials cut embedded emissions."},
-      {"lever": "renewable_procurement", "position": "own_operations", "relevance": "secondary", "rationale": "Clean power for manufacturing plants."},
-      {"lever": "modal_shift", "position": "downstream", "relevance": "secondary", "rationale": "Demand-side shift reduces the ICE fleet."}
+      {
+        "lever": "fleet_electrification",
+        "position": "downstream",
+        "relevance": "primary",
+        "rationale": "Product pivot from ICE to EV — the defining transition for automakers."
+      },
+      {
+        "lever": "material_efficiency",
+        "position": "upstream",
+        "relevance": "secondary",
+        "rationale": "Light-weighting and green materials cut embedded emissions."
+      },
+      {
+        "lever": "renewable_procurement",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Clean power for manufacturing plants."
+      },
+      {
+        "lever": "modal_shift",
+        "position": "downstream",
+        "relevance": "secondary",
+        "rationale": "Demand-side shift reduces the ICE fleet."
+      }
     ],
     "road_transport_ev": [
-      {"lever": "charging_infrastructure", "position": "downstream", "relevance": "primary", "rationale": "Removes the key adoption barrier for the EV product."},
-      {"lever": "renewable_procurement", "position": "own_operations", "relevance": "primary", "rationale": "Clean power for gigafactories and assembly."},
-      {"lever": "material_efficiency", "position": "upstream", "relevance": "primary", "rationale": "Battery recycling and responsible mineral sourcing."},
-      {"lever": "renewable_generation", "position": "downstream", "relevance": "secondary", "rationale": "Clean grid determines the EV product's lifecycle benefit."}
+      {
+        "lever": "charging_infrastructure",
+        "position": "downstream",
+        "relevance": "primary",
+        "rationale": "Removes the key adoption barrier for the EV product."
+      },
+      {
+        "lever": "renewable_procurement",
+        "position": "own_operations",
+        "relevance": "primary",
+        "rationale": "Clean power for gigafactories and assembly."
+      },
+      {
+        "lever": "material_efficiency",
+        "position": "upstream",
+        "relevance": "primary",
+        "rationale": "Battery recycling and responsible mineral sourcing."
+      },
+      {
+        "lever": "renewable_generation",
+        "position": "downstream",
+        "relevance": "secondary",
+        "rationale": "Clean grid determines the EV product's lifecycle benefit."
+      }
     ],
     "aviation": [
-      {"lever": "saf", "position": "upstream", "relevance": "primary", "rationale": "SAF is the primary lever where electrification is infeasible."},
-      {"lever": "freight_efficiency", "position": "own_operations", "relevance": "secondary", "rationale": "Fleet renewal and operational efficiency."},
-      {"lever": "modal_shift", "position": "downstream", "relevance": "secondary", "rationale": "Rail substitution on short-haul reduces demand."},
-      {"lever": "nature_based_removals", "position": "downstream", "relevance": "secondary", "rationale": "High-integrity removals for residual emissions (CORSIA)."}
+      {
+        "lever": "saf",
+        "position": "upstream",
+        "relevance": "primary",
+        "rationale": "SAF is the primary lever where electrification is infeasible."
+      },
+      {
+        "lever": "freight_efficiency",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Fleet renewal and operational efficiency."
+      },
+      {
+        "lever": "modal_shift",
+        "position": "downstream",
+        "relevance": "secondary",
+        "rationale": "Rail substitution on short-haul reduces demand."
+      },
+      {
+        "lever": "nature_based_removals",
+        "position": "downstream",
+        "relevance": "secondary",
+        "rationale": "High-integrity removals for residual emissions (CORSIA)."
+      }
     ],
     "shipping": [
-      {"lever": "clean_shipping_fuels", "position": "upstream", "relevance": "primary", "rationale": "Green ammonia/methanol is the primary deep-decarbonisation fuel lever."},
-      {"lever": "freight_efficiency", "position": "own_operations", "relevance": "primary", "rationale": "Slow-steaming, wind assist and hull efficiency available now."},
-      {"lever": "green_hydrogen_energy", "position": "upstream", "relevance": "secondary", "rationale": "Green H2 underpins clean marine fuels."},
-      {"lever": "modal_shift", "position": "downstream", "relevance": "secondary", "rationale": "Logistics optimisation across freight modes."}
+      {
+        "lever": "clean_shipping_fuels",
+        "position": "upstream",
+        "relevance": "primary",
+        "rationale": "Green ammonia/methanol is the primary deep-decarbonisation fuel lever."
+      },
+      {
+        "lever": "freight_efficiency",
+        "position": "own_operations",
+        "relevance": "primary",
+        "rationale": "Slow-steaming, wind assist and hull efficiency available now."
+      },
+      {
+        "lever": "green_hydrogen_energy",
+        "position": "upstream",
+        "relevance": "secondary",
+        "rationale": "Green H2 underpins clean marine fuels."
+      },
+      {
+        "lever": "modal_shift",
+        "position": "downstream",
+        "relevance": "secondary",
+        "rationale": "Logistics optimisation across freight modes."
+      }
     ],
     "real_estate_commercial": [
-      {"lever": "heat_pumps", "position": "own_operations", "relevance": "primary", "rationale": "Electrify heating to cut operational Scope 1."},
-      {"lever": "building_retrofit", "position": "own_operations", "relevance": "primary", "rationale": "Envelope efficiency — regulation-driven (MEES/LL97/EPBD)."},
-      {"lever": "renewable_procurement", "position": "own_operations", "relevance": "primary", "rationale": "Cut Scope 2 via PPAs/green tariffs and on-site solar."},
-      {"lever": "smart_controls", "position": "own_operations", "relevance": "secondary", "rationale": "Low-cost operational-energy reductions."},
-      {"lever": "embodied_carbon", "position": "upstream", "relevance": "secondary", "rationale": "Low-carbon materials in development/refurbishment."}
+      {
+        "lever": "heat_pumps",
+        "position": "own_operations",
+        "relevance": "primary",
+        "rationale": "Electrify heating to cut operational Scope 1."
+      },
+      {
+        "lever": "building_retrofit",
+        "position": "own_operations",
+        "relevance": "primary",
+        "rationale": "Envelope efficiency — regulation-driven (MEES/LL97/EPBD)."
+      },
+      {
+        "lever": "renewable_procurement",
+        "position": "own_operations",
+        "relevance": "primary",
+        "rationale": "Cut Scope 2 via PPAs/green tariffs and on-site solar."
+      },
+      {
+        "lever": "smart_controls",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Low-cost operational-energy reductions."
+      },
+      {
+        "lever": "embodied_carbon",
+        "position": "upstream",
+        "relevance": "secondary",
+        "rationale": "Low-carbon materials in development/refurbishment."
+      }
     ],
     "real_estate_residential": [
-      {"lever": "heat_pumps", "position": "own_operations", "relevance": "primary", "rationale": "Boiler-to-heat-pump switch is the core residential lever."},
-      {"lever": "building_retrofit", "position": "own_operations", "relevance": "primary", "rationale": "Insulation/envelope upgrades cut demand and energy poverty."},
-      {"lever": "renewable_procurement", "position": "own_operations", "relevance": "secondary", "rationale": "Green tariffs and rooftop solar."},
-      {"lever": "embodied_carbon", "position": "upstream", "relevance": "secondary", "rationale": "Low-carbon materials in new build."}
+      {
+        "lever": "heat_pumps",
+        "position": "own_operations",
+        "relevance": "primary",
+        "rationale": "Boiler-to-heat-pump switch is the core residential lever."
+      },
+      {
+        "lever": "building_retrofit",
+        "position": "own_operations",
+        "relevance": "primary",
+        "rationale": "Insulation/envelope upgrades cut demand and energy poverty."
+      },
+      {
+        "lever": "renewable_procurement",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Green tariffs and rooftop solar."
+      },
+      {
+        "lever": "embodied_carbon",
+        "position": "upstream",
+        "relevance": "secondary",
+        "rationale": "Low-carbon materials in new build."
+      }
     ],
     "agriculture": [
-      {"lever": "regenerative_agriculture", "position": "own_operations", "relevance": "primary", "rationale": "Soil carbon and reduced-input practices — core FLAG lever."},
-      {"lever": "methane_livestock", "position": "own_operations", "relevance": "primary", "rationale": "Enteric/manure methane is the largest livestock source."},
-      {"lever": "avoided_deforestation", "position": "upstream", "relevance": "primary", "rationale": "Eliminate land-use-change emissions in commodity sourcing."},
-      {"lever": "nature_based_removals", "position": "own_operations", "relevance": "secondary", "rationale": "Agroforestry and restoration removals."},
-      {"lever": "water_management", "position": "own_operations", "relevance": "secondary", "rationale": "Irrigation efficiency and resilience."}
+      {
+        "lever": "regenerative_agriculture",
+        "position": "own_operations",
+        "relevance": "primary",
+        "rationale": "Soil carbon and reduced-input practices — core FLAG lever."
+      },
+      {
+        "lever": "methane_livestock",
+        "position": "own_operations",
+        "relevance": "primary",
+        "rationale": "Enteric/manure methane is the largest livestock source."
+      },
+      {
+        "lever": "avoided_deforestation",
+        "position": "upstream",
+        "relevance": "primary",
+        "rationale": "Eliminate land-use-change emissions in commodity sourcing."
+      },
+      {
+        "lever": "nature_based_removals",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Agroforestry and restoration removals."
+      },
+      {
+        "lever": "water_management",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Irrigation efficiency and resilience."
+      }
     ],
     "data_center": [
-      {"lever": "renewable_procurement", "position": "own_operations", "relevance": "primary", "rationale": "Scope-2 dominant; 24-7 clean-power matching is the key lever."},
-      {"lever": "energy_efficiency_industry", "position": "own_operations", "relevance": "primary", "rationale": "PUE improvement and efficient cooling/compute."},
-      {"lever": "smart_controls", "position": "own_operations", "relevance": "secondary", "rationale": "Workload and cooling optimisation."},
-      {"lever": "energy_storage", "position": "own_operations", "relevance": "secondary", "rationale": "On-site storage displaces diesel backup and firms clean supply."},
-      {"lever": "water_management", "position": "own_operations", "relevance": "secondary", "rationale": "Cooling-water efficiency in stressed basins."}
+      {
+        "lever": "renewable_procurement",
+        "position": "own_operations",
+        "relevance": "primary",
+        "rationale": "Scope-2 dominant; 24-7 clean-power matching is the key lever."
+      },
+      {
+        "lever": "energy_efficiency_industry",
+        "position": "own_operations",
+        "relevance": "primary",
+        "rationale": "PUE improvement and efficient cooling/compute."
+      },
+      {
+        "lever": "smart_controls",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Workload and cooling optimisation."
+      },
+      {
+        "lever": "energy_storage",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "On-site storage displaces diesel backup and firms clean supply."
+      },
+      {
+        "lever": "water_management",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Cooling-water efficiency in stressed basins."
+      }
     ],
     "manufacturing_general": [
-      {"lever": "energy_efficiency_industry", "position": "own_operations", "relevance": "primary", "rationale": "Broad efficiency is the first lever for mixed manufacturing."},
-      {"lever": "renewable_procurement", "position": "own_operations", "relevance": "primary", "rationale": "Cut Scope 2 across facilities."},
-      {"lever": "process_electrification", "position": "own_operations", "relevance": "secondary", "rationale": "Electrify low-to-mid temperature heat."},
-      {"lever": "material_efficiency", "position": "upstream", "relevance": "secondary", "rationale": "Circular inputs and waste reduction."},
-      {"lever": "smart_controls", "position": "own_operations", "relevance": "secondary", "rationale": "Energy-management systems."}
+      {
+        "lever": "energy_efficiency_industry",
+        "position": "own_operations",
+        "relevance": "primary",
+        "rationale": "Broad efficiency is the first lever for mixed manufacturing."
+      },
+      {
+        "lever": "renewable_procurement",
+        "position": "own_operations",
+        "relevance": "primary",
+        "rationale": "Cut Scope 2 across facilities."
+      },
+      {
+        "lever": "process_electrification",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Electrify low-to-mid temperature heat."
+      },
+      {
+        "lever": "material_efficiency",
+        "position": "upstream",
+        "relevance": "secondary",
+        "rationale": "Circular inputs and waste reduction."
+      },
+      {
+        "lever": "smart_controls",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Energy-management systems."
+      }
     ],
     "services": [
-      {"lever": "renewable_procurement", "position": "own_operations", "relevance": "primary", "rationale": "Purchased electricity is the dominant direct footprint."},
-      {"lever": "building_retrofit", "position": "own_operations", "relevance": "secondary", "rationale": "Efficiency of offices and premises."},
-      {"lever": "fleet_electrification", "position": "own_operations", "relevance": "secondary", "rationale": "Electrify company fleet and mobility."},
-      {"lever": "modal_shift", "position": "downstream", "relevance": "secondary", "rationale": "Business-travel reduction and shift."},
-      {"lever": "smart_controls", "position": "own_operations", "relevance": "secondary", "rationale": "Operational-energy management."}
+      {
+        "lever": "renewable_procurement",
+        "position": "own_operations",
+        "relevance": "primary",
+        "rationale": "Purchased electricity is the dominant direct footprint."
+      },
+      {
+        "lever": "building_retrofit",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Efficiency of offices and premises."
+      },
+      {
+        "lever": "fleet_electrification",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Electrify company fleet and mobility."
+      },
+      {
+        "lever": "modal_shift",
+        "position": "downstream",
+        "relevance": "secondary",
+        "rationale": "Business-travel reduction and shift."
+      },
+      {
+        "lever": "smart_controls",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Operational-energy management."
+      }
+    ],
+    "apparel_textiles": [
+      {
+        "lever": "renewable_procurement",
+        "position": "own_operations",
+        "relevance": "primary",
+        "rationale": "Cut Scope-2 across dyeing/finishing mills."
+      },
+      {
+        "lever": "material_efficiency",
+        "position": "upstream",
+        "relevance": "primary",
+        "rationale": "Circular fibre, recycled content and waste reduction cut upstream emissions."
+      },
+      {
+        "lever": "energy_efficiency_industry",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Wet-processing heat efficiency."
+      },
+      {
+        "lever": "regenerative_agriculture",
+        "position": "upstream",
+        "relevance": "secondary",
+        "rationale": "Lower-impact natural fibres (cotton/wool)."
+      }
+    ],
+    "consumer_goods": [
+      {
+        "lever": "renewable_procurement",
+        "position": "own_operations",
+        "relevance": "primary",
+        "rationale": "Clean power for manufacturing and DCs."
+      },
+      {
+        "lever": "regenerative_agriculture",
+        "position": "upstream",
+        "relevance": "primary",
+        "rationale": "Agricultural raw materials dominate Scope 3."
+      },
+      {
+        "lever": "material_efficiency",
+        "position": "upstream",
+        "relevance": "secondary",
+        "rationale": "Packaging reduction and circularity."
+      },
+      {
+        "lever": "freight_efficiency",
+        "position": "downstream",
+        "relevance": "secondary",
+        "rationale": "Distribution and logistics optimisation."
+      }
+    ],
+    "financial_services": [
+      {
+        "lever": "renewable_procurement",
+        "position": "own_operations",
+        "relevance": "primary",
+        "rationale": "Own-operations emissions are dominated by purchased power."
+      },
+      {
+        "lever": "building_retrofit",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Office energy efficiency."
+      }
+    ],
+    "healthcare": [
+      {
+        "lever": "heat_pumps",
+        "position": "own_operations",
+        "relevance": "primary",
+        "rationale": "Electrify facility heating (hospitals are heat-intensive)."
+      },
+      {
+        "lever": "building_retrofit",
+        "position": "own_operations",
+        "relevance": "primary",
+        "rationale": "Facility envelope and efficiency."
+      },
+      {
+        "lever": "renewable_procurement",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Clean power procurement."
+      },
+      {
+        "lever": "material_efficiency",
+        "position": "upstream",
+        "relevance": "secondary",
+        "rationale": "Medical supply-chain and single-use reduction."
+      }
+    ],
+    "professional_services": [
+      {
+        "lever": "renewable_procurement",
+        "position": "own_operations",
+        "relevance": "primary",
+        "rationale": "Purchased power is the main direct footprint."
+      },
+      {
+        "lever": "building_retrofit",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Office efficiency."
+      },
+      {
+        "lever": "modal_shift",
+        "position": "downstream",
+        "relevance": "secondary",
+        "rationale": "Business-travel reduction and shift."
+      }
+    ],
+    "telecom": [
+      {
+        "lever": "renewable_procurement",
+        "position": "own_operations",
+        "relevance": "primary",
+        "rationale": "Network energy is Scope-2 dominant."
+      },
+      {
+        "lever": "energy_efficiency_industry",
+        "position": "own_operations",
+        "relevance": "primary",
+        "rationale": "Network/equipment energy efficiency."
+      },
+      {
+        "lever": "smart_controls",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Dynamic network power management."
+      }
+    ],
+    "metals_mining": [
+      {
+        "lever": "renewable_procurement",
+        "position": "own_operations",
+        "relevance": "primary",
+        "rationale": "Electrify and clean-power mine sites (mostly Scope 2 for processing)."
+      },
+      {
+        "lever": "process_electrification",
+        "position": "own_operations",
+        "relevance": "primary",
+        "rationale": "Electrify haul fleets and processing heat (diesel displacement)."
+      },
+      {
+        "lever": "energy_efficiency_industry",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Comminution/processing efficiency."
+      },
+      {
+        "lever": "water_management",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Water-energy nexus in arid mining regions."
+      }
     ]
   }
 }

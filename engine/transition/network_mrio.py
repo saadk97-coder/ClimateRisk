@@ -124,10 +124,14 @@ def propagate_mrio(
     elasticity: float = 1.0, cascade: bool = False,
     cascade_theta: float = 0.5, cascade_contagion: float = 0.5,
     absorption: float = 1.0, price_scale: float = 1.0, pass_through_scale: float = 1.0,
+    input_share: float = 1.0,
 ) -> NetworkShockResult:
     L, sectors, regions = get_mrio_leontief(elasticity)
     n_sec = len(sectors)
-    sector = sector if sector in sectors else "services"
+    if sector not in sectors:   # added-after-matrix sector → io_proxy row, else services
+        from engine.transition.data_loader import load_sector_taxonomy
+        _proxy = load_sector_taxonomy()["sectors"].get(sector, {}).get("io_proxy")
+        sector = _proxy if _proxy in sectors else "services"
     r_code = iso3_to_exio(region_iso3, ngfs_band)
     r_i = regions.index(r_code) if r_code in regions else regions.index("WA")
     s_i = sectors.index(sector)
@@ -142,7 +146,8 @@ def propagate_mrio(
     own = float(s_eff[j])   # P3 — subtract only the direct round already in L1, not L[j,j]·s_j
     propagated = max(0.0, total_shock - own)
     absorption = max(0.0, min(1.0, absorption))   # R2 — share absorbed vs passed downstream
-    indirect_usd = propagated * max(asset_revenue, 0.0) * absorption
+    input_share = max(0.0, min(1.0, input_share))  # carbon-exposed input base = revenue × input_share
+    indirect_usd = propagated * max(asset_revenue, 0.0) * input_share * absorption
 
     # top upstream sources aggregated by SECTOR (summed across regions)
     contrib = col * s_eff
@@ -162,6 +167,6 @@ def propagate_mrio(
         direct_carbon_shock=round(own, 6),
         propagated_input_shock=round(propagated, 6),
         total_indirect_cost_usd=round(indirect_usd, 2),
-        top_upstream_sources=[(sec, round(c * max(asset_revenue, 0.0) * absorption, 2)) for sec, c in top5],
+        top_upstream_sources=[(sec, round(c * max(asset_revenue, 0.0) * input_share * absorption, 2)) for sec, c in top5],
         notes=note,
     )

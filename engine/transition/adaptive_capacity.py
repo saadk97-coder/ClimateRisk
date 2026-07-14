@@ -236,7 +236,16 @@ def build_strategy(
         p_src = "derived (science)"
 
     capture = _capture_fraction(ambition, P, challenger_headroom)
-    already = float(load_adaptive_capacity()["positioning"]["already_transitioned_max"]) * P
+    # Fix #2: how much of the incumbent base is ALREADY de-risked must reflect the FIRM's
+    # own progress (its transition plan + how clean it already is), NOT the mere existence of
+    # mature sector levers — otherwise a coal plant looks "already transitioned" just because
+    # renewables are cheap, and its stranding is understated. Capture (revenue pivot) can still
+    # use full P; stranding reduction uses the progress sub-score only.
+    if positioning_override is not None:
+        progress = P                                  # the analyst's override is a firm judgement
+    else:
+        progress = 0.5 * comp.get("plan_strength", P) + 0.5 * comp.get("emissions_positioning", P)
+    already = float(load_adaptive_capacity()["positioning"]["already_transitioned_max"]) * progress
 
     if transition_capex_override is not None and transition_capex_override > 0:
         total_capex = float(transition_capex_override)

@@ -51,6 +51,11 @@ _log = logging.getLogger(__name__)
 # scaled by annual capacity growth from learning_curves.json.
 _BASE_YEAR = 2025
 
+# Fix #3 — fraction of an incumbent asset that is the carbon-specific technology and is
+# written off on a full tech switch (e.g. blast furnace + coke ovens ≈ 45% of an integrated
+# steelworks; the rolling/finishing/logistics is reused). Scaled by the firm's ambition.
+TECH_SUBSTITUTION_SHARE = 0.45
+
 
 @dataclass
 class TechnologyProjection:
@@ -272,6 +277,7 @@ def compute_stranding(
     region_iso3: str = "USA",
     price_scale: float = 1.0,
     incumbent_share: float = 1.0,
+    ambition: float = 0.0,
 ) -> StrandingResult:
     """
     Compute stranded-asset impairment trajectory + revenue index for one asset × scenario.
@@ -295,6 +301,7 @@ def compute_stranding(
                 region_iso3=region_iso3, price_scale=price_scale)
     crossover = (find_crossover_year(incumbent, challenger, scenario_id, horizon=horizon, **_xkw)
                  if challenger else None)
+    cost_crossover = crossover   # the pure COST crossover, before any demand-trigger fallback
     # R6 — Lafond-band crossover range (earliest / latest plausible cost parity).
     crossover_early = (find_crossover_year(incumbent, challenger, scenario_id, horizon=horizon,
                                            band="early", **_xkw) if challenger else None)
@@ -335,7 +342,15 @@ def compute_stranding(
     base = base * max(0.0, min(1.0, incumbent_share))
     horizon_end = max(years) if years else 2050
     pathway_end = _interp_pathway(pathway_curve, horizon_end)
-    cap = max(0.0, 1.0 - pathway_end) * base
+    demand_cap_frac = max(0.0, 1.0 - pathway_end)
+    # Fix #3 — TECH-SUBSTITUTION stranding. Even where DEMAND holds (steel, cement), a cost
+    # crossover means the incumbent asset (blast furnace, wet kiln) is replaced by the
+    # challenger and written off. The carbon-specific portion of the asset (≈ TECH_SUB_SHARE)
+    # strands to the extent the firm actually transitions (ambition). Reported as a lens,
+    # separate from cash flow; paired with the transition capex that builds the replacement.
+    tech_cap_frac = (TECH_SUBSTITUTION_SHARE * max(0.0, min(1.0, ambition))
+                     if (cost_crossover is not None and challenger) else 0.0)
+    cap = max(demand_cap_frac, tech_cap_frac) * base
 
     annual_impairment: Dict[int, float] = {}
     rev_index: Dict[int, float] = {}

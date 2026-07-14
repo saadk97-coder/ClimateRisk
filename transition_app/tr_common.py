@@ -139,6 +139,7 @@ def make_asset(row: dict) -> Asset:
         transition_capex_usd=_float_or(row.get("transition_capex"), 0.0) * fx_to_usd(),
         positioning_override=(lambda v: v / 100.0 if v == v and v >= 0 else -1.0)(
             _float_or(row.get("positioning_pct"), -1.0)),
+        firm_id=str(row.get("firm_id", "") or "").strip(),
     )
 
 
@@ -169,6 +170,8 @@ PORTFOLIO_COLUMNS = [
     "target_year", "priced_pct", "attribution_pct",
     # adaptive capacity (optional): planned pivot capex; manual positioning 0–100 (blank = derive)
     "transition_capex", "positioning_pct",
+    # firm_id (optional): group business lines of one firm for a consolidated roll-up
+    "firm_id",
 ]
 
 SAMPLE_PORTFOLIO = [

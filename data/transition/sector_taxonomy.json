@@ -10,7 +10,9 @@
     "field_notes": {
       "emission_intensity_t_per_revenue": "DIRECT (Scope-1) emission intensity, tCO2 per MILLION USD of sector GROSS OUTPUT (EEIO/EXIOBASE-3-informed sector averages). Used ONLY by Layer 3 to build the sector-typical carbon price shock (fraction of output = EI x 1e-6 x carbon_price x pass_through), which is clamped to <=1.0 for the linear propagation basis. Fossil sectors are O(1000s); services O(10s). Screening approximation.",
       "io_index": "Position in the io_matrix.json A matrix (0-indexed, must match _meta.sector_order).",
-      "stranding_slope": "R7 — per-sector logistic stranding slope (default 0.20 if absent). Higher = faster impairment diffusion once the L2 crossover triggers, calibrated to asset turnover speed."
+      "stranding_slope": "R7 — per-sector logistic stranding slope (default 0.20 if absent). Higher = faster impairment diffusion once the L2 crossover triggers, calibrated to asset turnover speed.",
+      "intermediate_input_share": "Share of output that is bought-in intermediate inputs (1 − value-added). Layer 3 indirect upstream-carbon cost scales by revenue × this share, so labour/margin-heavy sectors (services, finance, real estate) don't book an implausibly large supply-chain carbon cost. EXIOBASE / national-accounts informed. Default 0.5 if absent.",
+      "io_proxy": "For sectors added after the 20-sector I-O matrix was built, io_proxy names the existing matrix row used for Layer-3 propagation. All other params (emission intensity, pass-through, CCExposure, pathway, tech pair) are the sector's own. Lets us resolve the BSR lever-library sectors without rebuilding the 20x20/980x980 matrices."
     }
   },
   "sectors": {
@@ -25,7 +27,8 @@
       "fossil_dependent": true,
       "stranding_slope": 0.2,
       "emission_intensity_t_per_revenue": 5000,
-      "notes": "Highest stranding risk under fast-transition scenarios; near-zero learning rate."
+      "notes": "Highest stranding risk under fast-transition scenarios; near-zero learning rate.",
+      "intermediate_input_share": 0.55
     },
     "power_gas": {
       "label": "Electric Power — Natural Gas",
@@ -38,7 +41,8 @@
       "fossil_dependent": true,
       "stranding_slope": 0.2,
       "emission_intensity_t_per_revenue": 2000,
-      "notes": "Stranding risk highest for new-build peakers as battery costs decline."
+      "notes": "Stranding risk highest for new-build peakers as battery costs decline.",
+      "intermediate_input_share": 0.6
     },
     "power_renewable": {
       "label": "Electric Power — Renewables",
@@ -50,7 +54,8 @@
       "challenger_technology": null,
       "fossil_dependent": false,
       "emission_intensity_t_per_revenue": 30,
-      "notes": "Beneficiary of transition; revenue uplift in fast-transition scenarios."
+      "notes": "Beneficiary of transition; revenue uplift in fast-transition scenarios.",
+      "intermediate_input_share": 0.35
     },
     "oil_upstream": {
       "label": "Oil & Gas — Upstream",
@@ -63,7 +68,8 @@
       "fossil_dependent": true,
       "stranding_slope": 0.15,
       "emission_intensity_t_per_revenue": 300,
-      "notes": "Demand collapse in NZ2050; reserves stranding from Carbon Tracker (2022)."
+      "notes": "Demand collapse in NZ2050; reserves stranding from Carbon Tracker (2022).",
+      "intermediate_input_share": 0.45
     },
     "oil_refining": {
       "label": "Oil Refining & Marketing",
@@ -76,7 +82,8 @@
       "fossil_dependent": true,
       "stranding_slope": 0.2,
       "emission_intensity_t_per_revenue": 250,
-      "notes": "High pass-through (~75%) per Sijm 2012; Cludius 2020."
+      "notes": "High pass-through (~75%) per Sijm 2012; Cludius 2020.",
+      "intermediate_input_share": 0.85
     },
     "gas_distribution": {
       "label": "Natural Gas Distribution",
@@ -89,7 +96,8 @@
       "fossil_dependent": true,
       "stranding_slope": 0.12,
       "emission_intensity_t_per_revenue": 200,
-      "notes": "Network-asset stranding under building electrification."
+      "notes": "Network-asset stranding under building electrification.",
+      "intermediate_input_share": 0.55
     },
     "steel": {
       "label": "Steel & Iron",
@@ -102,7 +110,8 @@
       "fossil_dependent": true,
       "stranding_slope": 0.12,
       "emission_intensity_t_per_revenue": 1300,
-      "notes": "Trade-exposed; low pass-through (~30%) per Fabra & Reguant 2014."
+      "notes": "Trade-exposed; low pass-through (~30%) per Fabra & Reguant 2014.",
+      "intermediate_input_share": 0.65
     },
     "cement": {
       "label": "Cement & Lime",
@@ -115,7 +124,8 @@
       "fossil_dependent": true,
       "stranding_slope": 0.12,
       "emission_intensity_t_per_revenue": 2000,
-      "notes": "Process emissions ~60% of total; CCUS dependency for net-zero alignment."
+      "notes": "Process emissions ~60% of total; CCUS dependency for net-zero alignment.",
+      "intermediate_input_share": 0.55
     },
     "chemicals": {
       "label": "Chemicals (Bulk & Petrochemicals)",
@@ -128,7 +138,8 @@
       "fossil_dependent": true,
       "stranding_slope": 0.14,
       "emission_intensity_t_per_revenue": 450,
-      "notes": "Feedstock + heat emissions; partial pass-through (~40%)."
+      "notes": "Feedstock + heat emissions; partial pass-through (~40%).",
+      "intermediate_input_share": 0.7
     },
     "aluminium": {
       "label": "Aluminium & Non-Ferrous Metals",
@@ -141,7 +152,8 @@
       "fossil_dependent": true,
       "stranding_slope": 0.15,
       "emission_intensity_t_per_revenue": 400,
-      "notes": "Highly Scope 2 dependent; benefits from grid decarbonisation."
+      "notes": "Highly Scope 2 dependent; benefits from grid decarbonisation.",
+      "intermediate_input_share": 0.65
     },
     "road_transport_ice": {
       "label": "Automotive — Internal Combustion",
@@ -154,7 +166,8 @@
       "fossil_dependent": true,
       "stranding_slope": 0.22,
       "emission_intensity_t_per_revenue": 60,
-      "notes": "Demand collapse 2030-2040 in NZ scenarios; capex pivot required."
+      "notes": "Demand collapse 2030-2040 in NZ scenarios; capex pivot required.",
+      "intermediate_input_share": 0.7
     },
     "road_transport_ev": {
       "label": "Automotive — Electric Vehicles",
@@ -166,7 +179,8 @@
       "challenger_technology": null,
       "fossil_dependent": false,
       "emission_intensity_t_per_revenue": 40,
-      "notes": "Beneficiary; battery cost declines drive demand."
+      "notes": "Beneficiary; battery cost declines drive demand.",
+      "intermediate_input_share": 0.7
     },
     "aviation": {
       "label": "Aviation (Passenger & Freight)",
@@ -179,7 +193,8 @@
       "fossil_dependent": true,
       "stranding_slope": 0.15,
       "emission_intensity_t_per_revenue": 700,
-      "notes": "Limited substitutes; high transition cost without SAF scale."
+      "notes": "Limited substitutes; high transition cost without SAF scale.",
+      "intermediate_input_share": 0.6
     },
     "shipping": {
       "label": "Shipping & Maritime",
@@ -192,7 +207,8 @@
       "fossil_dependent": true,
       "stranding_slope": 0.12,
       "emission_intensity_t_per_revenue": 800,
-      "notes": "IMO 2050 net-zero target; Scope 1 dominant."
+      "notes": "IMO 2050 net-zero target; Scope 1 dominant.",
+      "intermediate_input_share": 0.6
     },
     "real_estate_commercial": {
       "label": "Real Estate — Commercial",
@@ -204,7 +220,8 @@
       "challenger_technology": "heat_pump",
       "fossil_dependent": false,
       "emission_intensity_t_per_revenue": 25,
-      "notes": "EU EPBD / NYC LL97 / UK MEES drive retrofit costs."
+      "notes": "EU EPBD / NYC LL97 / UK MEES drive retrofit costs.",
+      "intermediate_input_share": 0.3
     },
     "real_estate_residential": {
       "label": "Real Estate — Residential",
@@ -216,7 +233,8 @@
       "challenger_technology": "heat_pump",
       "fossil_dependent": false,
       "emission_intensity_t_per_revenue": 20,
-      "notes": "Slower regulatory pace than commercial; long replacement cycles."
+      "notes": "Slower regulatory pace than commercial; long replacement cycles.",
+      "intermediate_input_share": 0.3
     },
     "agriculture": {
       "label": "Agriculture & Livestock",
@@ -228,7 +246,8 @@
       "challenger_technology": "regenerative",
       "fossil_dependent": false,
       "emission_intensity_t_per_revenue": 600,
-      "notes": "Methane focus; pass-through ~30% per literature."
+      "notes": "Methane focus; pass-through ~30% per literature.",
+      "intermediate_input_share": 0.5
     },
     "data_center": {
       "label": "Data Centres",
@@ -240,7 +259,8 @@
       "challenger_technology": "renewable_ppa",
       "fossil_dependent": false,
       "emission_intensity_t_per_revenue": 40,
-      "notes": "Scope 2 dominant; PPA strategy changes risk profile."
+      "notes": "Scope 2 dominant; PPA strategy changes risk profile.",
+      "intermediate_input_share": 0.45
     },
     "manufacturing_general": {
       "label": "General Manufacturing",
@@ -252,7 +272,8 @@
       "challenger_technology": null,
       "fossil_dependent": false,
       "emission_intensity_t_per_revenue": 120,
-      "notes": "Heterogeneous; uses average industrial parameters."
+      "notes": "Heterogeneous; uses average industrial parameters.",
+      "intermediate_input_share": 0.65
     },
     "services": {
       "label": "Services & Other",
@@ -264,7 +285,106 @@
       "challenger_technology": null,
       "fossil_dependent": false,
       "emission_intensity_t_per_revenue": 15,
-      "notes": "Low-intensity; minimal direct transition cost; supply-chain pass-through dominates."
+      "notes": "Low-intensity; minimal direct transition cost; supply-chain pass-through dominates.",
+      "intermediate_input_share": 0.35
+    },
+    "apparel_textiles": {
+      "label": "Apparel & Textiles",
+      "gics": "25203010",
+      "nace": "C13-C14",
+      "exiobase": "i28",
+      "io_index": 18,
+      "io_proxy": "manufacturing_general",
+      "primary_technology": "mixed_industrial",
+      "challenger_technology": null,
+      "fossil_dependent": false,
+      "emission_intensity_t_per_revenue": 160,
+      "intermediate_input_share": 0.65,
+      "notes": "Scope-3-dominant (dyeing/finishing + upstream fibre); consumer-facing reputation."
+    },
+    "consumer_goods": {
+      "label": "Consumer Goods (FMCG)",
+      "gics": "30",
+      "nace": "C10-C33 mixed",
+      "exiobase": "i28",
+      "io_index": 18,
+      "io_proxy": "manufacturing_general",
+      "primary_technology": "mixed_industrial",
+      "challenger_technology": null,
+      "fossil_dependent": false,
+      "emission_intensity_t_per_revenue": 110,
+      "intermediate_input_share": 0.6,
+      "notes": "Branded FMCG; Scope-3-heavy supply chains; some pricing power."
+    },
+    "financial_services": {
+      "label": "Financial Services",
+      "gics": "40",
+      "nace": "K64-K66",
+      "exiobase": "i74",
+      "io_index": 19,
+      "io_proxy": "services",
+      "primary_technology": "office_operations",
+      "challenger_technology": null,
+      "fossil_dependent": false,
+      "emission_intensity_t_per_revenue": 8,
+      "intermediate_input_share": 0.28,
+      "notes": "Own-operations emissions tiny; financed-emissions / regulatory exposure dominates (not modelled here)."
+    },
+    "healthcare": {
+      "label": "Healthcare & Pharma",
+      "gics": "35",
+      "nace": "Q86",
+      "exiobase": "i74",
+      "io_index": 19,
+      "io_proxy": "services",
+      "primary_technology": "office_operations",
+      "challenger_technology": null,
+      "fossil_dependent": false,
+      "emission_intensity_t_per_revenue": 45,
+      "intermediate_input_share": 0.42,
+      "notes": "Energy-intensive facilities + medical supply chain; demand grows."
+    },
+    "professional_services": {
+      "label": "Professional Services",
+      "gics": "20201060",
+      "nace": "M69-M75",
+      "exiobase": "i74",
+      "io_index": 19,
+      "io_proxy": "services",
+      "primary_technology": "office_operations",
+      "challenger_technology": null,
+      "fossil_dependent": false,
+      "emission_intensity_t_per_revenue": 8,
+      "intermediate_input_share": 0.28,
+      "notes": "Advisory/consulting; office energy + travel; minimal direct transition cost."
+    },
+    "telecom": {
+      "label": "Telecommunications",
+      "gics": "50",
+      "nace": "J61",
+      "exiobase": "i72",
+      "io_index": 17,
+      "io_proxy": "data_center",
+      "primary_technology": "grid_electricity",
+      "challenger_technology": "renewable_ppa",
+      "fossil_dependent": false,
+      "emission_intensity_t_per_revenue": 55,
+      "intermediate_input_share": 0.45,
+      "notes": "Network energy Scope-2 dominant; PPA strategy changes profile (like data centres)."
+    },
+    "metals_mining": {
+      "label": "Metals & Mining (transition minerals)",
+      "gics": "15104020",
+      "nace": "B07-B08",
+      "exiobase": "i27.4",
+      "io_index": 9,
+      "io_proxy": "aluminium",
+      "primary_technology": "mixed_industrial",
+      "challenger_technology": null,
+      "fossil_dependent": false,
+      "emission_intensity_t_per_revenue": 850,
+      "intermediate_input_share": 0.55,
+      "notes": "Copper/lithium/nickel etc. — a transition BENEFICIARY: demand GROWS. High Scope-1 (diesel/processing) but no product-demand stranding."
     }
   }
 }

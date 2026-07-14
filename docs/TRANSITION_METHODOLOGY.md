@@ -181,6 +181,12 @@ cost_lo = pred × e^(−σ_t) ,  cost_hi = pred × e^(+σ_t)
 ### 4.3 Stranding trigger (either fires)
 - **Cost crossover** — first year challenger cost ≤ incumbent cost.
 - **Demand collapse** (fossil-dependent sectors only) — first year the sector pathway falls below 0.5.
+- **Tech-substitution stranding (diagnostic fix #3).** Even where DEMAND holds (steel, cement), a cost
+  crossover obsoletes the incumbent asset (blast furnace, wet kiln) and it is written off. The
+  carbon-specific share (`TECH_SUBSTITUTION_SHARE ≈ 0.45`) strands in proportion to how much the firm
+  transitions (ambition), paired with the capex that builds the replacement. Cap =
+  `max(demand_cap, tech_cap) × base`. Steel now shows ~$4B stranding on a $18B works (was $0);
+  cement/chemicals stay ~$0 (no cost crossover — they need costly CCUS, not obsoletion by a cheaper tech).
 - **P6 — carbon-inclusive crossover (opt-in).** When enabled, the incumbent's effective cost adds its
   carbon cost `carbon_price(scenario, region, y) × carbon_ef_per_unit` (Scope-1 emission factor in the
   tech's cost unit; fossil incumbents only). A rising carbon price then pulls the crossover — and
@@ -306,8 +312,13 @@ double-counting the focal asset's own pass-through.
 L = (I − A)⁻¹
 total_shock_j = Σᵢ L[i,j] · sᵢ
 propagated_j  = total_shock_j − own       (own = s_j, the single L1 direct round — P3)
-indirect_cost = propagated_j × asset_revenue × absorption
+indirect_cost = propagated_j × (asset_revenue × intermediate_input_share) × absorption
 ```
+**Input-share basis (diagnostic fix #1).** L3 scales by the firm's carbon-EXPOSED input base —
+`revenue × intermediate_input_share` (bought-in intermediate inputs, 1 − value-added) — NOT total
+revenue. Previously a labour/margin-heavy firm (financial services 96%-of-cost L3, ~$7B on a bank)
+booked an implausible supply-chain carbon cost; with the input-share basis (finance ≈ 0.28, refining
+≈ 0.85) that collapses to ~$2B and heavy processors keep a large, legitimate L3.
 **CES damping:** off-diagonal A scaled by 1/σ before inversion (σ = substitution elasticity;
 Papageorgiou 2017 range 1.3–3.0). σ=1 is Cobb-Douglas.
 
@@ -406,6 +417,13 @@ transition and combined DCFs) — previously it was computed but never discounte
 valuation effect. `run_portfolio_transition` runs all assets × scenarios and returns
 `{scenario: [TransitionAssetResult]}`, each tagged with a **data-quality flag** (firm / sector-proxy /
 degraded) that surfaces on the Audit page.
+
+**Firm-level roll-up (diagnostic fix #4).** Assets sharing a `firm_id` roll up into one diversified
+company via `firm_rollup()` — a multi-line, multi-region firm gets one consolidated cost/impairment
+view across its business lines (surfaced on the Results page). Each line keeps its own sector- and
+region-specific positioning (correct: a steel division and a data-centre division transition
+differently). This is an INDEPENDENT sum — group-level correlation, cross-subsidy, shared capital and
+a single optimised group plan are **not** modelled (documented limitation).
 
 **Present value & discount basis (Round-1 P2 + external review).** Carbon prices are **real**
 (USD2020), so PV discounts the real cash flows at a **real** rate = nominal WACC − long-run inflation.
@@ -575,15 +593,25 @@ correction.
   (advanced/emerging/RoW) proxy NGFS's ~12 model regions (the 20×49 MRIO mode relaxes this).
 - **Endogenous-default cascade (Round-1 U2)** rests on Reisch et al. 2025, an un-peer-reviewed
   preprint — research-grade only; default-off and excluded from the disclosure export.
+- **Firm-level roll-up (diagnostic fix #4)** is an independent sum of business lines — no group
+  correlation, cross-subsidy, shared capital, or single optimised group transition plan.
+- **`io_proxy` sectors (diagnostic fix #5/#6):** the 7 sectors added after the 20×20 matrix
+  (apparel, consumer goods, financial services, healthcare, professional services, telecom, metals
+  mining) borrow an existing matrix row for Layer-3 propagation; a native row needs an I-O rebuild.
+- **`intermediate_input_share` (diagnostic fix #1)** is a sector-median value-added split; firm-level
+  COGS/input structure would sharpen L3.
 
 ---
 
-## Appendix A — Sector taxonomy (20 sectors)
-Key · label · incumbent → challenger · fossil-dependent · emission intensity (tCO₂/M$).
-See `data/transition/sector_taxonomy.json`. 20 sectors span power (coal/gas/renewable), oil & gas
-(upstream/refining/distribution), heavy industry (steel/cement/chemicals/aluminium), transport
-(road ICE/EV, aviation, shipping), real estate (commercial/residential), agriculture, data centres,
-general manufacturing, and services.
+## Appendix A — Sector taxonomy (27 sectors)
+Key · label · incumbent → challenger · fossil-dependent · emission intensity (tCO₂/M$) ·
+intermediate-input share · io_proxy (where applicable). See `data/transition/sector_taxonomy.json`.
+The **20 core** sectors span power (coal/gas/renewable), oil & gas (upstream/refining/distribution),
+heavy industry (steel/cement/chemicals/aluminium), transport (road ICE/EV, aviation, shipping), real
+estate (commercial/residential), agriculture, data centres, general manufacturing, and services.
+**+7 BSR lever-library sectors (diagnostic fix #5/#6)** added via `io_proxy`: apparel & textiles,
+consumer goods, financial services, healthcare, professional services, telecommunications, and metals
+& mining (a transition **beneficiary** — demand grows, no product-demand stranding).
 
 ## Appendix B — Pass-through coefficients
 See `data/transition/sector_pass_through.json` (pass-through, demand elasticity, market structure,

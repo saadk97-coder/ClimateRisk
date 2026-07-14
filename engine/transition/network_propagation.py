@@ -143,6 +143,7 @@ def propagate_carbon_shock(
     sector_outputs: Optional[Dict[str, float]] = None,
     elasticity: float = 1.0,
     absorption: float = 1.0,
+    input_share: float = 1.0,
 ) -> NetworkShockResult:
     """
     Propagate sectoral carbon-cost shocks through the IO network and compute the
@@ -170,9 +171,14 @@ def propagate_carbon_shock(
     sector_idx = {s: i for i, s in enumerate(sectors)}
 
     if sector not in sector_idx:
-        # Unmapped sector: assume "services" position
-        _log.warning("L3: sector '%s' not in the IO matrix; using 'services' position.", sector)
-        sector = "services"
+        # Sector added after the 20×20 matrix was built: use its io_proxy row; else 'services'.
+        from engine.transition.data_loader import load_sector_taxonomy
+        proxy = load_sector_taxonomy()["sectors"].get(sector, {}).get("io_proxy")
+        if proxy in sector_idx:
+            sector = proxy
+        else:
+            _log.warning("L3: sector '%s' not in the IO matrix and no io_proxy; using 'services'.", sector)
+            sector = "services"
     j = sector_idx[sector]
 
     # Shock vector: relative price increase per supplier sector. Two modes:
@@ -200,11 +206,14 @@ def propagate_carbon_shock(
     own_shock = float(s[j])
     propagated = max(0.0, total_shock - own_shock)
 
-    # Indirect cost in USD = propagated_shock × asset_revenue (interpreting
-    # asset_revenue as the firm's share of sector j's output), net of the share
-    # the firm passes downstream (R2 — absorption; 1.0 = full absorption).
+    # Indirect cost in USD = propagated_shock × the firm's carbon-EXPOSED input base,
+    # net of the share it passes downstream (R2 — absorption). The input base is
+    # revenue × intermediate_input_share (bought-in inputs, NOT total revenue), so a
+    # labour/margin-heavy firm (services, finance) doesn't book an implausible
+    # supply-chain carbon cost (diagnostic distortion #1). Default input_share=1.0.
     absorption = max(0.0, min(1.0, absorption))
-    indirect_usd = propagated * max(asset_revenue, 0.0) * absorption
+    input_share = max(0.0, min(1.0, input_share))
+    indirect_usd = propagated * max(asset_revenue, 0.0) * input_share * absorption
 
     # Top-5 upstream sources by contribution L[i,j] * s[i]
     contribs = [(sectors[i], float(L[i, j] * s[i])) for i in range(n) if i != j and s[i] > 0]
@@ -220,7 +229,7 @@ def propagate_carbon_shock(
         direct_carbon_shock=round(own_shock, 6),
         propagated_input_shock=round(propagated, 6),
         total_indirect_cost_usd=round(indirect_usd, 2),
-        top_upstream_sources=[(sec, round(c * max(asset_revenue, 0.0) * absorption, 2)) for sec, c in top5],
+        top_upstream_sources=[(sec, round(c * max(asset_revenue, 0.0) * input_share * absorption, 2)) for sec, c in top5],
         notes="Screening-grade Leontief cascade (Cobb-Douglas σ=1). For production use replace with EXIOBASE-3 MRIO and CES σ from Papageorgiou et al. 2017.",
     )
 

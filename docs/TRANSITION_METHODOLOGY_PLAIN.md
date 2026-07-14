@@ -247,6 +247,15 @@ channels, avoids double-counting, shows its working, and ranges its answers.
 - A technology-equivalence oracle. Layer 2 compares a challenger's cost to an incumbent's, but
   those costs aren't always like-for-like (e.g. solar power vs coal power ignores firming/grid
   value) — the crossover year is indicative, not a dispatch-accurate parity date.
+- A group-consolidation model. A diversified firm (multiple business lines) is rolled up as the
+  **sum** of its lines — each line correctly transitions on its own sector/geography, but group-level
+  correlation, cross-subsidy and a single optimised group plan are not modelled.
+
+The tool covers **27 sectors** — the 20 core plus seven from the BSR lever library (apparel, consumer
+goods, financial services, healthcare, professional services, telecom, and metals & mining). Metals &
+mining is treated as a transition **winner** (demand for critical minerals grows), not a stranding
+risk. Supply-chain (Layer 3) cost is scaled to a firm's actual **bought-in inputs**, so an asset-light,
+high-revenue business (a bank) no longer shows an implausible supply-chain carbon bill.
 
 The guiding principle throughout: **be useful and be honest about the limits.** Every place
 where a figure is a proxy, an assumption, or an opt-in refinement is labeled as such — in the

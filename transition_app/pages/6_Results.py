@@ -82,6 +82,32 @@ st.caption("⚠️ **Not additive.** Cash-flow transition cost and stranded impa
            "the erosion already reflects. Read them as alternatives, never as a combined total.")
 
 # ===========================================================================
+# Firm-level roll-up (diversified multi-line firms)
+# ===========================================================================
+if any(getattr(a, "firm_id", "") for a in active):
+    from engine.transition.transition_engine import firm_rollup  # noqa: E402
+    st.subheader("Firm-level roll-up (diversified companies)")
+    fsc = st.selectbox("Scenario", scenarios, format_func=T.scenario_label, key="firm_sc")
+    rolls = firm_rollup(results.get(fsc, []), active)
+    frows = []
+    for fid, fr in sorted(rolls.items()):
+        if fr.n_lines < 2 and fid == fr.business_lines[0]:
+            continue   # skip standalone single-line entities
+        frows.append({
+            "Firm": fid, "Business lines": fr.n_lines,
+            "Sectors": ", ".join(T.sector_label(s) for s in fr.sectors),
+            "Regions": ", ".join(fr.regions),
+            f"PV transition cost ({sym})": T.fmt_money(_pv(fr.annual_total_cost_usd)),
+            f"PV impairment ({sym})": T.fmt_money(_pv(fr.annual_impairment_usd)),
+        })
+    if frows:
+        st.dataframe(pd.DataFrame(frows), use_container_width=True, hide_index=True)
+        st.caption("A diversified firm is the **independent sum** of its business lines — each line "
+                   "keeps its own sector- and region-specific positioning (correct: a steel division and "
+                   "a data-centre division transition differently). ⚠️ Group-level correlation, "
+                   "cross-subsidy, shared capital and a single optimised group plan are **not** modelled.")
+
+# ===========================================================================
 # Uncertainty (Monte-Carlo)
 # ===========================================================================
 st.subheader("Uncertainty — Monte-Carlo")

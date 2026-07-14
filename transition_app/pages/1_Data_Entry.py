@@ -45,7 +45,7 @@ st.caption(
 # Column groups so the data_editor column types match the underlying dtypes even
 # when the portfolio is empty (an empty list column infers float64, which breaks
 # the text/selectbox column config).
-_STR_COLS = ["id", "name", "region", "sector"]
+_STR_COLS = ["id", "name", "region", "sector", "firm_id"]
 _NUM_COLS = ["replacement_value", "annual_revenue", "scope1", "scope2", "scope3",
              "target_year", "priced_pct", "attribution_pct",
              "transition_capex", "positioning_pct"]
@@ -103,6 +103,11 @@ edited = st.data_editor(
             help="Manual 'art' override of how well-placed the company is today to transition "
                  "(0 = laggard, 100 = leader). Blank = derive from emissions, sector lever readiness "
                  "and transition-plan strength ('science')."),
+        "firm_id": st.column_config.TextColumn(
+            "Firm", width="small",
+            help="Optional: give two or more rows the same Firm to roll them up as one "
+                 "diversified company (business lines) — see the firm view on Results. Blank = "
+                 "the entity is its own firm."),
     },
 )
 

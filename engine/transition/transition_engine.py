@@ -270,6 +270,7 @@ def run_asset_transition(
             region_iso3=region,
             price_scale=price_scale,
             incumbent_share=_incumbent_share,   # positioning → less to strand
+            ambition=(strategy.ambition if strategy is not None else 0.0),  # tech-substitution stranding
         )
         if asset.annual_revenue > 0:
             gross_erosion = revenue_erosion_usd(asset.annual_revenue, layer2.revenue_index)
@@ -297,6 +298,11 @@ def run_asset_transition(
             l3_absorption = max(0.0, 1.0 - float(get_pass_through(sector)["pass_through"]))
         else:
             l3_absorption = 1.0
+        # Fix #1: L3 scales by the carbon-EXPOSED input base (revenue × intermediate-input
+        # share), not total revenue — so asset-light, high-revenue firms (services, finance)
+        # don't book an implausible supply-chain carbon cost.
+        from engine.transition.data_loader import load_sector_taxonomy as _lst
+        l3_input_share = float(_lst()["sectors"].get(sector, {}).get("intermediate_input_share", 0.5))
         if l3_mode == "mrio":
             # High-resolution 20×49 EXIOBASE MRIO (+ optional Reisch cascade).
             from engine.transition.network_mrio import propagate_mrio
@@ -309,6 +315,7 @@ def run_asset_transition(
                     cascade_contagion=cascade_contagion,
                     absorption=l3_absorption,
                     price_scale=price_scale, pass_through_scale=pass_through_scale,
+                    input_share=l3_input_share,
                 )
                 layer3.append(shock)
                 l3_by_year[y] = shock.total_indirect_cost_usd
@@ -326,6 +333,7 @@ def run_asset_transition(
                     sector_outputs=None,   # shocks already normalised
                     elasticity=elasticity,
                     absorption=l3_absorption,
+                    input_share=l3_input_share,
                 )
                 layer3.append(shock)
                 l3_by_year[y] = shock.total_indirect_cost_usd
@@ -500,6 +508,57 @@ def run_portfolio_transition(
                 plan_coverage=(plan_coverage_by_asset or {}).get(a.id),
             )
             out[sc].append(r)
+    return out
+
+
+@dataclass
+class FirmRollup:
+    firm_id: str
+    business_lines: List[str]
+    sectors: List[str]
+    regions: List[str]
+    annual_total_cost_usd: Dict[int, float]
+    annual_impairment_usd: Dict[int, float]
+    n_lines: int
+
+
+def firm_rollup(results: List[TransitionAssetResult],
+                assets: Optional[List] = None) -> Dict[str, FirmRollup]:
+    """
+    Group per-asset transition results into firm-level roll-ups by `firm_id`
+    (falls back to the asset_id when no firm is set — a standalone entity is its
+    own firm). Diversified, multi-region firms therefore get one consolidated
+    view across their business lines.
+
+    IMPORTANT (documented simplification): this is an INDEPENDENT sum of the
+    business lines — it does NOT model group-level correlation, cross-subsidy,
+    shared capital, or a single optimised group transition plan. Each line keeps
+    its own (correct) sector- and region-specific positioning; the roll-up adds
+    transparency, not portfolio interaction.
+    """
+    firm_of = {}
+    if assets:
+        for a in assets:
+            firm_of[a.id] = getattr(a, "firm_id", "") or a.id
+    horizon = results[0].horizon if results else []
+    groups: Dict[str, List[TransitionAssetResult]] = {}
+    for r in results:
+        fid = firm_of.get(r.asset_id, r.asset_id)
+        groups.setdefault(fid, []).append(r)
+
+    out: Dict[str, FirmRollup] = {}
+    for fid, rs in groups.items():
+        cost = {y: sum(r.annual_total_cost_usd.get(y, 0.0) for r in rs) for y in horizon}
+        imp = {y: sum(r.annual_impairment_usd.get(y, 0.0) for r in rs) for y in horizon}
+        out[fid] = FirmRollup(
+            firm_id=fid,
+            business_lines=[r.asset_id for r in rs],
+            sectors=sorted({r.sector for r in rs}),
+            regions=sorted({r.region for r in rs}),
+            annual_total_cost_usd=cost,
+            annual_impairment_usd=imp,
+            n_lines=len(rs),
+        )
     return out
 
 

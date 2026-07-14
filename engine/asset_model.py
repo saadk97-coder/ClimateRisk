@@ -57,6 +57,7 @@ class Asset:
     # for how well-placed the company is today (blank = derive from data — "science").
     transition_capex_usd: float = 0.0
     positioning_override: float = -1.0   # -1 = unset (derive); 0..1 = manual override
+    firm_id: str = ""                    # groups business lines of one firm for a firm-level roll-up
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -131,6 +132,7 @@ class Asset:
             priced_emissions_fraction=float(d.get("priced_emissions_fraction", 1.0)),
             transition_capex_usd=float(d.get("transition_capex_usd", 0.0) or 0.0),
             positioning_override=float(d.get("positioning_override", -1.0)),
+            firm_id=str(d.get("firm_id", "") or ""),
         )
 
 

@@ -1399,3 +1399,84 @@ def test_subnational_code_strips_to_country_for_carbon_band():
     assert resource_zone("USA-TX") == "us_texas"                 # but finer resource zone
     assert resource_zone("USA") == "na_other"                    # bare country → national average
     assert resource_zone("ZZZ-XX") == "rest_of_world"            # unknown → global default
+
+
+# ---------------------------------------------------------------------------
+# Diagnostic-driven fixes (Session 12): L3 input-share, positioning, tech-strand,
+# taxonomy expansion, metals mining, firm roll-up
+# ---------------------------------------------------------------------------
+def _co(sector, region="USA", rev=20e9, s1=1e6, s2=1e6, s3=2e6, repl=10e9, target=0, pos=-1.0,
+        firm="", id="X"):
+    return Asset(id=id, name=id, lat=0, lon=0, asset_type="x", replacement_value=repl,
+                 construction_material="concrete", year_built=2010, stories=1, basement=False,
+                 roof_type="flat", first_floor_height_m=0, terrain_elevation_asl_m=0, floor_area_m2=0,
+                 region=region, sector=sector, scope1_emissions_tco2=s1, scope2_emissions_tco2=s2,
+                 scope3_emissions_tco2=s3, annual_revenue=rev, decarb_target_year=target,
+                 positioning_override=pos, firm_id=firm)
+
+
+def test_fix1_l3_scales_by_input_share_not_revenue():
+    """Fix #1 — L3 uses the carbon-exposed input base (revenue × intermediate_input_share);
+    a low-input-share sector books a much smaller L3 than a high-input-share one at equal revenue."""
+    fin = run_asset_transition(_co("financial_services", rev=20e9), "net_zero_2050", enable_layers=(3,))
+    ref = run_asset_transition(_co("oil_refining", rev=20e9), "net_zero_2050", enable_layers=(3,))
+    l3_fin = sum(fin.layer_breakdown["L3_network_input_cost"].values())
+    l3_ref = sum(ref.layer_breakdown["L3_network_input_cost"].values())
+    assert l3_fin < l3_ref
+    # finance input share (0.28) << refining (0.85); at equal revenue the ratio is meaningful
+    assert l3_fin < 0.6 * l3_ref
+
+
+def test_fix2_positioning_does_not_understate_fossil_stranding():
+    """Fix #2 — a coal plant with NO transition plan is not de-risked by mature renewables:
+    its recognised stranding stays close to the no-adaptive baseline."""
+    frozen = run_asset_transition(_co("power_coal", repl=500e6), "net_zero_2050", adaptive=False)
+    poor = run_asset_transition(_co("power_coal", repl=500e6, pos=0.15), "net_zero_2050")
+    # a poorly-positioned coal plant still strands most of its (demand-collapsing) value
+    assert sum(poor.annual_impairment_usd.values()) > 0.7 * sum(frozen.annual_impairment_usd.values())
+
+
+def test_fix3_tech_substitution_strands_heavy_industry():
+    """Fix #3 — steel strands from tech substitution (blast furnace obsoleted by H2-DRI) even
+    though steel demand holds; with zero ambition (frozen) it does not."""
+    from engine.transition.learning_curves import compute_stranding
+    yrs = list(range(2025, 2051))
+    with_amb = compute_stranding("S", "steel", 18e9, "net_zero_2050", yrs, ambition=0.9, region_iso3="KOR")
+    frozen = compute_stranding("S", "steel", 18e9, "net_zero_2050", yrs, ambition=0.0, region_iso3="KOR")
+    assert sum(with_amb.annual_impairment_usd.values()) > 0
+    assert sum(frozen.annual_impairment_usd.values()) == 0
+
+
+def test_fix5_new_bsr_sectors_resolve_via_io_proxy():
+    """Fix #5 — the added BSR sectors are valid, distinct, and run through L3 via io_proxy."""
+    tax = load_sector_taxonomy()["sectors"]
+    for s in ("apparel_textiles", "consumer_goods", "financial_services", "healthcare",
+              "professional_services", "telecom", "metals_mining"):
+        assert s in tax and tax[s]["io_proxy"] in tax
+        r = run_asset_transition(_co(s), "net_zero_2050")
+        assert r.strategy is not None            # runs clean end-to-end
+
+
+def test_fix6_metals_mining_is_a_beneficiary_not_stranded():
+    """Fix #6 — metals mining GROWS (transition minerals): no revenue erosion, no stranding,
+    just its own carbon cost."""
+    r = run_asset_transition(_co("metals_mining", region="AUS", s1=15e6, s2=5e6, repl=25e9), "net_zero_2050")
+    assert sum(r.layer_breakdown["L2_revenue_erosion"].values()) == 0
+    assert sum(r.annual_impairment_usd.values()) == 0
+    assert sum(r.layer_breakdown["L1_carbon_opex"].values()) > 0   # still has a carbon bill
+
+
+def test_fix4_firm_rollup_groups_business_lines():
+    """Fix #4 — assets sharing a firm_id roll up into one firm; the firm cost is the sum of lines."""
+    from engine.transition.transition_engine import firm_rollup, run_portfolio_transition
+    lines = [_co("steel", "DEU", firm="ACME", id="L1"),
+             _co("data_center", "USA-CA", firm="ACME", id="L2"),
+             _co("services", "GBR", id="L3")]  # third is standalone
+    res = run_portfolio_transition(lines, ["net_zero_2050"])["net_zero_2050"]
+    rolls = firm_rollup(res, lines)
+    assert "ACME" in rolls and rolls["ACME"].n_lines == 2
+    assert set(rolls["ACME"].sectors) == {"steel", "data_center"}
+    # firm cost = sum of its two lines
+    line_sum = sum(sum(r.annual_total_cost_usd.values()) for r in res if r.asset_id in ("L1", "L2"))
+    assert abs(sum(rolls["ACME"].annual_total_cost_usd.values()) - line_sum) < 1.0
+    assert "L3" in rolls and rolls["L3"].n_lines == 1   # standalone is its own firm

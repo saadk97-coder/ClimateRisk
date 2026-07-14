@@ -18,32 +18,32 @@ def m(x):
             return f"{x/d:.1f}{u}"
     return f"{x:.0f}"
 
-def A(id, sector, region, rev, s1, s2, s3, repl, target=0, pos=-1.0, capex=0.0):
+def A(id, sector, region, rev, s1, s2, s3, repl, target=0, pos=-1.0, capex=0.0, firm=""):
     return Asset(id=id, name=id, lat=0, lon=0, asset_type="x", replacement_value=repl,
         construction_material="concrete", year_built=2010, stories=1, basement=False, roof_type="flat",
         first_floor_height_m=0, terrain_elevation_asl_m=0, floor_area_m2=0, region=region, sector=sector,
         scope1_emissions_tco2=s1, scope2_emissions_tco2=s2, scope3_emissions_tco2=s3, annual_revenue=rev,
-        decarb_target_year=target, positioning_override=pos, transition_capex_usd=capex)
+        decarb_target_year=target, positioning_override=pos, transition_capex_usd=capex, firm_id=firm)
 
 # BSR sector → taxonomy mapping shown in [] ; varied geography + plan quality
 COMPANIES = [
     # ---- one per BSR lever-library sector (mapped to taxonomy) ----
-    A("APPAREL [manuf]",       "manufacturing_general", "VNM", 5e9, 2e5, 8e5, 20e6, 3e9),
+    A("APPAREL",              "apparel_textiles",      "VNM", 5e9, 2e5, 8e5, 20e6, 3e9),
     A("AUTO-ICE [ice]",        "road_transport_ice",    "DEU", 80e9, 1e6, 2e6, 350e6, 35e9, target=2035),
     A("AVIATION [aviation]",   "aviation",              "USA", 40e9, 30e6, 3e5, 5e6, 30e9),
     A("BUILDING [re_comm]",    "real_estate_commercial","GBR", 4e9, 3e4, 1.2e5, 8e5, 30e9),
-    A("TELECOM [data_ctr]",    "data_center",           "USA-CA", 60e9, 5e4, 5e6, 3e6, 40e9),
-    A("CONSUMER [manuf]",      "manufacturing_general", "CHN", 30e9, 8e5, 4e6, 40e6, 15e9),
+    A("TELECOM",              "telecom",               "USA-CA", 60e9, 5e4, 5e6, 3e6, 40e9),
+    A("CONSUMER",             "consumer_goods",        "CHN", 30e9, 8e5, 4e6, 40e6, 15e9),
     A("CHEMICALS [chem]",      "chemicals",             "USA-TX", 25e9, 12e6, 2e6, 15e6, 20e9, target=2045),
     A("POWER-COAL [coal]",     "power_coal",            "IND", 6e9, 25e6, 2e5, 1e6, 12e9),
     A("OIL-REF [oil_ref]",     "oil_refining",          "SAU", 40e9, 6e6, 5e5, 60e6, 10e9),
-    A("FINSERV [services]",    "services",              "GBR", 20e9, 5e3, 4e4, 2e6, 3e9),
+    A("FINSERV",              "financial_services",    "GBR", 20e9, 5e3, 4e4, 2e6, 3e9),
     A("FOOD-BEV [agri]",       "agriculture",           "BRA", 15e9, 8e6, 5e5, 3e6, 10e9),
     A("GEN-MANUF [manuf]",     "manufacturing_general", "USA", 20e9, 2e6, 3e6, 10e6, 15e9),
-    A("HEALTHCARE [services]", "services",              "USA", 30e9, 1e5, 6e5, 4e6, 20e9),
+    A("HEALTHCARE",           "healthcare",            "USA", 30e9, 1e5, 6e5, 4e6, 20e9),
     A("IT [data_ctr]",         "data_center",           "USA-TX", 100e9, 3e4, 8e6, 5e6, 50e9, target=2030, pos=0.85),
     A("SHIPPING [shipping]",   "shipping",              "SGP", 20e9, 25e6, 3e5, 2e6, 15e9),
-    A("MINING [oil_up]",       "oil_upstream",          "AUS", 30e9, 15e6, 5e6, 8e6, 25e9),
+    A("MINING",               "metals_mining",         "AUS", 30e9, 15e6, 5e6, 8e6, 25e9),
     A("STEEL [steel]",         "steel",                 "KOR", 25e9, 40e6, 4e6, 12e6, 18e9),
     A("CEMENT [cement]",       "cement",                "IND", 12e9, 25e6, 1e6, 2e6, 10e9),
 
@@ -53,10 +53,10 @@ COMPANIES = [
     A("STEEL-none",            "steel", "DEU", 20e9, 30e6, 3e6, 10e6, 15e9, pos=0.15),
 
     # ---- diversified multi-line, multi-region firm (4 business lines) ----
-    A("CONGLOM/steel-DE",      "steel",                 "DEU",   10e9, 15e6, 1.5e6, 5e6, 8e9,  target=2040),
-    A("CONGLOM/chem-TX",       "chemicals",             "USA-TX", 8e9, 4e6, 8e5, 5e6, 6e9,     target=2040),
-    A("CONGLOM/datactr-CA",    "data_center",           "USA-CA", 5e9, 1e4, 1.5e6, 1e6, 4e9,   target=2040),
-    A("CONGLOM/coal-IN",       "power_coal",            "IND",    3e9, 12e6, 1e5, 5e5, 5e9,     target=2040),
+    A("CONGLOM/steel-DE",      "steel",                 "DEU",   10e9, 15e6, 1.5e6, 5e6, 8e9,  target=2040, firm="CONGLOM"),
+    A("CONGLOM/chem-TX",       "chemicals",             "USA-TX", 8e9, 4e6, 8e5, 5e6, 6e9,     target=2040, firm="CONGLOM"),
+    A("CONGLOM/datactr-CA",    "data_center",           "USA-CA", 5e9, 1e4, 1.5e6, 1e6, 4e9,   target=2040, firm="CONGLOM"),
+    A("CONGLOM/coal-IN",       "power_coal",            "IND",    3e9, 12e6, 1e5, 5e5, 5e9,     target=2040, firm="CONGLOM"),
 ]
 
 scen = "net_zero_2050"
@@ -74,12 +74,14 @@ for r in res:
           f"{s.ambition:>5.2f}{s.positioning:>5.2f}{s.capture_fraction:>6.2f}"
           f"{r.wacc_premium_bps:>6.0f} {r.data_quality}")
 
-print("\n--- Diversified firm (CONGLOM) aggregate ---")
-cong = [r for r in res if r.asset_id.startswith("CONGLOM")]
-tot = sum(pv(r.annual_total_cost_usd) for r in cong)
-imp = sum(sum(r.annual_impairment_usd.values()) for r in cong)
-print(f"4 business lines, 3 regions: total PV transition cost = {m(tot)}, cumulative impairment = {m(imp)}")
-print("Note: assets summed independently — no firm-level correlation, shared plan, or portfolio effects.")
+print("\n--- Diversified firm roll-up (CONGLOM) ---")
+from engine.transition.transition_engine import firm_rollup
+rolls = firm_rollup(res, COMPANIES)
+fr = rolls["CONGLOM"]
+print(f"  {fr.n_lines} business lines across {len(fr.regions)} regions ({', '.join(fr.regions)})")
+print(f"  sectors: {', '.join(fr.sectors)}")
+print(f"  firm PV transition cost = {m(pv(fr.annual_total_cost_usd))}, PV impairment = {m(pv(fr.annual_impairment_usd))}")
+print("  (independent sum; each line keeps its own positioning — no group correlation/cross-subsidy modelled)")
 
 print("\n--- Plan-quality contrast (same DE steel plant) ---")
 for k in ("STEEL-strong", "STEEL-weak", "STEEL-none"):

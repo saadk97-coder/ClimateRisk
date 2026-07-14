@@ -153,6 +153,55 @@
       "market_structure": "local_competitive",
       "trade_exposed": false,
       "source_ref": "Default (low intensity, local pricing power)"
+    },
+    "apparel_textiles": {
+      "pass_through": 0.35,
+      "demand_elasticity": -0.3,
+      "market_structure": "competitive_traded",
+      "trade_exposed": true,
+      "source_ref": "sector-median estimate"
+    },
+    "consumer_goods": {
+      "pass_through": 0.45,
+      "demand_elasticity": -0.3,
+      "market_structure": "branded_oligopoly",
+      "trade_exposed": true,
+      "source_ref": "sector-median estimate"
+    },
+    "financial_services": {
+      "pass_through": 0.25,
+      "demand_elasticity": -0.3,
+      "market_structure": "competitive",
+      "trade_exposed": false,
+      "source_ref": "sector-median estimate"
+    },
+    "healthcare": {
+      "pass_through": 0.35,
+      "demand_elasticity": -0.3,
+      "market_structure": "regulated",
+      "trade_exposed": false,
+      "source_ref": "sector-median estimate"
+    },
+    "professional_services": {
+      "pass_through": 0.25,
+      "demand_elasticity": -0.3,
+      "market_structure": "competitive",
+      "trade_exposed": false,
+      "source_ref": "sector-median estimate"
+    },
+    "telecom": {
+      "pass_through": 0.4,
+      "demand_elasticity": -0.3,
+      "market_structure": "regulated_oligopoly",
+      "trade_exposed": false,
+      "source_ref": "sector-median estimate"
+    },
+    "metals_mining": {
+      "pass_through": 0.5,
+      "demand_elasticity": -0.3,
+      "market_structure": "commodity_traded",
+      "trade_exposed": true,
+      "source_ref": "sector-median estimate"
     }
   },
   "default_unmatched": {
