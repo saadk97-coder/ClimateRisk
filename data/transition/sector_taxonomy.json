@@ -400,6 +400,36 @@
       "emission_intensity_t_per_revenue": 95,
       "intermediate_input_share": 0.68,
       "notes": "Own-ops emissions modest; the transition risk is the USE-PHASE of sold products (diesel engines/machinery). Customers face carbon costs and electrify — demand/margin pressure on the maker. Slower than autos (duty cycles, charging in the field)."
+    },
+    "pulp_paper": {
+      "label": "Pulp & Paper",
+      "gics": "15105020",
+      "nace": "C17",
+      "exiobase": "i19",
+      "io_index": 18,
+      "io_proxy": "manufacturing_general",
+      "primary_technology": "mixed_industrial",
+      "challenger_technology": null,
+      "fossil_dependent": false,
+      "emission_intensity_t_per_revenue": 180,
+      "intermediate_input_share": 0.6,
+      "biogenic_scope3_fraction": 0.6,
+      "notes": "Energy-intensive but largely BIOMASS-powered (black liquor / hog fuel) — low FOSSIL Scope 1; residual fossil in lime kilns + purchased power carries the carbon-compliance cost. Not a stranding risk (no cheaper substitute obsoletes pulp). A low-carbon producer with green-power-sales and biogenic-carbon optionality (opportunity tilt in L4). EU mills face EU ETS; N. American mills a lower carbon backstop."
+    },
+    "wood_products_timber": {
+      "label": "Solid Wood & Mass Timber",
+      "gics": "15105010",
+      "nace": "C16",
+      "exiobase": "i18",
+      "io_index": 18,
+      "io_proxy": "manufacturing_general",
+      "primary_technology": "mixed_industrial",
+      "challenger_technology": null,
+      "fossil_dependent": false,
+      "emission_intensity_t_per_revenue": 90,
+      "intermediate_input_share": 0.65,
+      "biogenic_scope3_fraction": 0.7,
+      "notes": "Sawmilling / engineered wood / MASS TIMBER — a transition BENEFICIARY: mass timber displaces steel & cement in construction, so demand GROWS as those sectors decarbonise. Low-energy, carbon-STORING product. No product-demand stranding; strong opportunity tilt in L4."
     }
   }
 }

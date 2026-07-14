@@ -67,7 +67,7 @@ data/transition/
   cc_exposure_proxy.json       sector CCExposure (real ×10³ scale) + pooled z-base + elasticities
   io_matrix.json               20×20 world direct-requirements matrix (EXIOBASE world totals)
   io_matrix_mrio.npz + meta     20×49 EXIOBASE MRIO (980×980)
-  sector_taxonomy.json         28 sectors (20 core + 8 io_proxy): tech pairs, fossil flag, emission intensity
+  sector_taxonomy.json         30 sectors (20 core + 10 io_proxy): tech pairs, fossil flag, emission intensity
   macc.json                    per-sector abatement measures (AR6 WG3 / IEA-informed)
   lever_library.json           29 decarbonization levers × 5 domains + sector→lever value-chain map
   adaptive_capacity.json       scenario→ambition, lever→readiness, sector pivot-capex ratios, region buffers
@@ -558,7 +558,7 @@ own operations (Scope 1+2), downstream (products/customers/use-phase) — then o
   lever carries: indicative abatement-cost band ($/tCO₂e), global mitigation potential (high/med/low),
   commercial maturity (mature→frontier), 2050 role, key dependencies, a **nature & people** ("just
   transition") note at each value-chain stage, applicable sectors, and sources.
-- **`sector_lever_map`** links all 28 taxonomy sectors to their levers, each tagged with value-chain
+- **`sector_lever_map`** links all 30 taxonomy sectors to their levers, each tagged with value-chain
   position and relevance (primary/secondary) plus a rationale.
 - **Plan overlay** (`overlay_plan`) is a **manual analyst input** — the analyst ticks which levers are
   in the plan — and returns a *factual* count (primary levers covered / total) and a gap list. It
@@ -635,7 +635,7 @@ correction.
 
 ---
 
-## Appendix A — Sector taxonomy (28 sectors)
+## Appendix A — Sector taxonomy (30 sectors)
 Key · label · incumbent → challenger · fossil-dependent · emission intensity (tCO₂/M$) ·
 intermediate-input share · io_proxy (where applicable). See `data/transition/sector_taxonomy.json`.
 The **20 core** sectors span power (coal/gas/renewable), oil & gas (upstream/refining/distribution),
@@ -647,6 +647,11 @@ consumer goods, financial services, healthcare, professional services, telecommu
 **+1 industrial & construction equipment (stress-test fix #2)**, also via `io_proxy` — a diesel-machinery
 maker (diesel_machinery → electric_machinery) whose dominant risk is the **use-phase** of its sold
 products (see §4.5b), not its own operations.
+**+2 forest-products sectors (Mercer live test)**, via `io_proxy`: **pulp & paper** (biomass-powered
+low-carbon producer; not a stranding risk) and **solid wood / mass timber** (a transition
+**beneficiary** — mass timber displaces steel/cement, demand grows). Both carry a
+`biogenic_scope3_fraction` that nets biogenic wood fibre out of the report-anchored L3 (§5.2b), so a
+pulp mill's fibre supply is not priced at the fossil carbon price.
 
 ## Appendix B — Pass-through coefficients
 See `data/transition/sector_pass_through.json` (pass-through, demand elasticity, market structure,

@@ -146,6 +146,11 @@ disclosed number directly instead of estimating it — so BASF's 90-million-tonn
 or Nike's 9.5 million tonnes drives the cost, not a generic sector average. The estimated
 version is the fallback for firms that don't report.
 
+**Biogenic inputs aren't fossil.** For forest-products firms (pulp, paper, timber), much of the
+upstream footprint is *biogenic* — carbon in sustainably-managed wood fibre that the forest
+re-absorbs — not fossil carbon. We net that share out before pricing, so a pulp mill's wood
+supply isn't charged as if it were steel or cement.
+
 ### Layer 4 — Reputation risk (the cost-of-capital channel)
 **Question it answers:** *Do investors and lenders charge me more because of my climate
 exposure?*
@@ -267,12 +272,15 @@ channels, avoids double-counting, shows its working, and ranges its answers.
   **sum** of its lines — each line correctly transitions on its own sector/geography, but group-level
   correlation, cross-subsidy and a single optimised group plan are not modelled.
 
-The tool covers **28 sectors** — the 20 core plus seven from the BSR lever library (apparel, consumer
-goods, financial services, healthcare, professional services, telecom, and metals & mining), plus
+The tool covers **30 sectors** — the 20 core plus seven from the BSR lever library (apparel, consumer
+goods, financial services, healthcare, professional services, telecom, and metals & mining),
 industrial & construction equipment (a diesel-machinery maker whose risk is the use-phase of its
-products). Metals & mining is treated as a transition **winner** (demand for critical minerals grows),
-not a stranding risk. Supply-chain (Layer 3) cost is scaled to a firm's actual **bought-in inputs**, so
-an asset-light, high-revenue business (a bank) no longer shows an implausible supply-chain carbon bill.
+products), and two forest-products sectors — **pulp & paper** (a biomass-powered low-carbon producer)
+and **solid wood / mass timber** (a transition **winner** — mass timber displaces steel and cement,
+so demand grows). Metals & mining and mass timber are treated as transition **winners** (demand grows,
+cheaper capital), not stranding risks. Supply-chain (Layer 3) cost is scaled to a firm's actual
+**bought-in inputs**, so an asset-light, high-revenue business (a bank) no longer shows an implausible
+supply-chain carbon bill.
 
 The guiding principle throughout: **be useful and be honest about the limits.** Every place
 where a figure is a proxy, an assumption, or an opt-in refinement is labeled as such — in the

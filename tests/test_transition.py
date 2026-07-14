@@ -1562,3 +1562,63 @@ def test_industrial_equipment_sector_resolves_and_strands():
     assert r.strategy is not None
     assert r.layer2_result is not None and r.layer2_result.crossover_year is not None
     assert sum(r.annual_impairment_usd.values()) > 0
+
+
+# ---------------------------------------------------------------------------
+# Forest products (Mercer live test) — pulp & paper + mass timber
+# ---------------------------------------------------------------------------
+def test_forest_products_sectors_resolve_and_do_not_strand():
+    """pulp_paper and wood_products_timber load, run, and — being non-fossil low-carbon
+    producers — never strand (Mercer is not a stranded-asset risk)."""
+    tax = load_sector_taxonomy()["sectors"]
+    for s in ("pulp_paper", "wood_products_timber"):
+        assert s in tax and tax[s]["io_proxy"] in tax
+        assert tax[s]["fossil_dependent"] is False
+        r = run_asset_transition(_co(s, region="DEU", rev=2e9, s1=0.2e6, s2=0.05e6, s3=0.5e6),
+                                 "net_zero_2050")
+        assert r.strategy is not None
+        assert sum(r.annual_impairment_usd.values()) == 0            # no stranding
+
+
+def test_mass_timber_is_a_beneficiary_with_wacc_discount():
+    """Mass timber GROWS with decarbonisation (displaces steel/cement) and is priced as a
+    climate winner — a financing DISCOUNT (negative WACC add-on), no revenue erosion."""
+    r = run_asset_transition(_co("wood_products_timber", region="DEU", rev=2e9,
+                                 s1=0.1e6, s2=0.03e6, s3=0.3e6), "net_zero_2050")
+    assert r.wacc_premium_bps < 0                                    # cheaper capital
+    assert sum(r.layer_breakdown["L2_revenue_erosion"].values()) == 0
+
+
+def test_biogenic_scope3_reduces_report_anchored_l3():
+    """A forest-products firm's reported upstream Scope 3 is largely BIOGENIC wood fibre, which
+    the biogenic_scope3_fraction nets out — so at equal reported Scope 3 and revenue, pulp_paper
+    (biogenic 0.6) books materially less L3 than a non-biogenic sector priced on the same total."""
+    pulp = run_asset_transition(_co("pulp_paper", region="DEU", rev=2e9, s3=3e6),
+                                "net_zero_2050", enable_layers=(3,))
+    metals = run_asset_transition(_co("metals_mining", region="DEU", rev=2e9, s3=3e6),
+                                  "net_zero_2050", enable_layers=(3,))
+    l3_pulp = sum(pulp.layer_breakdown["L3_network_input_cost"].values())
+    l3_metals = sum(metals.layer_breakdown["L3_network_input_cost"].values())
+    assert l3_pulp > 0
+    # report-anchored L3 = scope3 × (1 − biogenic) × price × incidence; biogenic 0.6 → ~40% of a
+    # non-biogenic sector priced on the same reported total
+    assert l3_pulp < l3_metals
+    assert abs(l3_pulp - 0.40 * l3_metals) < 0.02 * l3_metals
+
+
+def test_mercer_firm_rollup_two_business_lines():
+    """Mercer's pulp mills and mass-timber sites roll up under one firm_id; the firm cost is
+    the sum of the lines and both sectors appear."""
+    from engine.transition.transition_engine import firm_rollup, run_portfolio_transition
+    sites = [_co("pulp_paper", region="CAN-AB", rev=380e6, s1=0.18e6, s2=0.015e6, s3=0.62e6,
+                 firm="Mercer", id="PeaceRiver"),
+             _co("pulp_paper", region="DEU", rev=520e6, s1=0.22e6, s2=0.025e6, s3=0.82e6,
+                 firm="Mercer", id="Stendal"),
+             _co("wood_products_timber", region="DEU", rev=260e6, s1=0.04e6, s2=0.012e6,
+                 s3=0.3e6, firm="Mercer", id="TimberProducts")]
+    res = run_portfolio_transition(sites, ["net_zero_2050"])["net_zero_2050"]
+    rolls = firm_rollup(res, sites)
+    assert "Mercer" in rolls and rolls["Mercer"].n_lines == 3
+    assert set(rolls["Mercer"].sectors) == {"pulp_paper", "wood_products_timber"}
+    line_sum = sum(sum(r.annual_total_cost_usd.values()) for r in res)
+    assert abs(sum(rolls["Mercer"].annual_total_cost_usd.values()) - line_sum) < 1.0

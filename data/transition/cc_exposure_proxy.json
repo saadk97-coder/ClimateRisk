@@ -267,6 +267,18 @@
       "regulatory": 0.1,
       "physical": 0.02,
       "src": "SIC35 industrial machinery (real) — product-transition exposed"
+    },
+    "pulp_paper": {
+      "opportunity": 1.1,
+      "regulatory": 0.28,
+      "physical": 0.2,
+      "src": "Forest-products estimate — low-carbon producer w/ real compliance + physical exposure"
+    },
+    "wood_products_timber": {
+      "opportunity": 1.4,
+      "regulatory": 0.1,
+      "physical": 0.15,
+      "src": "Mass-timber / engineered wood — construction-decarbonisation beneficiary"
     }
   },
   "default_unmatched": {

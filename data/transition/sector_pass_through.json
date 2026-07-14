@@ -209,6 +209,20 @@
       "market_structure": "global_oligopoly",
       "trade_exposed": true,
       "source_ref": "Caterpillar/Komatsu pricing; Devulder & Lisack 2020 (capital goods)"
+    },
+    "pulp_paper": {
+      "pass_through": 0.45,
+      "demand_elasticity": -0.3,
+      "market_structure": "commodity_traded",
+      "trade_exposed": true,
+      "source_ref": "Global pulp is a traded commodity (NBSK price); sector-median"
+    },
+    "wood_products_timber": {
+      "pass_through": 0.5,
+      "demand_elasticity": -0.4,
+      "market_structure": "regional_competitive",
+      "trade_exposed": true,
+      "source_ref": "Lumber/engineered-wood pricing; sector-median"
     }
   },
   "default_unmatched": {

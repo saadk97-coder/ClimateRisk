@@ -1739,6 +1739,64 @@
         "relevance": "secondary",
         "rationale": "Green steel / recycled inputs cut embedded emissions in heavy machinery."
       }
+    ],
+    "pulp_paper": [
+      {
+        "lever": "energy_efficiency_industry",
+        "position": "own_operations",
+        "relevance": "primary",
+        "rationale": "Steam/heat efficiency is the first lever in energy-intensive pulp making."
+      },
+      {
+        "lever": "bioenergy_switch",
+        "position": "own_operations",
+        "relevance": "primary",
+        "rationale": "Black-liquor / hog-fuel biomass cogeneration already displaces most fossil energy; deepen it."
+      },
+      {
+        "lever": "renewable_procurement",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Clean purchased power for residual grid draw (Scope 2)."
+      },
+      {
+        "lever": "process_electrification",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Electrify lime kilns / residual fossil heat."
+      },
+      {
+        "lever": "material_efficiency",
+        "position": "upstream",
+        "relevance": "secondary",
+        "rationale": "Fibre yield, recycled content and byproduct valorisation (biogenic carbon)."
+      }
+    ],
+    "wood_products_timber": [
+      {
+        "lever": "material_efficiency",
+        "position": "downstream",
+        "relevance": "primary",
+        "rationale": "Mass timber substituting steel/cement is the core low-carbon-construction opportunity."
+      },
+      {
+        "lever": "energy_efficiency_industry",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Sawmill / kiln-drying efficiency."
+      },
+      {
+        "lever": "bioenergy_switch",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Mill residuals (sawdust, bark) fuel on-site heat and power."
+      },
+      {
+        "lever": "renewable_procurement",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Clean power for mills (Scope 2)."
+      }
     ]
   }
 }

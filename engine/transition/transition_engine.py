@@ -311,7 +311,13 @@ def run_asset_transition(
         # share), not total revenue — so asset-light, high-revenue firms (services, finance)
         # don't book an implausible supply-chain carbon cost.
         from engine.transition.data_loader import load_sector_taxonomy as _lst
-        l3_input_share = float(_lst()["sectors"].get(sector, {}).get("intermediate_input_share", 0.5))
+        _sector_meta = _lst()["sectors"].get(sector, {})
+        l3_input_share = float(_sector_meta.get("intermediate_input_share", 0.5))
+        # Biogenic upstream (Mercer live test). For forest products / bio-based sectors, much of the
+        # reported upstream Scope 3 is BIOGENIC (sustainably-managed wood fibre) whose carbon is not
+        # priced at the fossil carbon price. `biogenic_scope3_fraction` nets that portion out so a
+        # pulp mill's fibre supply isn't charged as if it were steel or cement. Default 0.
+        biogenic_frac = max(0.0, min(1.0, float(_sector_meta.get("biogenic_scope3_fraction", 0.0))))
         # Fix #1 — REPORT-ANCHORED L3. If the firm reports its upstream Scope 3 (and we're in
         # 'auto' mode, so it isn't already in L1), price that reported quantity directly rather
         # than a sector-typical Leontief propagation — using the company's actual value-chain
@@ -321,9 +327,10 @@ def run_asset_transition(
         if report_anchored:
             inc = (L3_SCOPE3_INCIDENCE if scope3_incidence is None
                    else max(0.0, min(1.0, scope3_incidence)))
+            priced_scope3 = asset.scope3_emissions_tco2 * (1.0 - biogenic_frac)
             for y in horizon:
                 price = get_carbon_price(scenario_id, y, ngfs_region) * max(0.0, price_scale)
-                l3_by_year[y] = round(asset.scope3_emissions_tco2 * price * inc * l3_absorption, 2)
+                l3_by_year[y] = round(priced_scope3 * price * inc * l3_absorption, 2)
         elif l3_mode == "mrio":
             # High-resolution 20×49 EXIOBASE MRIO (+ optional Reisch cascade).
             from engine.transition.network_mrio import propagate_mrio
