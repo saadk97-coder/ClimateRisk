@@ -27,8 +27,9 @@ For each entity or asset you provide a short profile:
 | Input | Plain meaning |
 |-------|---------------|
 | **Sector** | What the business does (e.g. coal power, steel, real estate). Picks the right physics and cost curves. |
-| **Emissions** (Scope 1, 2, 3) | How much CO₂ it emits directly, from its electricity, and across its supply chain. |
+| **Emissions** (Scope 1, 2, 3) | How much CO₂ it emits directly (1), from its electricity (2), and across its value chain (3). Scope 3 is split into two: **upstream** (suppliers → supply-chain cost, Layer 3) and **use-phase** (what customers emit using its products → product-demand risk, Layer 2). |
 | **Annual revenue** | Used to scale supply-chain and reputation effects. |
+| **Transition plan** (optional) | Planned pivot capex and a "how well-placed today" positioning score — how the company adapts, not just how exposed it is (see Layer 2). |
 | **Replacement value** | What the physical assets are worth — the thing that can be "stranded." |
 | **Region** | Which carbon-price path and supply-chain structure applies. |
 | **Decarbonization target** (optional) | A net-zero year, if the company has a plan to cut its own emissions. |
@@ -96,6 +97,7 @@ Two ideas:
    vs California, or Spain vs Germany. Same steel plant, green-steel cost parity: US Southwest ~2026,
    Texas ~2027, California ~2034, US Northeast ~2039; Spain ~2031, Germany ~2040, Japan ~2042.
    (Enter a region as `USA-TX`, `USA-CA`, `ESP-S`, etc. for the finer view.)
+
 **Adaptability (this matters a lot).** A company isn't frozen — under a transition scenario it
 *migrates* toward the low-carbon business. So instead of assuming an ICE carmaker simply loses all
 its revenue, the model lets it **pivot**: it captures part of the green upside (offsetting the loss),
