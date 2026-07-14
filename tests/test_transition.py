@@ -1797,3 +1797,39 @@ def test_opaque_entity_gets_nonzero_carbon_cost_after_estimation():
     after = run_asset_transition(filled, "net_zero_2050", enable_layers=(1,))
     assert sum(before.layer_breakdown["L1_carbon_opex"].values()) == 0.0
     assert sum(after.layer_breakdown["L1_carbon_opex"].values()) > 0.0
+
+
+def test_calibrated_intensity_exceeds_raw_taxonomy_for_heavy_sector():
+    """The estimation intensity for a heavy producer (cement) is calibrated ABOVE the raw EEIO
+    taxonomy value, so an opaque cement firm isn't under-estimated."""
+    from engine.transition.estimation import scope12_intensity_t_per_musd, estimate_scope12_from_revenue
+    from engine.transition.data_loader import load_sector_taxonomy
+    raw = float(load_sector_taxonomy()["sectors"]["cement"]["emission_intensity_t_per_revenue"])
+    assert scope12_intensity_t_per_musd("cement") > raw
+    # a sector NOT in the calibrated table falls back to taxonomy × uplift (still positive)
+    assert estimate_scope12_from_revenue("real_estate_commercial", 2e9) > 0
+
+
+# ---------------------------------------------------------------------------
+# Transition opportunity capex — growth lens for beneficiaries
+# ---------------------------------------------------------------------------
+def test_opportunity_capex_flags_scenario_driven_winners_only():
+    """A transition winner (renewables — demand grows far more under Net Zero than baseline)
+    gets a positive opportunity capex; a baseline-growth sector (cement) does not."""
+    from engine.transition.opportunity import estimate_opportunity_capex
+    ren = estimate_opportunity_capex("power_renewable", 100e9)
+    cem = estimate_opportunity_capex("cement", 5e9)
+    coal = estimate_opportunity_capex("power_coal", 5e9)
+    assert ren.is_beneficiary and ren.opportunity_capex_usd > 0
+    assert ren.nz_growth > ren.baseline_growth                 # growth is transition-driven
+    assert not cem.is_beneficiary and cem.opportunity_capex_usd == 0.0
+    assert not coal.is_beneficiary                             # declining sector, no opportunity
+
+
+def test_opportunity_capex_scales_with_asset_base_and_is_capped():
+    from engine.transition.opportunity import estimate_opportunity_capex, GROWTH_CAP, OPP_CAPEX_INTENSITY
+    small = estimate_opportunity_capex("power_renewable", 10e9)
+    big = estimate_opportunity_capex("power_renewable", 100e9)
+    assert big.opportunity_capex_usd == 10 * small.opportunity_capex_usd   # linear in asset base
+    # growth signal is clamped, so capex never exceeds cap × asset base × intensity
+    assert big.opportunity_capex_usd <= GROWTH_CAP * 100e9 * OPP_CAPEX_INTENSITY + 1

@@ -66,6 +66,11 @@ def load_jurisdiction_carbon() -> dict:
 
 
 @lru_cache(maxsize=1)
+def load_estimation_intensity() -> dict:
+    return _load("estimation_intensity.json")
+
+
+@lru_cache(maxsize=1)
 def load_adaptive_capacity() -> dict:
     return _load("adaptive_capacity.json")
 

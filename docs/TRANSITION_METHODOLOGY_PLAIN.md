@@ -252,6 +252,12 @@ The tool doesn't stop at "here's the cost." It also helps answer *what to do*:
   **capital-heavy** it is per tonne (a hydrogen-DRI or CCUS plant, not cheap efficiency), so a
   steelmaker's plan leads with the DRI switch and an automaker's with fleet electrification —
   matching how those companies' published plans actually allocate money.
+- **Opportunity lens** — for a company in a sector that *grows because of* decarbonization
+  (renewables, EV, transition minerals, mass timber — where Net-Zero demand rises well above
+  baseline policy), the tool flags it as a **transition beneficiary** and puts a separate,
+  screening-grade number on the **growth capital** to expand that low-carbon business. This is an
+  *opportunity*, shown alongside the risk and **never added into** the transition-risk total — so
+  a clean-growth company reads as the winner it is, not just a cost.
 - **Disclosure export** — a report structured against **IFRS S2** and **ESRS E1**, the two
   main climate-disclosure standards. (The experimental supply-chain "contagion" amplifier is
   deliberately excluded from this export.)
@@ -297,12 +303,13 @@ channels, avoids double-counting, shows its working, and ranges its answers.
 - A group-consolidation model. A diversified firm (multiple business lines) is rolled up as the
   **sum** of its lines — each line correctly transitions on its own sector/geography, but group-level
   correlation, cross-subsidy and a single optimised group plan are not modelled.
-- A growth-capex model. The transition capex is the cost to **decarbonize the company's own
-  emissions** — not the growth capital a clean-energy company spends to *expand* its low-carbon
-  business. So a renewables/grid utility (e.g. Iberdrola) shows a small decarb-pivot capex even
-  though it runs a very large capital programme; that programme is a growth opportunity the
-  physical-emissions lens doesn't price, and enabling infrastructure (grid) with no direct
-  abatement of the firm's own footprint sits outside the lever capital plan.
+- A full growth-capex model. The transition *risk* capex is the cost to **decarbonize the
+  company's own emissions** — not the full growth capital a clean-energy company spends to expand
+  its low-carbon business. A renewables/grid utility (e.g. Iberdrola) therefore shows a small
+  decarb-pivot capex even though it runs a very large capital programme, and enabling
+  infrastructure (grid) with no direct abatement of the firm's own footprint sits outside the
+  lever capital plan. The **opportunity lens** (see §7) puts a *separate*, screening-grade
+  number on that growth capital, but it is not a bottom-up capital budget.
 
 The tool covers **30 sectors** — the 20 core plus seven from the BSR lever library (apparel, consumer
 goods, financial services, healthcare, professional services, telecom, and metals & mining),

@@ -279,6 +279,17 @@ with tab_capital:
     k3.metric(f"Ongoing opex ({_sym}/yr)", f"{_sym}{tot_opex/fx/1e6:,.1f}M")
     k4.metric("Abatement @target", f"{tot_abate/1e6:,.2f} MtCO₂/yr")
 
+    # --- opportunity lens: growth capital for a transition beneficiary --------
+    from engine.transition.opportunity import estimate_opportunity_capex  # noqa: E402
+    opp = estimate_opportunity_capex(csector, cent.replacement_value, plan_sc)
+    if opp.is_beneficiary:
+        st.info(
+            f"🌱 **Transition beneficiary — separate opportunity lens.** Under {T.scenario_label(plan_sc)}, "
+            f"demand for **{T.sector_label(csector)}** grows **+{opp.nz_growth:.0%}** vs **+{opp.baseline_growth:.0%}** "
+            f"on baseline policy — a low-carbon *growth* opportunity. Screening **growth capital to expand the "
+            f"business ≈ {T.fmt_money(opp.opportunity_capex_usd)}**. This is an opportunity, **not** a decarb-risk "
+            f"cost — it is shown separately and never added into the transition-risk total above.")
+
     # --- phasing chart ----------------------------------------------------
     import plotly.express as px  # noqa: E402
     ph = pd.DataFrame({"Year": list(sched.keys()),

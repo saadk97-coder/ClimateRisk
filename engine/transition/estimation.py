@@ -20,28 +20,34 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Tuple
 
-from engine.transition.data_loader import load_sector_taxonomy
+from engine.transition.data_loader import load_sector_taxonomy, load_estimation_intensity
 
-# Purchased-electricity (Scope 2) is not in the direct Scope-1 intensity. For a
-# screening estimate, uplift the direct intensity by a modest factor to approximate
-# Scope 1+2 for sectors that buy meaningful grid power (light industry, services);
-# heavy fossil sectors are Scope-1-dominated so the uplift matters less.
+# Purchased-electricity (Scope 2) is not in the taxonomy's direct Scope-1 intensity. When we
+# fall back to it, uplift by a modest factor to approximate Scope 1+2.
 _SCOPE2_UPLIFT = 1.15
 
 
-def estimate_scope12_from_revenue(sector: str, revenue_usd: float) -> float:
-    """Screening Scope 1+2 (tCO2/yr) from sector emission intensity × revenue.
+def scope12_intensity_t_per_musd(sector: str) -> float:
+    """Scope 1+2 intensity (tCO2 per $M revenue) used for the estimation path. Prefers the
+    firm-calibrated `estimation_intensity.json`; falls back to the taxonomy EEIO intensity
+    (× a Scope-2 uplift), which is tuned for the L3 shock and undershoots a heavy producer."""
+    calibrated = load_estimation_intensity().get("scope12_t_per_musd_revenue", {})
+    if sector in calibrated:
+        return float(calibrated[sector])
+    tax_ei = float(load_sector_taxonomy()["sectors"].get(sector, {})
+                   .get("emission_intensity_t_per_revenue", 0.0))
+    return tax_ei * _SCOPE2_UPLIFT
 
-    Intensity is tCO2 per $M of gross output (taxonomy `emission_intensity_t_per_revenue`).
-    Returns 0 for an unknown sector or non-positive revenue.
-    """
-    if revenue_usd is None or revenue_usd <= 0:
+
+def estimate_scope12_from_revenue(sector: str, revenue_usd: float) -> float:
+    """Screening Scope 1+2 (tCO2/yr) = sector intensity (tCO2/$M) × revenue.
+    Returns 0 for an unknown sector or non-positive revenue."""
+    if revenue_usd is None or revenue_usd <= 0 or not sector:
         return 0.0
-    meta = load_sector_taxonomy()["sectors"].get(sector, {})
-    intensity = float(meta.get("emission_intensity_t_per_revenue", 0.0))   # t / $M
+    intensity = scope12_intensity_t_per_musd(sector)   # t / $M
     if intensity <= 0:
         return 0.0
-    return round(intensity * (revenue_usd / 1e6) * _SCOPE2_UPLIFT, 1)
+    return round(intensity * (revenue_usd / 1e6), 1)
 
 
 def estimate_emissions_if_missing(asset) -> Tuple[object, bool]:

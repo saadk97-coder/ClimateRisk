@@ -1,0 +1,34 @@
+{
+  "_meta": {
+    "description": "Screening Scope 1+2 emission intensity (tCO2e per $M of REVENUE) for the low-disclosure estimation path (estimation.py). Distinct from sector_taxonomy.emission_intensity_t_per_revenue, which is an EEIO gross-output intensity tuned for the Layer-3 sector shock and undershoots a heavy producer's own footprint. These values are calibrated to real large-cap firms' reported Scope 1+2 ÷ revenue, so an opaque entity's estimate is closer to reality. Screening only — a firm's actual value varies a lot with product mix, integration and geography.",
+    "basis": "reported Scope 1+2 (tCO2e) / annual revenue (USD), FY2022-2023, from company disclosures",
+    "fallback": "sectors not listed here use sector_taxonomy.emission_intensity_t_per_revenue × 1.15 (add a Scope-2 uplift)."
+  },
+  "scope12_t_per_musd_revenue": {
+    "power_coal": 6000,
+    "power_gas": 2200,
+    "power_renewable": 60,
+    "cement": 3500,
+    "steel": 1700,
+    "aluminium": 2200,
+    "chemicals": 450,
+    "oil_upstream": 900,
+    "oil_refining": 500,
+    "aviation": 800,
+    "shipping": 900,
+    "metals_mining": 700,
+    "pulp_paper": 220,
+    "agriculture": 900,
+    "manufacturing_general": 140,
+    "industrial_equipment": 110
+  },
+  "anchors": {
+    "cement": "Holcim ~2.9k, Heidelberg ~2.5k; pure-play cement higher → 3.5k",
+    "steel": "ArcelorMittal 114.3 Mt / $68.3bn ≈ 1.68k",
+    "chemicals": "BASF 16.6 Mt / $74bn ≈ 0.22k; Dow ~0.67k → 0.45k blend",
+    "power_coal": "coal-fleet utilities O(5-7k)",
+    "aviation": "Delta ~40 Mt / $58bn ≈ 0.69k; Lufthansa similar → 0.8k",
+    "shipping": "Maersk ~33 Mt / $51bn ≈ 0.65k → 0.9k for less-integrated carriers",
+    "metals_mining": "diversified miners' direct Scope 1+2 per revenue (diesel/processing)"
+  }
+}

@@ -20,6 +20,7 @@ from engine.asset_model import Asset
 from engine.transition.adaptive_capacity import build_strategy, scenario_ambition
 from engine.transition.data_loader import get_ngfs_region
 from engine.transition.estimation import estimate_scope12_from_revenue, estimate_emissions_if_missing
+from engine.transition.opportunity import estimate_opportunity_capex
 from engine.transition.lever_planner import (
     default_lever_plan, build_capex_schedule, plan_total_capex, plan_total_abatement)
 
@@ -57,6 +58,11 @@ def company(name, sector, region, rev, s1, s2, s3_up, s3_use, repl, target, publ
               f"{r.addressable_tco2/1e6:>9.1f}{m(r.capex_usd):>9s}")
     print(f"  → bottom-up capex {m(plan_total_capex(rows))} · "
           f"abatement@target {plan_total_abatement(rows)/1e6:.0f} Mt/yr")
+    opp = estimate_opportunity_capex(sector, repl, SC)
+    if opp.is_beneficiary:
+        print(f"  OPPORTUNITY LENS — transition BENEFICIARY (NZ demand +{opp.nz_growth:.0%} vs "
+              f"baseline +{opp.baseline_growth:.0%}): ~{m(opp.opportunity_capex_usd)} GROWTH capital "
+              f"to expand the low-carbon business (separate from the decarb-risk capex above)")
     print(f"  REALITY CHECK — company says: {published}")
 
 # ---- Mercedes-Benz: use-phase dominates; EV pivot is the capital story ----
