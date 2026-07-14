@@ -243,14 +243,38 @@ def attribution_map() -> dict:
 
 
 def get_assets() -> list[Asset]:
-    """Portfolio rows → validated Asset objects (skips invalid rows silently)."""
+    """Portfolio rows → validated Asset objects (skips invalid rows silently).
+
+    If the 'estimate missing emissions' option is on (Data Entry), any entity that
+    reports no Scope 1+2 but has a sector and revenue gets a screening estimate from
+    sector emission intensity × revenue — so low-disclosure entities can still be
+    screened. Opt-in; default off, so reported portfolios are unchanged.
+    """
     out = []
     for row in get_portfolio():
         try:
             out.append(make_asset(row))
         except Exception:
             continue
+    if st.session_state.get("tr_estimate_missing"):
+        from engine.transition.estimation import estimate_emissions_if_missing
+        out = [estimate_emissions_if_missing(a)[0] for a in out]
     return out
+
+
+def estimated_emission_entities() -> list[str]:
+    """IDs of entities whose Scope 1+2 would be filled by the screening estimate
+    (no reported Scope 1+2, but a sector and revenue are present)."""
+    from engine.transition.estimation import estimate_emissions_if_missing
+    ids = []
+    for row in get_portfolio():
+        try:
+            a = make_asset(row)
+        except Exception:
+            continue
+        if estimate_emissions_if_missing(a)[1]:
+            ids.append(a.id)
+    return ids
 
 
 # Indicative FX — USD per 1 unit of currency. The engine runs in USD because NGFS

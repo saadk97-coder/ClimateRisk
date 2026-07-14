@@ -19,6 +19,7 @@ Sources:
 from engine.asset_model import Asset
 from engine.transition.adaptive_capacity import build_strategy, scenario_ambition
 from engine.transition.data_loader import get_ngfs_region
+from engine.transition.estimation import estimate_scope12_from_revenue, estimate_emissions_if_missing
 from engine.transition.lever_planner import (
     default_lever_plan, build_capex_schedule, plan_total_capex, plan_total_abatement)
 
@@ -69,3 +70,43 @@ company("ArcelorMittal", "steel", "FRA", 68.3e9, 108e6, 6.3e6,
         50e6, 0.0, repl=38e9, target=2050,
         published="~$10bn gross decarb roadmap for the 2030 intensity target; "
                   "Gijón €1bn H2-DRI, Ghent €1.1bn DRI+EAF, Canada DRI 2Mt+EAF 2.4Mt")
+
+# ---- Iberdrola: clean-growth utility — decarb-PIVOT capex is low by design ----
+company("Iberdrola", "power_renewable", "ESP", 53e9, 11e6, 1e6,
+        8e6, 0.0, repl=120e9, target=2030,
+        published="~€47bn 2023-25 (networks €27bn + renewables €17bn) — GROWTH capital, "
+                  "not a decarb pivot; already ~49-77 gCO2/kWh. Note the scope difference.")
+
+# ===========================================================================
+# Opaque entity — no disclosure; estimate everything from {sector, region, revenue}
+# ===========================================================================
+print(f"\n{'#'*78}\nLOW-DISCLOSURE CASE — estimate from our own inputs (no reported data)\n{'#'*78}")
+
+def opaque(name, sector, region, revenue, repl):
+    # ONLY sector + region + revenue are known — no emissions, no plan, no capex.
+    raw = Asset(id=name, name=name, lat=0, lon=0, asset_type="x", replacement_value=repl,
+        construction_material="concrete", year_built=2005, stories=1, basement=False, roof_type="flat",
+        first_floor_height_m=0, terrain_elevation_asl_m=0, floor_area_m2=0, region=region, sector=sector,
+        annual_revenue=revenue)   # scope1/2/3 default to 0 (undisclosed)
+    a, estimated = estimate_emissions_if_missing(raw)
+    amb = scenario_ambition(SC)
+    strat = build_strategy(asset_id=a.id, sector=sector, scenario_id=SC,
+                           region_band=get_ngfs_region(region),
+                           scope12_tco2=a.scope1_emissions_tco2 + a.scope2_emissions_tco2,
+                           revenue_usd=revenue, replacement_value=repl,
+                           horizon=list(range(2025, 2051)), target_year=0)
+    rows = default_lever_plan(sector, a.scope1_emissions_tco2 + a.scope2_emissions_tco2, 0.0, 0.0,
+                              strat.transition_capex_usd, amb, list(range(2025, 2051)))
+    print(f"\n{name}  ·  {sector}  ·  {region}  ·  rev {m(revenue)}  (only sector+region+revenue known)")
+    print(f"  ESTIMATED Scope 1+2 = {a.scope1_emissions_tco2/1e6:.1f} Mt  "
+          f"(sector intensity {estimate_scope12_from_revenue(sector, 1e6)*1e6/1e6:.0f} t/$M × revenue) "
+          f"[{'estimated' if estimated else 'reported'}]")
+    print(f"  derived positioning {strat.positioning:.2f} · model-estimated capex {m(strat.transition_capex_usd)}")
+    print(f"  {'Lever':32s}{'tgt':>5s}{'addr Mt':>9s}{'capex':>9s}")
+    for r in sorted(rows, key=lambda r: -r.capex_usd)[:5]:
+        print(f"  {r.name[:31]:32s}{r.adoption_target*100:>4.0f}%{r.addressable_tco2/1e6:>9.1f}{m(r.capex_usd):>9s}")
+    print(f"  → capital plan total {m(plan_total_capex(rows))} · everything is a screening default, "
+          f"flagged data_quality='degraded'.")
+
+# An unlisted regional cement producer in an emerging market with no ESG disclosure.
+opaque("Regional Cement Co (unlisted)", "cement", "IND", 2.5e9, repl=3.5e9)

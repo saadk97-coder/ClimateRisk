@@ -39,6 +39,13 @@ Then you pick one or more **scenarios** — coherent stories about how fast the 
 decarbonizes, from "Net Zero 2050" (fast, orderly) to "Current Policies" (slow). These are
 the standard **NGFS** scenarios central banks use.
 
+**When a company barely discloses.** If you only know a company's *sector, country and
+revenue* — a private firm, an emerging-market producer — the tool can **estimate its Scope
+1+2 emissions** from the sector's carbon intensity (tCO₂ per $ of output) × its revenue, and
+fill in everything else from model defaults (positioning, capex, supply-chain cost). So an
+opaque entity still gets a full screening picture. Estimated figures are flagged as such and
+are always overridden the moment you enter reported data.
+
 ---
 
 ## 3. What comes out
@@ -290,6 +297,12 @@ channels, avoids double-counting, shows its working, and ranges its answers.
 - A group-consolidation model. A diversified firm (multiple business lines) is rolled up as the
   **sum** of its lines — each line correctly transitions on its own sector/geography, but group-level
   correlation, cross-subsidy and a single optimised group plan are not modelled.
+- A growth-capex model. The transition capex is the cost to **decarbonize the company's own
+  emissions** — not the growth capital a clean-energy company spends to *expand* its low-carbon
+  business. So a renewables/grid utility (e.g. Iberdrola) shows a small decarb-pivot capex even
+  though it runs a very large capital programme; that programme is a growth opportunity the
+  physical-emissions lens doesn't price, and enabling infrastructure (grid) with no direct
+  abatement of the firm's own footprint sits outside the lever capital plan.
 
 The tool covers **30 sectors** — the 20 core plus seven from the BSR lever library (apparel, consumer
 goods, financial services, healthcare, professional services, telecom, and metals & mining),

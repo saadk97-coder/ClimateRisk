@@ -1762,3 +1762,38 @@ def test_capex_concentrates_on_capital_heavy_lever_not_cheap_volume():
     assert h2.capex_usd > mat.capex_usd                       # so H2 gets the larger capex
     # continuity: the intensity re-weighting still sums to the top-down total
     assert abs(plan_total_capex(rows) - 10_000e6) < 1.0
+
+
+# ---------------------------------------------------------------------------
+# Low-disclosure estimation — fill emissions from sector × revenue
+# ---------------------------------------------------------------------------
+def test_estimate_scope12_from_revenue_scales_with_intensity_and_revenue():
+    from engine.transition.estimation import estimate_scope12_from_revenue
+    cement = estimate_scope12_from_revenue("cement", 2.5e9)     # high-intensity sector
+    services = estimate_scope12_from_revenue("services", 2.5e9)  # low-intensity sector
+    assert cement > services > 0
+    assert estimate_scope12_from_revenue("cement", 5e9) == 2 * estimate_scope12_from_revenue("cement", 2.5e9)
+    assert estimate_scope12_from_revenue("cement", 0) == 0.0     # no revenue → no estimate
+    assert estimate_scope12_from_revenue("", 2.5e9) == 0.0       # unknown sector → no estimate
+
+
+def test_estimate_emissions_only_when_missing():
+    from engine.transition.estimation import estimate_emissions_if_missing
+    opaque = _co("cement", region="IND", rev=2.5e9, s1=0.0, s2=0.0, s3=0.0)
+    filled, was_est = estimate_emissions_if_missing(opaque)
+    assert was_est and filled.scope1_emissions_tco2 > 0
+    reporter = _co("cement", region="IND", rev=2.5e9, s1=5e6, s2=1e6, s3=0.0)
+    same, was_est2 = estimate_emissions_if_missing(reporter)
+    assert not was_est2 and same.scope1_emissions_tco2 == 5e6    # reported figures untouched
+
+
+def test_opaque_entity_gets_nonzero_carbon_cost_after_estimation():
+    """An entity with no reported emissions books zero L1 until estimated; after estimation it
+    carries a screening carbon cost."""
+    from engine.transition.estimation import estimate_emissions_if_missing
+    opaque = _co("cement", region="IND", rev=2.5e9, s1=0.0, s2=0.0, s3=0.0)
+    before = run_asset_transition(opaque, "net_zero_2050", enable_layers=(1,))
+    filled, _ = estimate_emissions_if_missing(opaque)
+    after = run_asset_transition(filled, "net_zero_2050", enable_layers=(1,))
+    assert sum(before.layer_breakdown["L1_carbon_opex"].values()) == 0.0
+    assert sum(after.layer_breakdown["L1_carbon_opex"].values()) > 0.0

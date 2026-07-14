@@ -155,6 +155,24 @@ with b3:
         st.rerun()
 
 # ---------------------------------------------------------------------------
+# Low-disclosure estimation — fill missing Scope 1+2 from sector × revenue
+# ---------------------------------------------------------------------------
+st.session_state.setdefault("tr_estimate_missing", False)
+st.session_state["tr_estimate_missing"] = st.checkbox(
+    "Estimate missing emissions from sector × revenue (screening)",
+    value=st.session_state["tr_estimate_missing"],
+    help="For low-disclosure entities: any row with no Scope 1+2 but a sector and revenue gets a "
+         "screening estimate = sector emission intensity (tCO₂/M$) × revenue. Reported figures are "
+         "never overwritten. Flagged as a screening approximation, not firm data.")
+if st.session_state["tr_estimate_missing"]:
+    est_ids = T.estimated_emission_entities()
+    if est_ids:
+        st.caption(f"🔎 Emissions **estimated** for: {', '.join(est_ids)} — screening only "
+                   "(EEIO/EXIOBASE sector averages). Enter reported figures to override.")
+    else:
+        st.caption("No rows need estimation — every entity with a sector and revenue reports Scope 1+2.")
+
+# ---------------------------------------------------------------------------
 # Validation feedback
 # ---------------------------------------------------------------------------
 saved = T.get_portfolio()
