@@ -1745,3 +1745,20 @@ def test_editing_lever_capex_changes_the_build():
     rows[0].capex_usd += 1_000e6
     after = sum(build_capex_schedule(rows, DEFAULT_HORIZON).values())
     assert abs(after - before - 1_000e6) < 1.0
+
+
+def test_capex_concentrates_on_capital_heavy_lever_not_cheap_volume():
+    """Refinement from the Mercedes/ArcelorMittal stress test: capex must concentrate on the
+    capital-heavy switch (H2-DRI, high MAC) rather than on cheap high-volume material efficiency
+    (low/negative MAC), even though material efficiency addresses MORE tonnes."""
+    from engine.transition.lever_planner import default_lever_plan, plan_total_capex, capex_intensity
+    rows = default_lever_plan("steel", 114e6, 50e6, 0.0, 10_000e6, 0.9, DEFAULT_HORIZON, target_year=2050)
+    by_id = {r.lever_id: r for r in rows}
+    h2 = by_id["hydrogen_feedstock"]
+    mat = by_id["material_efficiency"]
+    # material efficiency addresses more tonnes, but H2-DRI is far more capital-intensive per tonne
+    assert mat.addressable_tco2 > h2.addressable_tco2
+    assert capex_intensity(h2.mac_low, h2.mac_high) > capex_intensity(mat.mac_low, mat.mac_high)
+    assert h2.capex_usd > mat.capex_usd                       # so H2 gets the larger capex
+    # continuity: the intensity re-weighting still sums to the top-down total
+    assert abs(plan_total_capex(rows) - 10_000e6) < 1.0

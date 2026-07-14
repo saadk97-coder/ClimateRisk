@@ -49,6 +49,17 @@ _ADOPT_NOW_IN_PLAN = 0.40      # already pursuing it (marked in the transition p
 _ADOPT_NOW_DEFAULT = 0.12      # baseline utilisation otherwise
 _BASE_YEAR = 2025
 
+# Capital-intensity weighting of the capex allocation. A lever's marginal abatement cost
+# (MAC, $/tCO2) proxies how capital-heavy it is per tonne: a hydrogen-DRI or CCUS plant (high
+# positive MAC) needs far more capex per tonne abated than material/energy efficiency
+# (near-zero or negative MAC). Without this, cheap high-volume levers (efficiency) soak up most
+# of the transition capex — which is wrong: the capital goes into the expensive switch. Maps a
+# MAC midpoint to an intensity multiplier (floored so cheap levers still get some capex).
+_MAC_INTENSITY_OFFSET = 100.0
+_MAC_INTENSITY_SCALE = 250.0
+_MAC_INTENSITY_FLOOR = 0.25
+_MAC_INTENSITY_CAP = 1.6
+
 
 @dataclass
 class LeverPlanRow:
@@ -87,6 +98,15 @@ def addressable_abatement(position: str, potential: str,
     base_key = POSITION_BASE.get(position, "scope12")
     base = {"scope12": scope12, "scope3_up": scope3_up, "scope3_use": scope3_use}.get(base_key, 0.0)
     return POTENTIAL_WEIGHT.get(potential, POTENTIAL_WEIGHT["n/a"]) * max(0.0, base)
+
+
+def capex_intensity(mac_low: float, mac_high: float) -> float:
+    """Capital intensity multiplier for a lever from its MAC range — high-MAC levers
+    (H2-DRI, CCUS) are capital-heavy per tonne; low/negative-MAC levers (efficiency) are
+    capital-light. Floored so cheap levers still receive some capex."""
+    mid = (float(mac_low) + float(mac_high)) / 2.0
+    v = (mid + _MAC_INTENSITY_OFFSET) / _MAC_INTENSITY_SCALE
+    return max(_MAC_INTENSITY_FLOOR, min(_MAC_INTENSITY_CAP, v))
 
 
 def _seed_target(relevance: str, ambition: float) -> float:
@@ -140,14 +160,17 @@ def default_lever_plan(
             start_year=int(start), end_year=int(end),
         ))
 
-    # Allocate the top-down total by (abatement × relevance); fall back to
-    # (potential × relevance × gap) when the entity reports no addressable emissions.
+    # Allocate the top-down total by (abatement × relevance × capital-intensity), so the
+    # capex concentrates on the capital-heavy switch (DRI/CCUS/electrification) rather than on
+    # cheap high-volume levers (efficiency) that address many tonnes for little capital. Fall
+    # back to (potential × relevance × gap × intensity) when there is no addressable base.
     def _weight(r: LeverPlanRow) -> float:
         rel = RELEVANCE_WEIGHT.get(r.relevance, 0.5)
-        w = r.abatement_tco2 * rel
+        ci = capex_intensity(r.mac_low, r.mac_high)
+        w = r.abatement_tco2 * rel * ci
         if w > 0:
             return w
-        return POTENTIAL_WEIGHT.get(_pot_of(r, sls), 0.15) * rel * r.gap
+        return POTENTIAL_WEIGHT.get(_pot_of(r, sls), 0.15) * rel * r.gap * ci
 
     weights = {r.lever_id: _weight(r) for r in rows}
     wsum = sum(weights.values())

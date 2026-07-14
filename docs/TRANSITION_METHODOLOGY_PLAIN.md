@@ -241,7 +241,10 @@ The tool doesn't stop at "here's the cost." It also helps answer *what to do*:
   then **fully editable** — adoption, cost, and the year-by-year **capital-planning** phasing —
   and the edited build flows straight into the cost model when you apply it. This is how "what
   would it cost us to actually do this" becomes a first-class, editable input rather than an
-  assumption.
+  assumption. The seed puts capital where it really goes: it weights each lever by how
+  **capital-heavy** it is per tonne (a hydrogen-DRI or CCUS plant, not cheap efficiency), so a
+  steelmaker's plan leads with the DRI switch and an automaker's with fleet electrification —
+  matching how those companies' published plans actually allocate money.
 - **Disclosure export** — a report structured against **IFRS S2** and **ESRS E1**, the two
   main climate-disclosure standards. (The experimental supply-chain "contagion" amplifier is
   deliberately excluded from this export.)
