@@ -67,7 +67,7 @@ data/transition/
   cc_exposure_proxy.json       sector CCExposure (real ×10³ scale) + pooled z-base + elasticities
   io_matrix.json               20×20 world direct-requirements matrix (EXIOBASE world totals)
   io_matrix_mrio.npz + meta     20×49 EXIOBASE MRIO (980×980)
-  sector_taxonomy.json         20 sectors: tech pairs, fossil flag, emission intensity
+  sector_taxonomy.json         28 sectors (20 core + 8 io_proxy): tech pairs, fossil flag, emission intensity
   macc.json                    per-sector abatement measures (AR6 WG3 / IEA-informed)
   lever_library.json           29 decarbonization levers × 5 domains + sector→lever value-chain map
   adaptive_capacity.json       scenario→ambition, lever→readiness, sector pivot-capex ratios, region buffers
@@ -224,6 +224,23 @@ revenue_erosion(y) = max(0, revenue × (1 − index(y)))     ← cash-flow cost
 Generation Costs in 2024** and **Lazard LCOE+ 2025 v18** (coal 118, gas 76, solar 43, onshore wind 34,
 storage 170). Learning rates: Way et al. 2022 / IRENA. Industrial base costs remain sector estimates.
 
+### 4.5b Product use-phase risk (stress-test fix #2)
+A maker of carbon-emitting **products** — diesel machinery, engines, ICE vehicles, fuels — carries a
+risk its own Scope 1+2 (own operations) completely misses: as its *customers* face carbon prices and
+switch to cleaner alternatives, demand and margin on the carbon-emitting product line fall. This is the
+**use-of-sold-products** channel (GHG Protocol Scope 3 category 11), entered separately as
+`scope3_use_phase_tco2`:
+```
+product_use_phase_cost(y) = use_phase_scope3 × carbon_price[y] × USE_PHASE_INCIDENCE × (1 − capture)
+```
+with `USE_PHASE_INCIDENCE = 0.15` — the fraction of the customers' carbon burden that feeds back to the
+maker as lost demand/margin (deliberately conservative, and distinct from the sector *volume* pathway
+of §4.5, which captures the quantity effect; the use-phase term is the residual price/margin pressure).
+`(1 − capture)` credits a maker that pivots its product line to clean alternatives. Routed once, as a
+cash-flow cost — distinct from **upstream** Scope 3 (in L3) and own-operations Scope 1+2 (in L1). For
+Caterpillar this term (≈360 Mt use-phase) is the single largest cost, correctly reframing an
+asset-light equipment maker whose real transition risk is that its diesel product line strands.
+
 ### 4.6 Adaptive capacity — gross exposure → residual risk
 **Module:** `adaptive_capacity.py` + `adaptive_capacity.json`. §4.5 as written erodes ~100% of the
 incumbent product's revenue — a *frozen* company that captures nothing from the low-carbon business
@@ -326,6 +343,21 @@ Papageorgiou 2017 range 1.3–3.0). σ=1 is Cobb-Douglas.
 focal firm *absorbs* rather than passing to its own customers. Default 1.0 (full absorption, legacy).
 When enabled it is set to `1 − pass_through_j`, so sectors with pricing power recover part of the
 input-cost shock downstream and their net margin impact falls.
+
+### 5.2b Report-anchored L3 (stress-test fix #1)
+When a firm **discloses its own upstream Scope 3** (GHG Protocol categories 1–9), the model prices
+that reported quantity directly instead of estimating it from a sector-typical Leontief propagation:
+```
+indirect_cost[y] = reported_upstream_scope3 × carbon_price[y] × L3_SCOPE3_INCIDENCE × absorption
+```
+with `L3_SCOPE3_INCIDENCE = 0.5` (overridable via `scope3_incidence`) — the share of the upstream
+carbon bill that reaches the focal firm through supplier prices rather than being absorbed further up
+the chain. This makes the value-chain cost track the company's *actual* disclosed footprint
+(e.g. BASF 90 Mt, Nike 9.5 Mt) rather than a generic estimate. The Leontief path of §5.2 remains the
+fallback for **non-disclosers** (`scope3 = 0`) and is bypassed only in `auto` mode (the default, where
+the upstream Scope 3 is *not* already in L1). Because the disclosed figure is a firm-level total, the
+report-anchored path does not produce a modelled upstream **sector decomposition** — the "top upstream
+sources" drill-down is shown only for Leontief-estimated firms.
 
 ### 5.3 Resolution (P2)
 - **World** (default): 20×20 single-region matrix (EXIOBASE-3 world totals, `io_matrix.json`).
@@ -526,7 +558,7 @@ own operations (Scope 1+2), downstream (products/customers/use-phase) — then o
   lever carries: indicative abatement-cost band ($/tCO₂e), global mitigation potential (high/med/low),
   commercial maturity (mature→frontier), 2050 role, key dependencies, a **nature & people** ("just
   transition") note at each value-chain stage, applicable sectors, and sources.
-- **`sector_lever_map`** links all 20 taxonomy sectors to their levers, each tagged with value-chain
+- **`sector_lever_map`** links all 28 taxonomy sectors to their levers, each tagged with value-chain
   position and relevance (primary/secondary) plus a rationale.
 - **Plan overlay** (`overlay_plan`) is a **manual analyst input** — the analyst ticks which levers are
   in the plan — and returns a *factual* count (primary levers covered / total) and a gap list. It
@@ -603,7 +635,7 @@ correction.
 
 ---
 
-## Appendix A — Sector taxonomy (27 sectors)
+## Appendix A — Sector taxonomy (28 sectors)
 Key · label · incumbent → challenger · fossil-dependent · emission intensity (tCO₂/M$) ·
 intermediate-input share · io_proxy (where applicable). See `data/transition/sector_taxonomy.json`.
 The **20 core** sectors span power (coal/gas/renewable), oil & gas (upstream/refining/distribution),
@@ -612,6 +644,9 @@ estate (commercial/residential), agriculture, data centres, general manufacturin
 **+7 BSR lever-library sectors (diagnostic fix #5/#6)** added via `io_proxy`: apparel & textiles,
 consumer goods, financial services, healthcare, professional services, telecommunications, and metals
 & mining (a transition **beneficiary** — demand grows, no product-demand stranding).
+**+1 industrial & construction equipment (stress-test fix #2)**, also via `io_proxy` — a diesel-machinery
+maker (diesel_machinery → electric_machinery) whose dominant risk is the **use-phase** of its sold
+products (see §4.5b), not its own operations.
 
 ## Appendix B — Pass-through coefficients
 See `data/transition/sector_pass_through.json` (pass-through, demand elasticity, market structure,

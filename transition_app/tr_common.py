@@ -129,6 +129,7 @@ def make_asset(row: dict) -> Asset:
         scope1_emissions_tco2=float(row.get("scope1", 0.0) or 0.0),
         scope2_emissions_tco2=float(row.get("scope2", 0.0) or 0.0),
         scope3_emissions_tco2=float(row.get("scope3", 0.0) or 0.0),
+        scope3_use_phase_tco2=float(row.get("scope3_use_phase", 0.0) or 0.0),
         annual_revenue=float(row.get("annual_revenue", 0.0) or 0.0) * fx_to_usd(),
         decarb_target_year=_int_or(row.get("target_year"), 0),
         decarb_residual_pct=0.0,
@@ -167,6 +168,8 @@ def _float_or(v, default: float) -> float:
 PORTFOLIO_COLUMNS = [
     "id", "name", "region", "sector",
     "replacement_value", "annual_revenue", "scope1", "scope2", "scope3",
+    # scope3_use_phase: downstream use-of-sold-products (cat 11) — product-demand risk for equipment/engine makers
+    "scope3_use_phase",
     "target_year", "priced_pct", "attribution_pct",
     # adaptive capacity (optional): planned pivot capex; manual positioning 0–100 (blank = derive)
     "transition_capex", "positioning_pct",
@@ -423,6 +426,8 @@ def build_results_xlsx(results, active, scenarios, discount_rate: float) -> byte
                     "scenario": sc, "entity": r.asset_id, "sector": r.sector, "year": y,
                     "L1_carbon": r.layer_breakdown["L1_carbon_opex"].get(y, 0.0) / fx,
                     "L2_revenue": r.layer_breakdown["L2_revenue_erosion"].get(y, 0.0) / fx,
+                    "L2_pivot_capex": r.layer_breakdown.get("L2_transition_capex", {}).get(y, 0.0) / fx,
+                    "L2_product_use_phase": r.layer_breakdown.get("L2_product_use_phase", {}).get(y, 0.0) / fx,
                     "L3_network": r.layer_breakdown["L3_network_input_cost"].get(y, 0.0) / fx,
                     "L4_reputation": r.layer_breakdown["L4_revenue_modifier"].get(y, 0.0) / fx,
                     "total_cf_cost": r.annual_total_cost_usd.get(y, 0.0) / fx,

@@ -89,6 +89,9 @@ fig2.update_layout(height=360, legend=dict(orientation="h", y=-0.25), margin=dic
 st.plotly_chart(fig2, use_container_width=True)
 
 yr = st.select_slider("Top upstream sources at year", options=list(DEFAULT_HORIZON), value=2040)
+st.caption("Sector decomposition is shown for firms whose supply-chain cost is estimated by "
+           "Leontief propagation. Firms that report their own upstream Scope 3 are priced directly "
+           "on that disclosed quantity (report-anchored L3), so no modelled sector split is shown.")
 for ar in res:
     l3 = next((x for x in ar.layer3_results if x.year == yr), None)
     if not l3 or not l3.top_upstream_sources:

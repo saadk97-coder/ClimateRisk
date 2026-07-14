@@ -118,6 +118,15 @@ We also carry an *uncertainty band* on the crossover year (costs are forecasts, 
 certainties) and can optionally make the crossover happen sooner when the carbon price makes
 the dirty option more expensive.
 
+**Products that emit when customers use them.** For a company that *makes* carbon-emitting
+products — diesel engines, construction machinery, petrol cars, fuels — the biggest risk isn't
+its own factories; it's that its *customers* face carbon costs and switch to cleaner
+alternatives, so demand for the dirty product line falls. If a company reports these
+"use-of-sold-products" emissions, we translate a slice of that future customer carbon burden
+into demand-and-margin pressure on the maker. For Caterpillar this is the single largest
+effect — correctly flagging that its diesel machinery line is what's exposed, even though its
+own plants are relatively clean.
+
 ### Layer 3 — Market risk (the supply-chain channel)
 **Question it answers:** *Even if I'm clean, how much do my inputs cost more because my
 suppliers are paying for carbon?*
@@ -129,6 +138,11 @@ it; if power gets more expensive, everyone feels it. We add up the ripples that 
 sector. (Optionally the firm passes part of this cost on again, so only its net share
 counts.) A higher-resolution version splits this across 49 world regions using the
 **EXIOBASE** global trade database.
+
+**If a company reports its own supply-chain emissions** (upstream Scope 3), we price *that*
+disclosed number directly instead of estimating it — so BASF's 90-million-tonne value chain
+or Nike's 9.5 million tonnes drives the cost, not a generic sector average. The estimated
+version is the fallback for firms that don't report.
 
 ### Layer 4 — Reputation risk (the cost-of-capital channel)
 **Question it answers:** *Do investors and lenders charge me more because of my climate
@@ -251,11 +265,12 @@ channels, avoids double-counting, shows its working, and ranges its answers.
   **sum** of its lines — each line correctly transitions on its own sector/geography, but group-level
   correlation, cross-subsidy and a single optimised group plan are not modelled.
 
-The tool covers **27 sectors** — the 20 core plus seven from the BSR lever library (apparel, consumer
-goods, financial services, healthcare, professional services, telecom, and metals & mining). Metals &
-mining is treated as a transition **winner** (demand for critical minerals grows), not a stranding
-risk. Supply-chain (Layer 3) cost is scaled to a firm's actual **bought-in inputs**, so an asset-light,
-high-revenue business (a bank) no longer shows an implausible supply-chain carbon bill.
+The tool covers **28 sectors** — the 20 core plus seven from the BSR lever library (apparel, consumer
+goods, financial services, healthcare, professional services, telecom, and metals & mining), plus
+industrial & construction equipment (a diesel-machinery maker whose risk is the use-phase of its
+products). Metals & mining is treated as a transition **winner** (demand for critical minerals grows),
+not a stranding risk. Supply-chain (Layer 3) cost is scaled to a firm's actual **bought-in inputs**, so
+an asset-light, high-revenue business (a bank) no longer shows an implausible supply-chain carbon bill.
 
 The guiding principle throughout: **be useful and be honest about the limits.** Every place
 where a figure is a proxy, an assumption, or an opt-in refinement is labeled as such — in the

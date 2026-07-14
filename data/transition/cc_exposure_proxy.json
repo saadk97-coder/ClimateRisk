@@ -261,6 +261,12 @@
       "regulatory": 0.3,
       "physical": 0.1,
       "src": "BSR-sector estimate (Session 12 taxonomy split)"
+    },
+    "industrial_equipment": {
+      "opportunity": 0.55,
+      "regulatory": 0.1,
+      "physical": 0.02,
+      "src": "SIC35 industrial machinery (real) — product-transition exposed"
     }
   },
   "default_unmatched": {

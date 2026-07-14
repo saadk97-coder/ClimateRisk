@@ -486,6 +486,7 @@ def test_orchestrator_total_equals_sum_of_layers(coal_plant):
             r.layer_breakdown["L1_carbon_opex"][y]
             + r.layer_breakdown["L2_revenue_erosion"][y]
             + r.layer_breakdown["L2_transition_capex"][y]   # adaptive-capacity capex
+            + r.layer_breakdown["L2_product_use_phase"][y]  # use-phase product risk
             + r.layer_breakdown["L3_network_input_cost"][y]
             + r.layer_breakdown["L4_revenue_modifier"][y]
         )
@@ -747,8 +748,12 @@ def test_mrio_cascade_amplifies_at_low_threshold():
 
 
 def test_l3_mode_mrio_runs_in_orchestrator(refinery):
-    world = run_asset_transition(refinery, "net_zero_2050", enable_layers=(3,), l3_mode="world")
-    mrio = run_asset_transition(refinery, "net_zero_2050", enable_layers=(3,), l3_mode="mrio")
+    from dataclasses import replace
+    # Zero the reported Scope 3 so the Leontief path (not report-anchored L3) is exercised —
+    # the l3_mode switch only applies to the modelled propagation for non-disclosers.
+    non_reporter = replace(refinery, scope3_emissions_tco2=0.0)
+    world = run_asset_transition(non_reporter, "net_zero_2050", enable_layers=(3,), l3_mode="world")
+    mrio = run_asset_transition(non_reporter, "net_zero_2050", enable_layers=(3,), l3_mode="mrio")
     assert mrio.layer_breakdown["L3_network_input_cost"][2050] > 0
     # the two resolutions give different L3 numbers
     assert mrio.layer_breakdown["L3_network_input_cost"][2050] != \
@@ -1406,20 +1411,21 @@ def test_subnational_code_strips_to_country_for_carbon_band():
 # taxonomy expansion, metals mining, firm roll-up
 # ---------------------------------------------------------------------------
 def _co(sector, region="USA", rev=20e9, s1=1e6, s2=1e6, s3=2e6, repl=10e9, target=0, pos=-1.0,
-        firm="", id="X"):
+        firm="", id="X", s3_use=0.0):
     return Asset(id=id, name=id, lat=0, lon=0, asset_type="x", replacement_value=repl,
                  construction_material="concrete", year_built=2010, stories=1, basement=False,
                  roof_type="flat", first_floor_height_m=0, terrain_elevation_asl_m=0, floor_area_m2=0,
                  region=region, sector=sector, scope1_emissions_tco2=s1, scope2_emissions_tco2=s2,
-                 scope3_emissions_tco2=s3, annual_revenue=rev, decarb_target_year=target,
-                 positioning_override=pos, firm_id=firm)
+                 scope3_emissions_tco2=s3, scope3_use_phase_tco2=s3_use, annual_revenue=rev,
+                 decarb_target_year=target, positioning_override=pos, firm_id=firm)
 
 
 def test_fix1_l3_scales_by_input_share_not_revenue():
     """Fix #1 — L3 uses the carbon-exposed input base (revenue × intermediate_input_share);
     a low-input-share sector books a much smaller L3 than a high-input-share one at equal revenue."""
-    fin = run_asset_transition(_co("financial_services", rev=20e9), "net_zero_2050", enable_layers=(3,))
-    ref = run_asset_transition(_co("oil_refining", rev=20e9), "net_zero_2050", enable_layers=(3,))
+    # scope3=0 → non-disclosers, so the Leontief input-share path is exercised (not report-anchored L3)
+    fin = run_asset_transition(_co("financial_services", rev=20e9, s3=0.0), "net_zero_2050", enable_layers=(3,))
+    ref = run_asset_transition(_co("oil_refining", rev=20e9, s3=0.0), "net_zero_2050", enable_layers=(3,))
     l3_fin = sum(fin.layer_breakdown["L3_network_input_cost"].values())
     l3_ref = sum(ref.layer_breakdown["L3_network_input_cost"].values())
     assert l3_fin < l3_ref
@@ -1480,3 +1486,79 @@ def test_fix4_firm_rollup_groups_business_lines():
     line_sum = sum(sum(r.annual_total_cost_usd.values()) for r in res if r.asset_id in ("L1", "L2"))
     assert abs(sum(rolls["ACME"].annual_total_cost_usd.values()) - line_sum) < 1.0
     assert "L3" in rolls and rolls["L3"].n_lines == 1   # standalone is its own firm
+
+
+# ---------------------------------------------------------------------------
+# Scope-3 reframe — report-anchored L3 + use-phase product risk
+# ---------------------------------------------------------------------------
+def test_report_anchored_l3_uses_reported_scope3():
+    """A firm that reports a large upstream Scope 3 books an L3 cost that tracks that
+    reported quantity — materially larger than the same firm reporting none (which falls
+    back to the sector-typical Leontief propagation)."""
+    reporter = run_asset_transition(_co("chemicals", rev=74e9, s3=90e6), "net_zero_2050",
+                                    enable_layers=(3,))
+    non_reporter = run_asset_transition(_co("chemicals", rev=74e9, s3=0.0), "net_zero_2050",
+                                        enable_layers=(3,))
+    l3_rep = sum(reporter.layer_breakdown["L3_network_input_cost"].values())
+    l3_non = sum(non_reporter.layer_breakdown["L3_network_input_cost"].values())
+    assert l3_rep > 0
+    # 90 Mt of disclosed value-chain carbon dominates the generic sector estimate
+    assert l3_rep > l3_non
+    # report-anchored path leaves the sector-decomposition list empty (nothing to split)
+    assert reporter.layer3_results == []
+
+
+def test_report_anchored_l3_scales_with_reported_quantity():
+    """Double the reported upstream Scope 3 → roughly double the report-anchored L3 cost."""
+    lo = run_asset_transition(_co("healthcare", rev=58e9, s3=4e6), "net_zero_2050", enable_layers=(3,))
+    hi = run_asset_transition(_co("healthcare", rev=58e9, s3=8e6), "net_zero_2050", enable_layers=(3,))
+    l3_lo = sum(lo.layer_breakdown["L3_network_input_cost"].values())
+    l3_hi = sum(hi.layer_breakdown["L3_network_input_cost"].values())
+    assert l3_lo > 0
+    assert abs(l3_hi - 2.0 * l3_lo) < 0.02 * l3_hi   # linear in reported quantity
+
+
+def test_report_anchored_l3_disabled_in_full_mode():
+    """In scope3_mode='full' the upstream Scope 3 is priced inside L1, so L3 must NOT
+    also anchor to it — it falls back to the Leontief path."""
+    r = run_asset_transition(_co("chemicals", rev=74e9, s3=90e6), "net_zero_2050",
+                             enable_layers=(3,), scope3_mode="full")
+    # Leontief path populates the per-year sector-shock list; report-anchored path does not
+    assert r.layer3_results != []
+
+
+def test_use_phase_product_risk_creates_l2_cost():
+    """A maker of carbon-emitting products (reported use-phase Scope 3) books a
+    product-use-phase L2 cost; a firm with no use-phase reporting books zero."""
+    maker = run_asset_transition(_co("industrial_equipment", rev=67e9, s3=40e6, s3_use=360e6),
+                                 "net_zero_2050")
+    none = run_asset_transition(_co("industrial_equipment", rev=67e9, s3=40e6, s3_use=0.0),
+                                "net_zero_2050")
+    up = sum(maker.layer_breakdown["L2_product_use_phase"].values())
+    assert up > 0
+    assert all(v == 0 for v in none.layer_breakdown["L2_product_use_phase"].values())
+    # the use-phase term is a material share of the total for a use-phase-dominated firm
+    assert up > 0.2 * sum(maker.annual_total_cost_usd.values())
+
+
+def test_use_phase_scales_with_reported_use_phase_scope3():
+    """Product-use-phase cost is linear in the reported downstream Scope 3."""
+    lo = run_asset_transition(_co("industrial_equipment", s3_use=100e6), "net_zero_2050")
+    hi = run_asset_transition(_co("industrial_equipment", s3_use=200e6), "net_zero_2050")
+    up_lo = sum(lo.layer_breakdown["L2_product_use_phase"].values())
+    up_hi = sum(hi.layer_breakdown["L2_product_use_phase"].values())
+    assert up_lo > 0
+    assert abs(up_hi - 2.0 * up_lo) < 0.02 * up_hi
+
+
+def test_industrial_equipment_sector_resolves_and_strands():
+    """The new industrial_equipment sector loads, runs, and strands under net-zero
+    (fossil-dependent product line with a demand-collapse pathway)."""
+    tax = load_sector_taxonomy()["sectors"]
+    assert "industrial_equipment" in tax
+    assert tax["industrial_equipment"]["io_proxy"] in tax
+    r = run_asset_transition(_co("industrial_equipment", rev=67e9, s3=40e6, s3_use=360e6, target=0),
+                             "net_zero_2050")
+    assert r.strategy is not None
+    assert r.layer2_result is not None and r.layer2_result.crossover_year is not None
+    assert sum(r.annual_impairment_usd.values()) > 0

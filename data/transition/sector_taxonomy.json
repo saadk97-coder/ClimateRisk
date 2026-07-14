@@ -385,6 +385,21 @@
       "emission_intensity_t_per_revenue": 850,
       "intermediate_input_share": 0.55,
       "notes": "Copper/lithium/nickel etc. — a transition BENEFICIARY: demand GROWS. High Scope-1 (diesel/processing) but no product-demand stranding."
+    },
+    "industrial_equipment": {
+      "label": "Industrial & Construction Equipment",
+      "gics": "20106010",
+      "nace": "C28",
+      "exiobase": "i28",
+      "io_index": 18,
+      "io_proxy": "manufacturing_general",
+      "primary_technology": "diesel_machinery",
+      "challenger_technology": "electric_machinery",
+      "fossil_dependent": true,
+      "stranding_slope": 0.18,
+      "emission_intensity_t_per_revenue": 95,
+      "intermediate_input_share": 0.68,
+      "notes": "Own-ops emissions modest; the transition risk is the USE-PHASE of sold products (diesel engines/machinery). Customers face carbon costs and electrify — demand/margin pressure on the maker. Slower than autos (duty cycles, charging in the field)."
     }
   }
 }

@@ -202,6 +202,13 @@
       "market_structure": "commodity_traded",
       "trade_exposed": true,
       "source_ref": "sector-median estimate"
+    },
+    "industrial_equipment": {
+      "pass_through": 0.55,
+      "demand_elasticity": -0.45,
+      "market_structure": "global_oligopoly",
+      "trade_exposed": true,
+      "source_ref": "Caterpillar/Komatsu pricing; Devulder & Lisack 2020 (capital goods)"
     }
   },
   "default_unmatched": {

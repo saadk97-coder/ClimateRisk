@@ -1707,6 +1707,38 @@
         "relevance": "secondary",
         "rationale": "Water-energy nexus in arid mining regions."
       }
+    ],
+    "industrial_equipment": [
+      {
+        "lever": "fleet_electrification",
+        "position": "downstream",
+        "relevance": "primary",
+        "rationale": "Product pivot from diesel to battery/electric machinery — the defining transition for equipment makers."
+      },
+      {
+        "lever": "charging_infrastructure",
+        "position": "downstream",
+        "relevance": "secondary",
+        "rationale": "Field charging / hydrogen refuelling enables customer adoption of electric machinery."
+      },
+      {
+        "lever": "energy_efficiency_industry",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Cut own-ops emissions across assembly plants."
+      },
+      {
+        "lever": "renewable_procurement",
+        "position": "own_operations",
+        "relevance": "secondary",
+        "rationale": "Clean power for manufacturing facilities (Scope 2)."
+      },
+      {
+        "lever": "material_efficiency",
+        "position": "upstream",
+        "relevance": "secondary",
+        "rationale": "Green steel / recycled inputs cut embedded emissions in heavy machinery."
+      }
     ]
   }
 }

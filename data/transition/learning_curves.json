@@ -632,6 +632,44 @@
         "iea_steps": 0.01
       },
       "source_ref": "Industrial average"
+    },
+    "diesel_machinery": {
+      "label": "Diesel Off-Highway Machinery (incumbent)",
+      "learning_rate": 0.015,
+      "cost_2025_usd_per_unit": 250000,
+      "lafond_sigma": 0.04,
+      "category": "incumbent",
+      "annual_capacity_growth_2025_2050": {
+        "net_zero_2050": -0.1,
+        "below_2c": -0.06,
+        "delayed_transition": -0.04,
+        "ndcs_only": -0.01,
+        "current_policies": 0.01,
+        "fragmented_world": -0.03,
+        "iea_nze": -0.1,
+        "iea_aps": -0.05,
+        "iea_steps": 0.0
+      },
+      "source_ref": "IEA Off-Highway electrification outlook; ICCT 2023"
+    },
+    "electric_machinery": {
+      "label": "Electric / Battery Off-Highway Machinery (challenger)",
+      "learning_rate": 0.15,
+      "cost_2025_usd_per_unit": 340000,
+      "lafond_sigma": 0.08,
+      "category": "challenger",
+      "annual_capacity_growth_2025_2050": {
+        "net_zero_2050": 0.22,
+        "below_2c": 0.16,
+        "delayed_transition": 0.13,
+        "ndcs_only": 0.08,
+        "current_policies": 0.05,
+        "fragmented_world": 0.1,
+        "iea_nze": 0.22,
+        "iea_aps": 0.15,
+        "iea_steps": 0.06
+      },
+      "source_ref": "BNEF; Way et al. 2022 (analogous heavy-duty electrification)"
     }
   }
 }

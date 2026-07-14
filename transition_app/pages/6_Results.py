@@ -220,6 +220,8 @@ res = results.get(sc_att, [])
 cat_map = [
     ("Policy & Legal (L1)", "L1_carbon_opex"),
     ("Technology (L2 revenue)", "L2_revenue_erosion"),
+    ("Technology (L2 pivot capex)", "L2_transition_capex"),
+    ("Technology (L2 product use-phase)", "L2_product_use_phase"),
     ("Market (L3 network)", "L3_network_input_cost"),
     ("Reputation (L4)", "L4_revenue_modifier"),
 ]
@@ -276,6 +278,8 @@ for sc, res in results.items():
                 "scenario": sc, "entity": r.asset_id, "sector": r.sector, "year": y,
                 "L1_carbon": r.layer_breakdown["L1_carbon_opex"].get(y, 0.0),
                 "L2_revenue": r.layer_breakdown["L2_revenue_erosion"].get(y, 0.0),
+                "L2_pivot_capex": r.layer_breakdown.get("L2_transition_capex", {}).get(y, 0.0),
+                "L2_product_use_phase": r.layer_breakdown.get("L2_product_use_phase", {}).get(y, 0.0),
                 "L3_network": r.layer_breakdown["L3_network_input_cost"].get(y, 0.0),
                 "L4_reputation": r.layer_breakdown["L4_revenue_modifier"].get(y, 0.0),
                 "total_cf_cost": r.annual_total_cost_usd.get(y, 0.0),

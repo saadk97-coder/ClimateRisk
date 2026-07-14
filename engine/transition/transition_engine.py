@@ -66,6 +66,15 @@ _log = logging.getLogger(__name__)
 
 DEFAULT_HORIZON = list(range(2025, 2051))
 
+# Fix #1 — when a firm reports its UPSTREAM Scope 3, L3 is anchored to that reported
+# quantity: cost = scope3_upstream × carbon_price × incidence. The incidence is the share
+# of the supplier's carbon cost that reaches this firm via input prices (supplier
+# pass-through to buyer). Overridable via scope3_incidence.
+L3_SCOPE3_INCIDENCE = 0.5
+# Fix #2 — share of the customer's use-phase carbon burden that comes back to the product
+# MAKER as demand/margin pressure (customers bear most; the maker loses some pricing/volume).
+USE_PHASE_INCIDENCE = 0.15
+
 
 def _resolve_positioning(explicit, asset):
     """Positioning override precedence: explicit arg → asset field → None (derive).
@@ -303,7 +312,19 @@ def run_asset_transition(
         # don't book an implausible supply-chain carbon cost.
         from engine.transition.data_loader import load_sector_taxonomy as _lst
         l3_input_share = float(_lst()["sectors"].get(sector, {}).get("intermediate_input_share", 0.5))
-        if l3_mode == "mrio":
+        # Fix #1 — REPORT-ANCHORED L3. If the firm reports its upstream Scope 3 (and we're in
+        # 'auto' mode, so it isn't already in L1), price that reported quantity directly rather
+        # than a sector-typical Leontief propagation — using the company's actual value-chain
+        # carbon (e.g. Nike 9.5 Mt, BASF 90 Mt) instead of a generic estimate. The Leontief path
+        # remains the fallback for non-reporters (scope3 == 0) and for 'full' mode.
+        report_anchored = (scope3_mode == "auto" and asset.scope3_emissions_tco2 > 0)
+        if report_anchored:
+            inc = (L3_SCOPE3_INCIDENCE if scope3_incidence is None
+                   else max(0.0, min(1.0, scope3_incidence)))
+            for y in horizon:
+                price = get_carbon_price(scenario_id, y, ngfs_region) * max(0.0, price_scale)
+                l3_by_year[y] = round(asset.scope3_emissions_tco2 * price * inc * l3_absorption, 2)
+        elif l3_mode == "mrio":
             # High-resolution 20×49 EXIOBASE MRIO (+ optional Reisch cascade).
             from engine.transition.network_mrio import propagate_mrio
             for y in horizon:
@@ -376,10 +397,26 @@ def run_asset_transition(
         for y in horizon:
             l2_capex_by_year[y] = strategy.annual_capex_usd.get(y, 0.0)
 
+    # ── Product use-phase risk (Fix #2) ─────────────────────────────────────
+    # For a maker of carbon-emitting PRODUCTS (diesel machinery, engines, ICE vehicles),
+    # the customers' use-phase Scope 3 (cat 11) creates demand/margin pressure as those
+    # customers face carbon costs and switch to cleaner alternatives. Cost to the maker =
+    # use_phase_Scope3 × carbon_price × USE_PHASE_INCIDENCE, reduced by how much the firm
+    # pivots its product line to clean (capture). A cash-flow cost (routes once, distinct
+    # from upstream Scope 3 which is in L3, and from own-ops Scope 1+2 in L1).
+    l2_use_phase_by_year: Dict[int, float] = {y: 0.0 for y in horizon}
+    _use_phase = getattr(asset, "scope3_use_phase_tco2", 0.0) or 0.0
+    if _use_phase > 0 and 2 in enable_layers:
+        _cap = strategy.capture_fraction if strategy is not None else 0.0
+        _ngfs = get_ngfs_region(region)
+        for y in horizon:
+            price = get_carbon_price(scenario_id, y, _ngfs) * max(0.0, price_scale)
+            l2_use_phase_by_year[y] = round(_use_phase * price * USE_PHASE_INCIDENCE * (1.0 - _cap), 2)
+
     # ── Aggregate ──────────────────────────────────────────────────────────
     total_by_year = {
         y: l1_by_year[y] + l2_revenue_by_year[y] + l2_capex_by_year[y]
-           + l3_by_year[y] + l4_by_year[y]
+           + l2_use_phase_by_year[y] + l3_by_year[y] + l4_by_year[y]
         for y in horizon
     }
 
@@ -387,6 +424,7 @@ def run_asset_transition(
         "L1_carbon_opex": l1_by_year,
         "L2_revenue_erosion": l2_revenue_by_year,
         "L2_transition_capex": l2_capex_by_year,
+        "L2_product_use_phase": l2_use_phase_by_year,
         "L2_impairment": l2_impairment_by_year,
         "L3_network_input_cost": l3_by_year,
         "L4_revenue_modifier": l4_by_year,

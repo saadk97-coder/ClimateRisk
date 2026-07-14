@@ -47,6 +47,7 @@ st.caption(
 # the text/selectbox column config).
 _STR_COLS = ["id", "name", "region", "sector", "firm_id"]
 _NUM_COLS = ["replacement_value", "annual_revenue", "scope1", "scope2", "scope3",
+             "scope3_use_phase",
              "target_year", "priced_pct", "attribution_pct",
              "transition_capex", "positioning_pct"]
 
@@ -83,7 +84,13 @@ edited = st.data_editor(
             f"Annual revenue ({T.sym()})", min_value=0.0, format="%.0f"),
         "scope1": st.column_config.NumberColumn("Scope 1 (tCO₂)", min_value=0.0, format="%.0f"),
         "scope2": st.column_config.NumberColumn("Scope 2 (tCO₂)", min_value=0.0, format="%.0f"),
-        "scope3": st.column_config.NumberColumn("Scope 3 (tCO₂)", min_value=0.0, format="%.0f"),
+        "scope3": st.column_config.NumberColumn(
+            "Scope 3 upstream (tCO₂)", min_value=0.0, format="%.0f",
+            help="Upstream value-chain emissions (GHG Protocol cat 1–9) → priced as supply-chain input cost (L3)."),
+        "scope3_use_phase": st.column_config.NumberColumn(
+            "Scope 3 use-phase (tCO₂)", min_value=0.0, format="%.0f",
+            help="Downstream use-of-sold-products (cat 11) — customers' emissions from your products. "
+                 "Drives product-demand risk for engine/machinery/fuel makers. Leave 0 if not a product maker."),
         "target_year": st.column_config.NumberColumn(
             "Net-zero target yr", min_value=0, max_value=2060, step=1, format="%d",
             help="Scope 1+2 net-zero target year. Blank / 0 = no abatement (emissions held flat)."),

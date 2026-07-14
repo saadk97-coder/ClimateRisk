@@ -88,7 +88,8 @@
       "healthcare": 0.2,
       "professional_services": 0.12,
       "telecom": 0.3,
-      "metals_mining": 0.45
+      "metals_mining": 0.45,
+      "industrial_equipment": 0.4
     },
     "region_multiplier": {
       "_note": "Geographic/context buffer on pivot cost (execution + financing risk). Advanced economies cheapest to execute; rest-of-world carries an execution premium.",
