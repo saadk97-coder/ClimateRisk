@@ -311,6 +311,8 @@ def run_engine(assets: list[Asset], scenarios: list[str]):
         l3_partial_pass_through=bool(st.session_state.get("tr_l3_partial_pt", False)),
         adaptive=bool(st.session_state.get("tr_adaptive", True)),
         plan_coverage_by_asset=_plan_coverage_by_asset(active),
+        # bottom-up per-lever capital plans applied on the Levers page (Capital plan tab)
+        capex_schedule_by_asset=(st.session_state.get("tr_capex_schedule") or None),
     )
 
 

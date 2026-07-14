@@ -221,9 +221,14 @@ def build_strategy(
     positioning_override: Optional[float] = None,
     plan_coverage: Optional[float] = None,
     transition_capex_override: Optional[float] = None,
+    capex_schedule_override: Optional[Dict[int, float]] = None,
     challenger_headroom: float = 1.0,
 ) -> AdaptiveStrategy:
-    """Assemble the full transition strategy for one asset × scenario."""
+    """Assemble the full transition strategy for one asset × scenario.
+
+    capex_schedule_override : optional {year: USD} bottom-up capital plan from the
+    lever planner; when given it overrides both the capex total and its phasing.
+    """
     ambition = scenario_ambition(scenario_id, ambition_override)
 
     if positioning_override is not None:
@@ -247,20 +252,27 @@ def build_strategy(
         progress = 0.5 * comp.get("plan_strength", P) + 0.5 * comp.get("emissions_positioning", P)
     already = float(load_adaptive_capacity()["positioning"]["already_transitioned_max"]) * progress
 
-    if transition_capex_override is not None and transition_capex_override > 0:
-        total_capex = float(transition_capex_override)
-        capex_src = "company-provided"
+    # A bottom-up lever capital plan (capex_schedule_override) wins outright — it carries
+    # both the total and the year-by-year phasing the analyst set on the Levers page.
+    if capex_schedule_override:
+        annual_capex = {y: float(capex_schedule_override.get(y, 0.0)) for y in horizon}
+        total_capex = round(sum(annual_capex.values()), 2)
+        capex_src = "lever-plan"
     else:
-        total_capex = estimate_transition_capex(sector, region_band, ambition, P, replacement_value)
-        capex_src = "model-estimated"
+        if transition_capex_override is not None and transition_capex_override > 0:
+            total_capex = float(transition_capex_override)
+            capex_src = "company-provided"
+        else:
+            total_capex = estimate_transition_capex(sector, region_band, ambition, P, replacement_value)
+            capex_src = "model-estimated"
 
-    end = max(horizon) if horizon else _END_YEAR
-    tgt = target_year if (target_year and target_year > _BASE_YEAR) else end
-    peak_frac = float(load_adaptive_capacity()["transition_capex"]["phasing"]["peak_fraction_of_window"])
-    annual_capex = _triangular_capex_phasing(total_capex, min(horizon) if horizon else _BASE_YEAR,
-                                             min(tgt, end), peak_frac)
-    # ensure every horizon year has a key
-    annual_capex = {y: annual_capex.get(y, 0.0) for y in horizon}
+        end = max(horizon) if horizon else _END_YEAR
+        tgt = target_year if (target_year and target_year > _BASE_YEAR) else end
+        peak_frac = float(load_adaptive_capacity()["transition_capex"]["phasing"]["peak_fraction_of_window"])
+        annual_capex = _triangular_capex_phasing(total_capex, min(horizon) if horizon else _BASE_YEAR,
+                                                 min(tgt, end), peak_frac)
+        # ensure every horizon year has a key
+        annual_capex = {y: annual_capex.get(y, 0.0) for y in horizon}
 
     return AdaptiveStrategy(
         asset_id=asset_id, sector=sector, scenario_id=scenario_id,

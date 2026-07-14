@@ -1690,3 +1690,58 @@ def test_decarb_residual_pct_raises_l1_versus_net_zero():
     r_pt = run_asset_transition(partial, "net_zero_2050", enable_layers=(1,))
     assert sum(r_pt.layer_breakdown["L1_carbon_opex"].values()) > \
         sum(r_nz.layer_breakdown["L1_carbon_opex"].values())
+
+
+# ---------------------------------------------------------------------------
+# Lever-level capital plan (bottom-up transition capex)
+# ---------------------------------------------------------------------------
+def test_lever_plan_decomposes_topdown_total():
+    """The seeded per-lever forward capex sums back to the top-down estimate (continuity)."""
+    from engine.transition.lever_planner import default_lever_plan, plan_total_capex
+    rows = default_lever_plan("steel", 9e6, 3e6, 0.0, total_capex_usd=4_860e6,
+                              ambition=0.9, horizon=DEFAULT_HORIZON, target_year=2045)
+    assert len(rows) > 0
+    assert abs(plan_total_capex(rows) - 4_860e6) < 1.0            # rows sum to the total
+    assert all(r.adoption_target >= r.adoption_now for r in rows)  # target never below current
+
+
+def test_lever_plan_addressable_uses_position_base():
+    """A downstream lever addresses the use-phase base; an own-ops lever the Scope 1+2 base."""
+    from engine.transition.lever_planner import addressable_abatement
+    own = addressable_abatement("own_operations", "high", scope12=10e6, scope3_up=0, scope3_use=0)
+    up = addressable_abatement("upstream", "high", scope12=0, scope3_up=8e6, scope3_use=0)
+    down = addressable_abatement("downstream", "high", scope12=0, scope3_up=0, scope3_use=5e6)
+    assert own > 0 and up > 0 and down > 0
+    assert addressable_abatement("own_operations", "high", 0, 9e9, 0) == 0.0   # wrong base → 0
+
+
+def test_capex_schedule_phases_within_window_and_sums():
+    """build_capex_schedule spreads each lever's capex within its start→end and sums to the total."""
+    from engine.transition.lever_planner import default_lever_plan, build_capex_schedule, plan_total_capex
+    rows = default_lever_plan("steel", 9e6, 3e6, 0.0, 4_860e6, 0.9, DEFAULT_HORIZON, target_year=2040)
+    sched = build_capex_schedule(rows, DEFAULT_HORIZON)
+    assert abs(sum(sched.values()) - plan_total_capex(rows)) < 1.0
+    assert sched.get(2050, 0.0) == 0.0            # nothing after the 2040 target window
+    assert sched[2030] > 0                        # spend inside the window
+
+
+def test_capex_schedule_override_drives_l2_and_overrides_topdown():
+    """A bottom-up schedule fed to the engine sets L2_transition_capex and marks the source."""
+    from engine.transition.lever_planner import default_lever_plan, build_capex_schedule
+    a = _co("steel", region="DEU", rev=6e9, s1=8e6, s2=1e6, s3=3e6, repl=5e9)
+    rows = default_lever_plan("steel", 9e6, 3e6, 0.0, 4_000e6, 0.9, DEFAULT_HORIZON, target_year=2045)
+    sched = build_capex_schedule(rows, DEFAULT_HORIZON)
+    r = run_asset_transition(a, "net_zero_2050", capex_schedule_override=sched)
+    l2 = sum(r.layer_breakdown["L2_transition_capex"].values())
+    assert abs(l2 - sum(sched.values())) < 1.0
+    assert r.strategy.capex_source == "lever-plan"
+
+
+def test_editing_lever_capex_changes_the_build():
+    """Raising one lever's forward capex raises the aggregated schedule (editability)."""
+    from engine.transition.lever_planner import default_lever_plan, build_capex_schedule
+    rows = default_lever_plan("steel", 9e6, 3e6, 0.0, 4_000e6, 0.9, DEFAULT_HORIZON, target_year=2045)
+    before = sum(build_capex_schedule(rows, DEFAULT_HORIZON).values())
+    rows[0].capex_usd += 1_000e6
+    after = sum(build_capex_schedule(rows, DEFAULT_HORIZON).values())
+    assert abs(after - before - 1_000e6) < 1.0

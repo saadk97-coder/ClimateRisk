@@ -152,6 +152,7 @@ def run_asset_transition(
     positioning_override: Optional[float] = None,
     plan_coverage: Optional[float] = None,
     transition_capex_override: Optional[float] = None,
+    capex_schedule_override: Optional[Dict[int, float]] = None,
 ) -> TransitionAssetResult:
     """
     Compute a full transition risk timeline for one asset under one scenario.
@@ -214,6 +215,7 @@ def run_asset_transition(
             transition_capex_override=(transition_capex_override
                                        if transition_capex_override is not None
                                        else getattr(asset, "transition_capex_usd", 0.0) or None),
+            capex_schedule_override=capex_schedule_override,
         )
 
     # ── Layer 1 ────────────────────────────────────────────────────────────
@@ -509,6 +511,7 @@ def run_portfolio_transition(
     adaptive: bool = True,
     ambition_override: Optional[float] = None,
     plan_coverage_by_asset: Optional[Dict[str, float]] = None,
+    capex_schedule_by_asset: Optional[Dict[str, Dict[int, float]]] = None,
 ) -> Dict[str, List[TransitionAssetResult]]:
     """
     Run all assets × scenarios. Returns {scenario_id: [TransitionAssetResult, ...]}.
@@ -551,6 +554,7 @@ def run_portfolio_transition(
                 adaptive=adaptive,
                 ambition_override=ambition_override,
                 plan_coverage=(plan_coverage_by_asset or {}).get(a.id),
+                capex_schedule_override=(capex_schedule_by_asset or {}).get(a.id),
             )
             out[sc].append(r)
     return out

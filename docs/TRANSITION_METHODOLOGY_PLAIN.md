@@ -234,6 +234,14 @@ The tool doesn't stop at "here's the cost." It also helps answer *what to do*:
   where they sit in the value chain (your suppliers / your operations / your customers), with
   a "just transition" note on nature-and-people impacts. Overlay a company's actual plan to
   see which core levers are missing. This is a **structured reference**, not a score.
+- **Lever-level capital plan** — a bottom-up build of the transition capex. For each lever the
+  company is exposed to, the tool shows its **current adoption**, a **target**, the **abatement**
+  it can address, and the **forward capex** to close the gap. Those per-lever costs *add up* to the
+  transition capex instead of a single top-down number. It's seeded from the model's estimate and
+  then **fully editable** — adoption, cost, and the year-by-year **capital-planning** phasing —
+  and the edited build flows straight into the cost model when you apply it. This is how "what
+  would it cost us to actually do this" becomes a first-class, editable input rather than an
+  assumption.
 - **Disclosure export** — a report structured against **IFRS S2** and **ESRS E1**, the two
   main climate-disclosure standards. (The experimental supply-chain "contagion" amplifier is
   deliberately excluded from this export.)

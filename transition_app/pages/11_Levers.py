@@ -17,6 +17,7 @@ import pandas as pd  # noqa: E402
 import streamlit as st  # noqa: E402
 
 from engine.transition import levers as LV  # noqa: E402
+from engine.transition import lever_planner as LP  # noqa: E402
 
 st.set_page_config(page_title="Levers · " + T.APP_TITLE, page_icon="🧭", layout="wide")
 T.init_state()
@@ -61,7 +62,8 @@ def _lever_card(sl: LV.SectorLever, key_prefix: str, checked: bool) -> bool:
     return in_plan
 
 
-tab_entity, tab_library = st.tabs(["🏭 Entity lever map", "📚 Full library"])
+tab_entity, tab_capital, tab_library = st.tabs(
+    ["🏭 Entity lever map", "💰 Capital plan", "📚 Full library"])
 
 # ===========================================================================
 # TAB 1 — per-entity lever map + plan overlay
@@ -153,7 +155,170 @@ with tab_entity:
     )
 
 # ===========================================================================
-# TAB 2 — full library reference
+# TAB 2 — Capital plan (editable per-lever adoption + forward capex build)
+# ===========================================================================
+with tab_capital:
+    active = T.portfolio_gate()
+    st.session_state.setdefault("tr_lever_plan", {})       # {eid: [row dict, ...]}
+    st.session_state.setdefault("tr_capex_schedule", {})   # {eid: {year: USD}} applied to engine
+
+    labels = {a.id: f"{a.name} · {T.sector_label(a.sector)}" for a in active}
+    ceid = st.selectbox("Entity", [a.id for a in active], format_func=lambda i: labels[i],
+                        key="cap_entity")
+    cent = next(a for a in active if a.id == ceid)
+    csector = cent.sector
+    cmapped = LV.sector_levers(csector)
+    if not cmapped:
+        st.warning(f"No levers mapped for sector '{csector}' — nothing to plan.")
+        st.stop()
+
+    scenarios_all = T.scenario_options()
+    plan_sc = st.selectbox("Planning scenario (sets ambition / target adoption)", scenarios_all,
+                           index=scenarios_all.index("net_zero_2050") if "net_zero_2050" in scenarios_all else 0,
+                           format_func=T.scenario_label, key="cap_scenario")
+
+    st.markdown(
+        "Each lever the entity is exposed to, with its **current adoption**, a **target**, the "
+        "**abatement** it can address, and the **forward capex** to close the gap. The forward "
+        "capex is seeded by decomposing the model's top-down transition-capex estimate — then "
+        "**edit any cell**, including the capital-planning start/end years. The bottom-up total "
+        "and its phasing feed the engine's transition capex when you apply the plan."
+    )
+
+    fx = T.fx_to_usd()
+    _sym = T.sym()
+
+    # --- seed (or reload a saved plan) ------------------------------------
+    from engine.transition.adaptive_capacity import build_strategy as _bs
+    from engine.transition.data_loader import get_ngfs_region as _gnr
+
+    def _seed_rows():
+        strat = _bs(asset_id=cent.id, sector=csector, scenario_id=plan_sc,
+                    region_band=_gnr(cent.region),
+                    scope12_tco2=cent.scope1_emissions_tco2 + cent.scope2_emissions_tco2,
+                    revenue_usd=cent.annual_revenue, replacement_value=cent.replacement_value,
+                    horizon=list(T.DEFAULT_HORIZON),
+                    target_year=getattr(cent, "decarb_target_year", 0),
+                    residual_pct=getattr(cent, "decarb_residual_pct", 0.0),
+                    positioning_override=(cent.positioning_override
+                                          if cent.positioning_override >= 0 else None))
+        in_plan = st.session_state.get("tr_plan_levers", {}).get(ceid, [])
+        return LP.default_lever_plan(
+            csector, cent.scope1_emissions_tco2 + cent.scope2_emissions_tco2,
+            cent.scope3_emissions_tco2, getattr(cent, "scope3_use_phase_tco2", 0.0),
+            strat.transition_capex_usd, strat.ambition, list(T.DEFAULT_HORIZON),
+            in_plan_lever_ids=in_plan, target_year=getattr(cent, "decarb_target_year", 0)), \
+            strat.transition_capex_usd
+
+    reseed = st.button("↻ Re-seed from model estimate", key="cap_reseed",
+                       help="Discard edits and re-decompose the top-down estimate.")
+    saved = st.session_state["tr_lever_plan"].get(ceid)
+    if saved and not reseed:
+        rows = [LP.LeverPlanRow(**d) for d in saved]
+        _, topdown = _seed_rows()
+    else:
+        rows, topdown = _seed_rows()
+
+    # --- editable table ---------------------------------------------------
+    df = pd.DataFrame([{
+        "Lever": r.name,
+        "Stage": {"own_operations": "Own ops", "upstream": "Upstream",
+                  "downstream": "Downstream"}.get(r.position, r.position),
+        "MAC $/t": r.mac_label(),
+        "Addressable (kt/yr)": round(r.addressable_tco2 / 1e3, 1),
+        "Adoption now %": round(r.adoption_now * 100),
+        "Target %": round(r.adoption_target * 100),
+        f"Forward capex ({_sym}M)": round(r.capex_usd / fx / 1e6, 2),
+        f"Opex ({_sym}M/yr)": round(r.opex_usd_per_year / fx / 1e6, 3),
+        "Start": int(r.start_year),
+        "End": int(r.end_year),
+    } for r in rows])
+
+    edited = st.data_editor(
+        df, use_container_width=True, hide_index=True, num_rows="fixed", key=f"cap_ed_{ceid}",
+        column_config={
+            "Lever": st.column_config.TextColumn(disabled=True, width="medium"),
+            "Stage": st.column_config.TextColumn(disabled=True, width="small"),
+            "MAC $/t": st.column_config.TextColumn(disabled=True, width="small",
+                        help="Reference marginal abatement cost range from the lever library."),
+            "Addressable (kt/yr)": st.column_config.NumberColumn(disabled=True, format="%.1f",
+                        help="Annual tCO₂ this lever can address for this entity (potential × emissions base)."),
+            "Adoption now %": st.column_config.NumberColumn(min_value=0, max_value=100, step=5, format="%d"),
+            "Target %": st.column_config.NumberColumn(min_value=0, max_value=100, step=5, format="%d"),
+            f"Forward capex ({_sym}M)": st.column_config.NumberColumn(min_value=0.0, format="%.2f"),
+            f"Opex ({_sym}M/yr)": st.column_config.NumberColumn(min_value=0.0, format="%.3f"),
+            "Start": st.column_config.NumberColumn(min_value=2025, max_value=2050, step=1, format="%d"),
+            "End": st.column_config.NumberColumn(min_value=2025, max_value=2050, step=1, format="%d"),
+        },
+    )
+
+    # --- reconstruct edited rows (row order fixed → align by index) --------
+    new_rows = []
+    for r, (_, e) in zip(rows, edited.iterrows()):
+        new_rows.append(LP.LeverPlanRow(
+            lever_id=r.lever_id, name=r.name, domain_label=r.domain_label,
+            position=r.position, relevance=r.relevance, mac_low=r.mac_low, mac_high=r.mac_high,
+            addressable_tco2=r.addressable_tco2,
+            adoption_now=float(e["Adoption now %"]) / 100.0,
+            adoption_target=float(e["Target %"]) / 100.0,
+            capex_usd=float(e[f"Forward capex ({_sym}M)"]) * 1e6 * fx,
+            opex_usd_per_year=float(e[f"Opex ({_sym}M/yr)"]) * 1e6 * fx,
+            start_year=int(e["Start"]), end_year=int(e["End"]),
+        ))
+    st.session_state["tr_lever_plan"][ceid] = [r.__dict__ for r in new_rows]
+
+    sched = LP.build_capex_schedule(new_rows, list(T.DEFAULT_HORIZON))
+    bottom_up = LP.plan_total_capex(new_rows)
+    tot_opex = LP.plan_total_opex(new_rows)
+    tot_abate = LP.plan_total_abatement(new_rows)
+
+    k1, k2, k3, k4 = st.columns(4)
+    k1.metric("Bottom-up capex", T.fmt_money(bottom_up))
+    k2.metric("Model top-down est.", T.fmt_money(topdown),
+              delta=f"{(bottom_up-topdown)/fx/1e6:+,.0f}M", delta_color="off")
+    k3.metric(f"Ongoing opex ({_sym}/yr)", f"{_sym}{tot_opex/fx/1e6:,.1f}M")
+    k4.metric("Abatement @target", f"{tot_abate/1e6:,.2f} MtCO₂/yr")
+
+    # --- phasing chart ----------------------------------------------------
+    import plotly.express as px  # noqa: E402
+    ph = pd.DataFrame({"Year": list(sched.keys()),
+                       f"Capex ({_sym}M)": [v / fx / 1e6 for v in sched.values()]})
+    fig = px.bar(ph, x="Year", y=f"Capex ({_sym}M)", title="Bottom-up transition-capex phasing")
+    fig.update_layout(height=300, margin=dict(t=44, b=8))
+    st.plotly_chart(fig, use_container_width=True)
+
+    # --- apply / clear ----------------------------------------------------
+    applied = ceid in st.session_state["tr_capex_schedule"]
+    ca, cb, cc = st.columns([2, 2, 3])
+    with ca:
+        if st.button("✅ Apply this plan to the model", key="cap_apply", type="primary"):
+            st.session_state["tr_capex_schedule"][ceid] = sched
+            st.success("Applied — Results now uses this bottom-up capex build for this entity.")
+    with cb:
+        if st.button("✖ Remove applied plan", key="cap_clear", disabled=not applied):
+            st.session_state["tr_capex_schedule"].pop(ceid, None)
+            st.info("Reverted to the model's top-down capex estimate.")
+    with cc:
+        if applied:
+            st.caption("🟢 **Applied** — this entity's transition capex = the bottom-up lever build above.")
+        else:
+            st.caption("Not yet applied — the model still uses its top-down estimate for this entity.")
+
+    st.download_button(
+        "⬇ Download capital plan (CSV)",
+        edited.assign(entity=cent.name, sector=T.sector_label(csector),
+                      scenario=plan_sc).to_csv(index=False).encode("utf-8"),
+        file_name=f"capital_plan_{ceid}.csv", mime="text/csv",
+    )
+    st.caption(
+        "Forward capex seeds by decomposing the model's calibrated top-down estimate across levers "
+        "(weighted by adoption-gap × addressable abatement × relevance), so the aggregate is "
+        "unchanged until you edit it. Addressable abatement is a per-lever potential, not additive "
+        "across overlapping levers. Screening-grade planning aid — not an optimiser."
+    )
+
+# ===========================================================================
+# TAB 3 — full library reference
 # ===========================================================================
 with tab_library:
     st.markdown(
